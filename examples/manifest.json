@@ -1,0 +1,34 @@
+{
+  "example_sets": [
+    {
+      "folder": "17_maxquant_top5",
+      "title": "MaxQuant top-5",
+      "source_engine": "maxquant",
+      "summary_csv": "examples/17_maxquant_top5/top5_summary.csv"
+    },
+    {
+      "folder": "18_fragpipe_top5",
+      "title": "FragPipe top-5",
+      "source_engine": "fragpipe",
+      "summary_csv": "examples/18_fragpipe_top5/top5_summary.csv"
+    },
+    {
+      "folder": "19_proteome_discoverer_top5",
+      "title": "Proteome Discoverer top-5",
+      "source_engine": "proteome_discoverer",
+      "summary_csv": "examples/19_proteome_discoverer_top5/top5_summary.csv"
+    },
+    {
+      "folder": "22_hela_instanovo_top5",
+      "title": "HeLa InstaNovo-style top-5",
+      "source_engine": "instanovo",
+      "summary_csv": "examples/22_hela_instanovo_top5/top5_summary.csv"
+    },
+    {
+      "folder": "23_sbrodae_casanovo_top5",
+      "title": "Sbrodae Casanovo top-5",
+      "source_engine": "casanovo",
+      "summary_csv": "examples/23_sbrodae_casanovo_top5/top5_summary.csv"
+    }
+  ]
+}

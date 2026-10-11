@@ -1,0 +1,47 @@
+{
+  "batch_id": "score_20260429_161622_5f93f2fc",
+  "prediction_manifest_path": "examples/14_scored_batch_demo/mock_batch_prediction_manifest.json",
+  "spectra_path": "examples/14_scored_batch_demo/mock_spectra.feather",
+  "candidate_rows_requested": 1,
+  "rows_scored": 1,
+  "rows_failed": 0,
+  "batch_seconds": 0.11702990531921387,
+  "metric_groups": {
+    "match_quality": [
+      "spectral_angle",
+      "cosine_similarity",
+      "pearson_correlation",
+      "xcorr",
+      "log10_xcorr",
+      "log2_xcorr",
+      "hyperscore",
+      "log2_hyperscore"
+    ],
+    "predicted_match_evidence": [
+      "matched_ion_count",
+      "total_predicted_ions",
+      "matched_ion_fraction",
+      "explained_intensity_fraction"
+    ],
+    "observed_annotation_evidence": [
+      "precursor_signal_fraction",
+      "annotated_peak_count",
+      "ion_type_counts",
+      "annotated_intensity_fraction"
+    ],
+    "mass_error": [
+      "fragment_mass_error_mean_ppm",
+      "fragment_mass_error_abs_mean_ppm",
+      "fragment_mass_error_mean_da",
+      "fragment_mass_error_abs_mean_da",
+      "precursor_mass_error_ppm",
+      "precursor_mass_error_da"
+    ]
+  },
+  "output_files": {
+    "scored_csv": "examples/14_scored_batch_demo/mock_batch_scored.csv",
+    "failures_csv": "examples/14_scored_batch_demo/mock_batch_scoring_failures.csv",
+    "log_jsonl": "examples/14_scored_batch_demo/mock_batch_scoring_log.jsonl",
+    "manifest_json": "examples/14_scored_batch_demo/mock_batch_scoring_manifest.json"
+  }
+}

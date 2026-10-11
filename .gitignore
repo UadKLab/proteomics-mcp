@@ -1,0 +1,27 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+build/
+dist/
+site/
+.tmp_results_codex.csv
+.tmp_runs_codex/
+proteomics_mcp_review.md
+
+# Generated local outputs can be recreated from examples and tests.
+*.log
+
+# Local mzML/results/raw/reference fixtures used for manual testing should remain local.
+data/
+
+# Built DXT/MCPB extension bundles.
+*.dxt
+*.mcpb
+
+# Local presentation/slide assets not intended for distribution.
+presentation/

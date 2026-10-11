@@ -1,0 +1,22 @@
+site_name: Proteomics MCP
+site_description: Spectrum-level proteomics inspection, scoring, and visualization through MCP
+site_url: https://uadklab.github.io/proteomics-mcp/
+repo_url: https://github.com/UadKLab/proteomics-mcp
+repo_name: UadKLab/proteomics-mcp
+theme:
+  name: readthedocs
+nav:
+  - Overview: index.md
+  - Reference: reference.md
+  - Prompt examples:
+      - Workflow overview: prompt_examples/00_overview.md
+      - Table inspection: prompt_examples/01_table_inspection.md
+      - Spectrum-level analysis: prompt_examples/02_spectrum_level.md
+      - Batch prediction and scoring: prompt_examples/03_batch_prediction_and_scoring.md
+      - Dataset aggregation: prompt_examples/04_dataset_aggregation.md
+      - SDRF and metadata: prompt_examples/05_sdrf_and_metadata.md
+      - Conversion and export: prompt_examples/06_conversion_and_export.md
+      - Rendering and dashboards: prompt_examples/07_rendering_and_dashboards.md
+      - Troubleshooting: prompt_examples/08_troubleshooting.md
+  - Privacy: https://github.com/UadKLab/proteomics-mcp/blob/main/PRIVACY.md
+  - Source code: https://github.com/UadKLab/proteomics-mcp

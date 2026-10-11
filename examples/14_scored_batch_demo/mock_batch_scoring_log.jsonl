@@ -1,0 +1,1 @@
+{"batch_id": "score_20260429_161622_5f93f2fc", "candidate_id": "pred_batch:0", "completed": 1, "elapsed_seconds": 0.11470699310302734, "event": "scoring_completed", "matched_ion_count": 5, "prediction_id": "pred:21bbf12cf344dc78", "spectral_angle": 0.7062475838584072, "status": "ok", "timestamp": "2026-04-29T14:16:22Z", "total": 1}

@@ -1,0 +1,5 @@
+include PRIVACY.md
+include CITATION.cff
+include manifest.json
+include mkdocs.yml
+graft docs

@@ -1,0 +1,2 @@
+prediction_id,peptidoform,stripped_sequence,precursor_charge,predictor_backend,predictor_name,predictor_version,requested_model,resolved_model,max_fragment_charge,fragment_charge_rule,available_fragment_charges,fragment_count,prediction_status,prediction_seconds
+pred:21bbf12cf344dc78,PEPTIDE,PEPTIDE,2,mock,mock,1.0,HCD,mock,,,,12,ok,2.9087066650390625e-05

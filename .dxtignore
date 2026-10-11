@@ -1,0 +1,45 @@
+# Files excluded from the packed .dxt extension.
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Python build / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+site/
+mkdocs.yml
+.eggs/
+
+# Test / coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+tests/
+
+# Local virtualenv (bundled via uv at install time, not shipped)
+.venv/
+venv/
+env/
+
+# Large project assets that should not ship with the extension
+data/
+docs/
+examples/
+presentation/
+
+# Build artifacts of this extension
+*.dxt
+*.mcpb

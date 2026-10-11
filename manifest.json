@@ -1,0 +1,132 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
+  "manifest_version": "0.4",
+  "name": "proteomics-mcp",
+  "display_name": "Proteomics MCP",
+  "version": "0.1.8",
+  "description": "Spectrum-level proteomics scoring tools exposed through MCP",
+  "long_description": "Inspect proteomics identification results and MS2 spectra on your computer. Supports InstaNovo, Casanovo, MaxQuant, FragPipe, Proteome Discoverer, and mapped tables; optional public services provide USI retrieval and Koina predictions.",
+  "author": {
+    "name": "UadKLab",
+    "url": "https://github.com/UadKLab"
+  },
+  "homepage": "https://github.com/UadKLab/proteomics-mcp",
+  "documentation": "https://uadklab.github.io/proteomics-mcp/",
+  "support": "https://github.com/UadKLab/proteomics-mcp/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/UadKLab/proteomics-mcp.git"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "privacy_policies": [
+    "https://github.com/UadKLab/proteomics-mcp/blob/main/PRIVACY.md",
+    "https://www.embl.org/info/privacy-policy/",
+    "https://plotly.com/privacy/"
+  ],
+  "keywords": [
+    "proteomics",
+    "mass-spectrometry",
+    "psm",
+    "ms2pip",
+    "instanovo",
+    "fragpipe",
+    "spectrum",
+    "mcp"
+  ],
+  "user_config": {
+    "output_dir": {
+      "type": "directory",
+      "title": "Default output directory",
+      "description": "Base directory for rendered HTML reports, Feather files, and other artifacts. Any tool that receives a relative output path will write under this directory. Absolute paths are unaffected.",
+      "required": false,
+      "default": "${DOCUMENTS}/proteomics-mcp"
+    },
+    "log_level": {
+      "type": "string",
+      "title": "Log level",
+      "description": "Server log verbosity (DEBUG, INFO, WARNING, ERROR).",
+      "required": false,
+      "default": "INFO"
+    }
+  },
+  "server": {
+    "type": "uv",
+    "entry_point": "extension_server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "--no-dev",
+        "extension_server.py"
+      ],
+      "env": {
+        "PROTEOMICS_MCP_OUTPUT_DIR": "${user_config.output_dir}",
+        "PROTEOMICS_MCP_LOG_LEVEL": "${user_config.log_level}",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  },
+  "tools": [
+    { "name": "load_candidates", "description": "Load candidate/PSM tables from InstaNovo, FragPipe, Proteome Discoverer, or generic mapped tables." },
+    { "name": "inspect_psm_table", "description": "Inspect a normalized PSM table." },
+    { "name": "inspect_peptide_table", "description": "Inspect a collapsed peptide table." },
+    { "name": "render_psm_table", "description": "Render a PSM table as HTML." },
+    { "name": "render_peptide_table", "description": "Render a peptide table as HTML." },
+    { "name": "get_peptide_summary", "description": "Summary stats for a peptide." },
+    { "name": "get_peptidoform_summary", "description": "Summary stats for a peptidoform." },
+    { "name": "load_sdrf", "description": "Load SDRF-Proteomics metadata from a local TSV." },
+    { "name": "retrieve_pride_sdrf", "description": "Retrieve SDRF metadata from PRIDE." },
+    { "name": "mzml_to_feather", "description": "Convert an mzML file to Feather format." },
+    { "name": "mgf_to_feather", "description": "Convert an MGF file to Feather format." },
+    { "name": "bruker_d_to_feather", "description": "Convert Bruker timsTOF data to Feather format." },
+    { "name": "export_to_instanovo", "description": "Export spectra in an InstaNovo-compatible format." },
+    { "name": "retrieve_usi_spectrum", "description": "Retrieve a spectrum by USI." },
+    { "name": "predict_fragments", "description": "Predict fragment ions with MS2PIP." },
+    { "name": "describe_predictor_model", "description": "Inspect model metadata before a remote Koina prediction." },
+    { "name": "build_prediction_batch", "description": "Build a batch of fragment predictions." },
+    { "name": "inspect_prediction_batch", "description": "Inspect a fragment prediction batch." },
+    { "name": "inspect_prediction_batch_status", "description": "Inspect the current status of a prediction batch." },
+    { "name": "score_candidates", "description": "Score candidate PSMs against spectra." },
+    { "name": "score_spectrum", "description": "Score a single peptide against a spectrum." },
+    { "name": "score_from_prediction_batch", "description": "Score using a precomputed prediction batch." },
+    { "name": "inspect_scored_batch", "description": "Inspect a scored PSM batch." },
+    { "name": "inspect_scored_batch_status", "description": "Inspect the current status of a scored batch." },
+    { "name": "annotate_observed_spectrum", "description": "Annotate an observed spectrum with matched ions." },
+    { "name": "render_observed_spectrum", "description": "Render an observed spectrum as HTML." },
+    { "name": "render_annotated_observed_spectrum", "description": "Render an annotated observed spectrum as HTML." },
+    { "name": "render_spectrum_comparison", "description": "Render a predicted-vs-observed spectrum comparison." },
+    { "name": "render_spectra_batch", "description": "Render a batch of spectra." },
+    { "name": "render_static_spectrum", "description": "Render a static spectrum figure." },
+    { "name": "build_id_dashboard", "description": "Build an identification dashboard." },
+    { "name": "render_dashboard_html", "description": "Render the dashboard as HTML." },
+    { "name": "summarize_dashboard", "description": "Summarize dashboard contents." },
+    { "name": "render_dataset_report", "description": "Render a dataset-level report." },
+    { "name": "render_summary_html", "description": "Render a summary HTML page." },
+    { "name": "render_prediction_accuracy_html", "description": "Render prediction accuracy as HTML." },
+    { "name": "summarize_prediction_accuracy", "description": "Summarize prediction accuracy." },
+    { "name": "summarize_dataset", "description": "Summarize a dataset." },
+    { "name": "list_dataset_groups", "description": "List dataset groupings." },
+    { "name": "list_distribution_fields", "description": "List fields available for distribution summaries." },
+    { "name": "summarize_numeric_field", "description": "Summarize a numeric field." },
+    { "name": "summarize_categorical_field", "description": "Summarize a categorical field." },
+    { "name": "summarize_modifications", "description": "Summarize peptide modifications." },
+    { "name": "summarize_missing_values", "description": "Summarize missing values across fields." },
+    { "name": "summarize_file_coverage", "description": "Summarize file/run coverage." },
+    { "name": "summarize_overlap", "description": "Summarize overlap between groups." },
+    { "name": "summarize_cv_by_category", "description": "Summarize CV by category." },
+    { "name": "summarize_score_metrics", "description": "Summarize score metrics." },
+    { "name": "summarize_quant_quality", "description": "Summarize quantitative quality." },
+    { "name": "bin_numeric_field", "description": "Bin a numeric field." },
+    { "name": "bin_2d_numeric_fields", "description": "Bin two numeric fields in 2D." }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proteomics-mcp"
+version = "0.1.8"
+description = "Spectrum-level proteomics scoring tools exposed through CLI and MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "UadKLab"}]
+keywords = ["proteomics", "mass spectrometry", "MCP", "MS2", "peptide-spectrum matches"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2",
+  "pyarrow>=15",
+  "pydantic>=2",
+  "typer>=0.12",
+  "mcp>=2,<3",
+  "ms2pip>=4.1",
+  "pyopenms>=3.3",
+  "pyteomics>=4.7",
+  "spectrum-utils>=0.4",
+  "plotly>=5",
+  "matplotlib>=3.8",
+  "seaborn>=0.13",
+  "openpyxl>=3.1.5",
+  "alphatims>=1.1.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/UadKLab/proteomics-mcp"
+Repository = "https://github.com/UadKLab/proteomics-mcp"
+Issues = "https://github.com/UadKLab/proteomics-mcp/issues"
+Documentation = "https://uadklab.github.io/proteomics-mcp/"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+proteomics-mcp = "proteomics_mcp.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

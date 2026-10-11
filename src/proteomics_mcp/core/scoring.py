@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+import math
+
+import numpy as np
+
+from proteomics_mcp.core.acquisition import acquisition_metadata_summary, precursor_target_mz
+from proteomics_mcp.core.annotation import aa_sequence_from_proforma, annotate_observed_ions
+from proteomics_mcp.core.metrics import cosine_similarity, hyperscore, mean, pearson_correlation, spectral_angle, xcorr_like
+from proteomics_mcp.models.schemas import CandidatePSM, MatchedPeak, ObservedSpectrum, PredictedFragment, PredictedSpectrum, SpectrumMetricResult
+
+NEUTRON_MASS = 1.00335484
+
+
+def ppm_error(observed_mz: float, predicted_mz: float) -> float:
+    return ((observed_mz - predicted_mz) / predicted_mz) * 1e6
+
+
+def match_predicted_to_observed(
+    observed: ObservedSpectrum,
+    predicted_fragments: list[PredictedFragment],
+    *,
+    tolerance: float = 0.05,
+    tolerance_unit: str = "Da",
+) -> list[MatchedPeak]:
+    observed_mz = np.asarray(observed.mz, dtype=float)
+    observed_intensity = np.asarray(observed.intensity, dtype=float)
+    order = np.argsort(observed_mz, kind="stable")
+    sorted_mz = observed_mz[order]
+    matches: list[MatchedPeak] = []
+    for pred_idx, fragment in enumerate(predicted_fragments):
+        window = tolerance if tolerance_unit == "Da" else abs(fragment.mz) * tolerance / 1e6
+        left = int(np.searchsorted(sorted_mz, fragment.mz - window, side="left"))
+        right = int(np.searchsorted(sorted_mz, fragment.mz + window, side="right"))
+        best_idx: int | None = None
+        best_abs_error: float | None = None
+        best_intensity: float | None = None
+        for obs_idx in order[left:right]:
+            obs_idx = int(obs_idx)
+            obs_mz_value = float(observed_mz[obs_idx])
+            err = ppm_error(obs_mz_value, fragment.mz) if tolerance_unit == "ppm" else obs_mz_value - fragment.mz
+            abs_err = abs(err)
+            if abs_err <= tolerance:
+                intensity = float(observed_intensity[obs_idx])
+                better = (
+                    best_idx is None
+                    or abs_err < float(best_abs_error)
+                    or (abs_err == best_abs_error and intensity > float(best_intensity))
+                    or (abs_err == best_abs_error and intensity == best_intensity and obs_mz_value < float(observed_mz[best_idx]))
+                )
+                if better:
+                    best_idx = obs_idx
+                    best_abs_error = abs_err
+                    best_intensity = intensity
+        if best_idx is not None:
+            obs_mz_value = float(observed_mz[best_idx])
+            err = ppm_error(obs_mz_value, fragment.mz) if tolerance_unit == "ppm" else obs_mz_value - fragment.mz
+            matches.append(
+                MatchedPeak(
+                    annotation=fragment.annotation,
+                    predicted_mz=fragment.mz,
+                    observed_mz=obs_mz_value,
+                    mz_error=err,
+                    mz_error_unit=tolerance_unit,
+                    predicted_intensity=fragment.intensity,
+                    observed_intensity=float(observed_intensity[best_idx]),
+                    ion_type=fragment.ion_type,
+                    ordinal=fragment.ordinal,
+                    fragment_charge=fragment.charge,
+                    observed_index=best_idx,
+                    predicted_index=pred_idx,
+                )
+            )
+    return matches
+
+
+def _precursor_signal_fraction(observed: ObservedSpectrum) -> float | None:
+    if observed.precursor_mz is None or not observed.intensity:
+        return None
+    total = sum(observed.intensity)
+    if total <= 0:
+        return None
+    precursor_sum = sum(i for mz, i in zip(observed.mz, observed.intensity) if abs(mz - float(observed.precursor_mz)) <= 1.5)
+    return precursor_sum / total
+
+
+def _isotope_intensity(observed: ObservedSpectrum, matches: list[MatchedPeak], tolerance: float) -> float:
+    matched_indices = {m.observed_index for m in matches if m.observed_index is not None}
+    observed_mz = np.asarray(observed.mz, dtype=float)
+    order = np.argsort(observed_mz, kind="stable")
+    sorted_mz = observed_mz[order]
+    claimed: set[int] = set()
+    extra = 0.0
+    for match in matches:
+        target_mz = match.predicted_mz + NEUTRON_MASS / max(match.fragment_charge, 1)
+        best_idx = None
+        best_delta = float("inf")
+        left = int(np.searchsorted(sorted_mz, target_mz - tolerance, side="left"))
+        right = int(np.searchsorted(sorted_mz, target_mz + tolerance, side="right"))
+        for idx in order[left:right]:
+            idx = int(idx)
+            mz = float(observed_mz[idx])
+            if idx in matched_indices or idx in claimed:
+                continue
+            delta = abs(mz - target_mz)
+            if delta <= tolerance and delta < best_delta:
+                best_idx = idx
+                best_delta = delta
+        if best_idx is not None:
+            claimed.add(best_idx)
+            extra += observed.intensity[best_idx]
+    return extra
+
+
+def precursor_mass_errors(peptidoform: str, charge: int | None, observed_precursor_mz: float | None) -> tuple[float | None, float | None]:
+    if charge is None or charge <= 0 or observed_precursor_mz is None or not math.isfinite(observed_precursor_mz):
+        return None, None
+    seq = aa_sequence_from_proforma(peptidoform)
+    if seq is None:
+        return None, None
+    theoretical_mz = float(seq.getMZ(int(charge)))
+    if theoretical_mz == 0:
+        return None, None
+    error_da = observed_precursor_mz - theoretical_mz
+    error_ppm = error_da / theoretical_mz * 1e6
+    return error_ppm, error_da
+
+
+def score_candidate_spectrum(
+    *,
+    candidate: CandidatePSM,
+    observed: ObservedSpectrum,
+    predicted: PredictedSpectrum,
+    tolerance: float = 0.05,
+    tolerance_unit: str = "Da",
+    metric_profile: str = "legacy_v1",
+    annotation_ion_types: str = "by",
+    annotation_max_isotope: int = 1,
+    annotation_max_ion_charge: int | None = None,
+    annotation_neutral_losses: bool = False,
+    use_observed_annotation: bool = True,
+) -> SpectrumMetricResult:
+    matches = match_predicted_to_observed(observed, predicted.fragments, tolerance=tolerance, tolerance_unit=tolerance_unit)
+    matched_observed = [m.observed_intensity for m in matches]
+    matched_predicted = [m.predicted_intensity for m in matches]
+    predicted_mz = [f.mz for f in predicted.fragments]
+    predicted_int = [f.intensity for f in predicted.fragments]
+    xcorr = xcorr_like(observed.mz, observed.intensity, predicted_mz, predicted_int)
+    log10_xcorr = math.log10(xcorr) if xcorr is not None and xcorr > 0 else None
+    log2_xcorr = math.log2(xcorr) if xcorr is not None and xcorr > 0 else None
+    total_intensity = sum(observed.intensity)
+    matched_intensity = sum(matched_observed)
+    isotope_intensity = _isotope_intensity(observed, matches, tolerance) if tolerance_unit == "Da" else 0.0
+    explained = (matched_intensity + isotope_intensity) / total_intensity if total_intensity > 0 else None
+    ppm_errors = [ppm_error(m.observed_mz, m.predicted_mz) for m in matches if m.predicted_mz != 0]
+    da_errors = [m.observed_mz - m.predicted_mz for m in matches]
+    total_predicted = len(predicted.fragments)
+    charge = candidate.precursor_charge or observed.precursor_charge or predicted.precursor_charge
+    observed_precursor_mz = candidate.precursor_mz or precursor_target_mz(observed)
+    precursor_error_ppm, precursor_error_da = precursor_mass_errors(candidate.peptidoform, charge, observed_precursor_mz)
+    hyperscore_value = hyperscore(len(matches), matched_observed, matched_predicted)
+    log2_hyperscore = math.log2(hyperscore_value) if hyperscore_value is not None and hyperscore_value > 0 else None
+    annotation_summary: dict[str, object] = {"engine": "internal_predicted_fragment_matcher", "matched_predicted_fragment_count": len(matches)}
+    if use_observed_annotation:
+        try:
+            ion_annotation = annotate_observed_ions(
+                observed,
+                peptidoform=candidate.peptidoform,
+                tolerance=tolerance,
+                tolerance_unit=tolerance_unit,
+                ion_types=annotation_ion_types,
+                max_isotope=annotation_max_isotope,
+                max_ion_charge=annotation_max_ion_charge,
+                neutral_losses=annotation_neutral_losses,
+            )
+            annotation_summary.update(ion_annotation)
+        except Exception as exc:
+            annotation_summary.update({"engine": "proteomics_mcp_terminal_ion_annotator", "annotation_error": str(exc)})
+    return SpectrumMetricResult(
+        candidate=candidate,
+        spectral_angle=spectral_angle(matched_observed, matched_predicted),
+        cosine_similarity=cosine_similarity(matched_observed, matched_predicted),
+        pearson_correlation=pearson_correlation(matched_observed, matched_predicted),
+        xcorr=xcorr,
+        log10_xcorr=log10_xcorr,
+        log2_xcorr=log2_xcorr,
+        hyperscore=hyperscore_value,
+        log2_hyperscore=log2_hyperscore,
+        matched_ion_count=len(matches),
+        total_predicted_ions=total_predicted,
+        matched_ion_fraction=(len(matches) / total_predicted) if total_predicted else None,
+        explained_intensity_fraction=explained,
+        precursor_signal_fraction=_precursor_signal_fraction(observed),
+        fragment_mass_error_mean_ppm=mean(ppm_errors),
+        fragment_mass_error_abs_mean_ppm=mean(abs(v) for v in ppm_errors),
+        fragment_mass_error_mean_da=mean(da_errors),
+        fragment_mass_error_abs_mean_da=mean(abs(v) for v in da_errors),
+        precursor_mass_error_ppm=precursor_error_ppm,
+        precursor_mass_error_da=precursor_error_da,
+        matched_peaks=matches,
+        metric_profile=metric_profile,
+        predictor_metadata={"predictor_name": predicted.predictor_name, "predictor_version": predicted.predictor_version, "model": predicted.model},
+        annotation_settings={
+            "tolerance": tolerance,
+            "tolerance_unit": tolerance_unit,
+            "annotation_ion_types": annotation_ion_types,
+            "annotation_max_isotope": annotation_max_isotope,
+            "annotation_max_ion_charge": annotation_max_ion_charge,
+            "annotation_neutral_losses": annotation_neutral_losses,
+        },
+        annotation_summary=annotation_summary,
+        acquisition_provenance={"source": observed.source, **observed.metadata, "summary": acquisition_metadata_summary(observed, predicted)},
+    )

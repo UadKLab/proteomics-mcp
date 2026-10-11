@@ -1,0 +1,2 @@
+candidate_id,prediction_id,source_engine,run_key,experiment_name,scan_number,spectrum_id,peptidoform,stripped_sequence,precursor_charge
+pred_batch:0,pred:21bbf12cf344dc78,instanovo,runA,runA,10,,PEPTIDE,PEPTIDE,2

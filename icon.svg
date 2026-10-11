@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 512 512">
+  <!-- Generator: Adobe Illustrator 30.7.0, SVG Export Plug-In . SVG Version: 2.1.4 Build 114)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #3a5a7a;
+        font-family: CourierNewPSMT, 'Courier New';
+        font-size: 17.06px;
+      }
+
+      .st0, .st1, .st2, .st3, .st4, .st5, .st6 {
+        isolation: isolate;
+      }
+
+      .st1 {
+        fill: #7bb8ff;
+        font-size: 17.02px;
+      }
+
+      .st1, .st2, .st4, .st5 {
+        font-family: CourierNewPS-BoldMT, 'Courier New';
+        font-weight: 700;
+      }
+
+      .st7 {
+        fill: #1a2336;
+        stroke-width: .75px;
+      }
+
+      .st7, .st8 {
+        stroke: #2a3a52;
+      }
+
+      .st7, .st8, .st9 {
+        stroke-miterlimit: 3.01;
+      }
+
+      .st10 {
+        fill: #12151e;
+      }
+
+      .st11, .st3, .st5 {
+        fill: #ff6b6b;
+      }
+
+      .st2 {
+        fill: #c8d8f0;
+        font-size: 26.55px;
+        letter-spacing: .12em;
+      }
+
+      .st3, .st6 {
+        opacity: .28;
+      }
+
+      .st12, .st4, .st6 {
+        fill: #4ade80;
+      }
+
+      .st8 {
+        stroke-width: .9px;
+      }
+
+      .st8, .st9 {
+        fill: none;
+      }
+
+      .st4, .st5 {
+        font-size: 13.28px;
+      }
+
+      .st9 {
+        stroke: #1e2636;
+        stroke-width: 1.13px;
+      }
+
+      .st13 {
+        fill: #2e4060;
+      }
+    </style>
+  </defs>
+  <circle class="st10" cx="256" cy="256" r="233.41"/>
+  <circle class="st9" cx="256" cy="256" r="231.91"/>
+  <text class="st2" transform="translate(132.98 120.35)"><tspan x="0" y="0">P-E-P-T-I-D-E</tspan></text>
+  <line class="st8" x1="97.88" y1="271.06" x2="414.12" y2="271.06"/>
+  <line class="st8" x1="97.88" y1="143.06" x2="97.88" y2="399.06"/>
+  <rect class="st13" x="118.96" y="262.02" width="3.01" height="9.04"/>
+  <rect class="st13" x="167.15" y="260.52" width="3.01" height="10.54"/>
+  <rect class="st13" x="323.76" y="262.78" width="3.01" height="8.28"/>
+  <rect class="st13" x="376.47" y="261.27" width="3.01" height="9.79"/>
+  <rect class="st11" x="134.02" y="222.12" width="5.27" height="48.94"/>
+  <rect class="st11" x="194.26" y="192" width="5.27" height="79.06"/>
+  <rect class="st11" x="254.49" y="165.65" width="5.27" height="105.41"/>
+  <rect class="st11" x="344.85" y="207.06" width="5.27" height="64"/>
+  <rect class="st12" x="149.08" y="231.91" width="5.27" height="39.15"/>
+  <rect class="st12" x="231.91" y="201.79" width="5.27" height="69.27"/>
+  <rect class="st12" x="292.14" y="158.12" width="5.27" height="112.94"/>
+  <rect class="st12" x="382.49" y="186.73" width="5.27" height="84.33"/>
+  <text class="st5" transform="translate(128.33 217)"><tspan x="0" y="0">b2</tspan></text>
+  <text class="st5" transform="translate(188.57 186.88)"><tspan x="0" y="0">b3</tspan></text>
+  <text class="st5" transform="translate(248.8 160.53)"><tspan x="0" y="0">b4</tspan></text>
+  <text class="st5" transform="translate(339.16 201.94)"><tspan x="0" y="0">b5</tspan></text>
+  <text class="st4" transform="translate(143.37 226.78)"><tspan x="0" y="0">y2</tspan></text>
+  <text class="st4" transform="translate(226.2 196.67)"><tspan x="0" y="0">y3</tspan></text>
+  <text class="st4" transform="translate(286.43 153)"><tspan x="0" y="0">y4</tspan></text>
+  <text class="st4" transform="translate(376.79 181.61)"><tspan x="0" y="0">y5</tspan></text>
+  <rect class="st3" x="134.02" y="271.06" width="5.27" height="45.18"/>
+  <rect class="st3" x="194.26" y="271.06" width="5.27" height="75.29"/>
+  <rect class="st3" x="254.49" y="271.06" width="5.27" height="101.65"/>
+  <rect class="st3" x="344.85" y="271.06" width="5.27" height="58.73"/>
+  <rect class="st6" x="149.08" y="271.06" width="5.27" height="36.14"/>
+  <rect class="st6" x="231.91" y="271.06" width="5.27" height="66.26"/>
+  <rect class="st6" x="292.14" y="271.06" width="5.27" height="109.18"/>
+  <rect class="st6" x="382.49" y="271.06" width="5.27" height="79.06"/>
+  <rect class="st7" x="167.49" y="400.96" width="177.02" height="40.85" rx="6.02" ry="6.02"/>
+  <text class="st0" transform="translate(230.4 417.09)"><tspan x="0" y="0">score</tspan></text>
+  <text class="st1" transform="translate(235.57 433.87)"><tspan x="0" y="0">0.94</tspan></text>
+</svg>

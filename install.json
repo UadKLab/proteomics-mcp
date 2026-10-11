@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "proteomics-mcp": {
+      "command": "uv",
+      "args": ["run", "proteomics-mcp", "serve"],
+      "cwd": "/absolute/path/to/proteomics-mcp"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "batch_id": "pred_20260429_161622_37d71aae",
+  "input_path": "/tmp/pred_batch.csv",
+  "adapter": "instanovo",
+  "predictor_backend": "mock",
+  "requested_model": "HCD",
+  "requested_max_fragment_charge": null,
+  "top_n": null,
+  "candidates_read": 1,
+  "candidate_rows_considered": 1,
+  "candidate_rows_mappable": 1,
+  "unique_prediction_requests": 1,
+  "predictions_succeeded": 1,
+  "predictions_failed": 0,
+  "batch_seconds": 0.006769895553588867,
+  "output_files": {
+    "predictions_csv": "examples/14_scored_batch_demo/mock_batch_predictions.csv",
+    "fragments_csv": "examples/14_scored_batch_demo/mock_batch_prediction_fragments.csv",
+    "prediction_map_csv": "examples/14_scored_batch_demo/mock_batch_prediction_map.csv",
+    "failures_csv": "examples/14_scored_batch_demo/mock_batch_prediction_failures.csv",
+    "log_jsonl": "examples/14_scored_batch_demo/mock_batch_prediction_log.jsonl",
+    "manifest_json": "examples/14_scored_batch_demo/mock_batch_prediction_manifest.json"
+  }
+}

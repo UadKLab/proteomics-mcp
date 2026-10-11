@@ -1,0 +1,61 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Verify tag matches package version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          uv run --no-project --python 3.12 python -c 'import os, pathlib, tomllib; version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]; assert os.environ["TAG"] == f"v{version}", "Tag and package version differ"'
+
+      - name: Run tests
+        run: |
+          uv sync --all-extras
+          uv run pytest -q
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Validate Python distributions
+        run: uvx --from twine twine check dist/*
+
+      - name: Build Claude Desktop extension
+        run: npx --yes @anthropic-ai/mcpb@2.1.2 pack . dist/proteomics-mcp-${{ github.ref_name }}.mcpb
+
+      - name: Inspect extension
+        run: npx --yes @anthropic-ai/mcpb@2.1.2 info dist/proteomics-mcp-${{ github.ref_name }}.mcpb
+
+      - name: Upload build artifacts to workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.mcpb
+          body_path: docs/releases/${{ github.ref_name }}.md

@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use proteomics-mcp, please cite this software. A paper citation will be added when available."
+title: "proteomics-mcp"
+type: software
+authors:
+  - given-names: "Simon Nándor"
+    family-names: "Sugár"
+  - given-names: "Jeroen"
+    family-names: "van Goey"
+  - given-names: "Alexey"
+    family-names: "Nesterovich"
+  - given-names: "Isaac H.J."
+    family-names: "Houngue"
+  - given-names: "Marco"
+    family-names: "Reverenna"
+  - given-names: "Chiara"
+    family-names: "Francavilla"
+  - given-names: "Konstantinos"
+    family-names: "Kalogeropoulos"
+repository-code: "https://github.com/UadKLab/proteomics-mcp"
+url: "https://uadklab.github.io/proteomics-mcp/"
+version: "0.1.8"
+license: MIT
