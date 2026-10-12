@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import proteomics_mcp.server as server_module
+from proteomics_mcp import __version__
 from proteomics_mcp.cli import build_parser
 from proteomics_mcp.server import mcp
 from proteomics_mcp.resources.docs import SCHEMAS
@@ -62,6 +64,18 @@ def test_server_exposes_typed_mcp_surface_without_options_json():
     assert "options_json" not in server_source
     assert "method://tooling_surface_v1" in SCHEMAS
 
+
+
+def test_mcp_initialize_reports_package_version():
+    from mcp import Client
+
+    async def initialize():
+        async with Client(mcp) as client:
+            return client.server_info
+
+    server_info = asyncio.run(initialize())
+    assert server_info.name == "proteomics-mcp"
+    assert server_info.version == __version__
 
 def test_mcp_tools_have_directory_annotations():
     tools = {tool.name: tool for tool in mcp._tool_manager.list_tools()}
