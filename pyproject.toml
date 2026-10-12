@@ -37,7 +37,6 @@ dependencies = [
   "pandas>=2",
   "pyarrow>=15",
   "pydantic>=2",
-  "typer>=0.12",
   "mcp>=2,<3",
   "ms2pip>=4.1",
   "pyopenms>=3.3",
