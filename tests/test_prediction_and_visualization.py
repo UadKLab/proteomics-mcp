@@ -21,6 +21,7 @@ from proteomics_mcp.predictors.ms2pip import predict_fragments_ms2pip, predict_f
 from proteomics_mcp.tools.workflows import render_spectra_batch_tool
 
 
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_wrapper_requires_dependency_when_absent():
     try:
         import ms2pip  # noqa: F401
@@ -34,6 +35,7 @@ def test_ms2pip_wrapper_requires_dependency_when_absent():
 
 
 @pytest.mark.network
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_auto_uses_charge2_fragments_for_charge3_precursor():
     try:
         import ms2pip  # noqa: F401
@@ -49,6 +51,7 @@ def test_ms2pip_auto_uses_charge2_fragments_for_charge3_precursor():
 
 
 @pytest.mark.network
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_explicit_max_fragment_charge_filters_charge2_fragments():
     try:
         import ms2pip  # noqa: F401
@@ -63,6 +66,7 @@ def test_ms2pip_explicit_max_fragment_charge_filters_charge2_fragments():
 
 
 @pytest.mark.network
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_batch_wrapper_retains_request_order():
     try:
         import ms2pip  # noqa: F401
