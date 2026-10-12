@@ -6,6 +6,7 @@ Some tools contact third-party services when you invoke them or select a remote 
 
 - Koina predictions send peptide sequences or peptidoforms and prediction parameters, such as charge, collision energy, and model name, to the configured Koina endpoint. Koina may be configured to use a different server.
 - USI retrieval sends the requested USI to the selected public spectrum provider. PRIDE SDRF retrieval sends a project accession to EMBL-EBI.
+- Local MS2PIP downloads its model files once, on first use, from `genesis.ugent.be` (Ghent University), falling back to Zenodo. The request names only the model file; no peptide or spectrum data is sent. The files are cached in `~/.ms2pip`, and later predictions run offline.
 - Generated HTML reports load the Plotly JavaScript library from a public CDN when opened in a browser. The HTML data and plots remain in the local report, but loading the library makes a normal network request to the CDN.
 
 The server may cache Koina prediction responses in the operating system's temporary directory. Generated files and caches remain under your control and are not uploaded by Proteomics MCP. Remove them using your usual file-management tools when they are no longer needed.

@@ -26,16 +26,29 @@ The package does not run local InstaNovo inference, perform FDR/q-value analysis
 
 ## Quick Start
 
-Install the published Python package after the first PyPI release:
+Install from [PyPI](https://pypi.org/project/proteomics-mcp/):
 
 ```bash
 pip install proteomics-mcp
 proteomics-mcp --help
 ```
 
-For an MCP client, launch `proteomics-mcp serve` over stdio. To run without installing it into the current environment, use `uvx --from proteomics-mcp proteomics-mcp serve`.
+Or run it without installing it into the current environment, with [uv](https://docs.astral.sh/uv/):
 
-To develop from source:
+```bash
+uvx proteomics-mcp --help
+```
+
+For an MCP client, launch `proteomics-mcp serve` over stdio; see [Use With An Agent](https://github.com/UadKLab/proteomics-mcp#use-with-an-agent).
+
+### Requirements
+
+- Python 3.11, 3.12, 3.13 or 3.14 on Linux (x86-64), macOS or Windows (x86-64).
+- Linux: glibc 2.28 or newer; Python 3.13 and 3.14 need glibc 2.34 or newer (e.g. Ubuntu 22.04+, Debian 12+, RHEL 9+), because `pyopenms` publishes no older wheels for them.
+- macOS: Apple silicon needs macOS 14 or newer. Intel Macs need macOS 13 or newer and Python 3.11–3.13; `numba` publishes no Intel macOS wheels for Python 3.14.
+- macOS, for local MS2PIP prediction: install the OpenMP runtime with `brew install libomp`. Without it, MS2PIP tools report an error asking you to install it; everything else works.
+
+### Develop from source
 
 ```bash
 git clone https://github.com/UadKLab/proteomics-mcp.git
@@ -44,10 +57,12 @@ uv sync
 uv run pytest -q
 ```
 
+In a source checkout, prefix the commands below with `uv run`.
+
 Inspect an identification table before committing to prediction or scoring:
 
 ```bash
-uv run proteomics-mcp inspect-psm-table \
+proteomics-mcp inspect-psm-table \
   --path results.csv \
   --adapter instanovo
 ```
@@ -55,7 +70,7 @@ uv run proteomics-mcp inspect-psm-table \
 Then render a browseable peptide table:
 
 ```bash
-uv run proteomics-mcp render-peptide-table \
+proteomics-mcp render-peptide-table \
   --path results.csv \
   --adapter instanovo \
   --output-path peptide_table.html
@@ -63,10 +78,10 @@ uv run proteomics-mcp render-peptide-table \
 
 ## Predict And Score
 
-Use local MS2PIP by default. Repeated single-spectrum calls use a bounded in-process cache; reusable batch workflows use MS2PIP's native batch API. For a remote Prosit prediction through Koina:
+Use local MS2PIP by default. It runs on your computer, but downloads its model files once on first use (from `genesis.ugent.be`, with a Zenodo fallback) and caches them in `~/.ms2pip`; after that, predictions work offline. Repeated single-spectrum calls use a bounded in-process cache; reusable batch workflows use MS2PIP's native batch API. For a remote Prosit prediction through Koina:
 
 ```bash
-uv run proteomics-mcp predict-fragments \
+proteomics-mcp predict-fragments \
   --backend koina \
   --model Prosit_2020_intensity_HCD \
   --peptidoform 'PEPM[UNIMOD:35]TIDE' \
@@ -76,7 +91,7 @@ uv run proteomics-mcp predict-fragments \
 Inspect a new Koina model before a large batch:
 
 ```bash
-uv run proteomics-mcp describe-predictor-model \
+proteomics-mcp describe-predictor-model \
   --model Prosit_2020_intensity_HCD
 ```
 
@@ -85,6 +100,21 @@ uv run proteomics-mcp describe-predictor-model \
 An MCP-capable client launches `proteomics-mcp serve` over stdio and exposes the tools to an LLM. The server runs locally and reads your spectra and result tables from your computer. Optional tools contact external services; see the [privacy policy](https://github.com/UadKLab/proteomics-mcp/blob/main/PRIVACY.md).
 
 For Claude Desktop, install the `.mcpb` file attached to the latest [GitHub release](https://github.com/UadKLab/proteomics-mcp/releases). The extension installs its Python dependencies through the managed `uv` runtime. Select an output directory in the extension settings; local input paths must be accessible to Claude Desktop.
+
+For other MCP clients, run the package from PyPI with `uvx`. Pin a version, such as `proteomics-mcp==0.1.9`, for reproducible results:
+
+```json
+{
+  "mcpServers": {
+    "proteomics-mcp": {
+      "command": "uvx",
+      "args": ["proteomics-mcp", "serve"]
+    }
+  }
+}
+```
+
+To run a source checkout instead, for development:
 
 ```json
 {
@@ -116,15 +146,20 @@ For software citation, use the metadata in [CITATION.cff](https://github.com/Uad
 
 ## Documentation
 
-- [Documentation site](https://uadklab.github.io/proteomics-mcp/): installation, reference, and prompt examples. It will go live when GitHub Pages is enabled after the repository becomes public.
+- [Documentation site](https://uadklab.github.io/proteomics-mcp/): installation, reference, and prompt examples.
 - [Technical reference](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/reference.md): installation, configuration, data formats, workflows, metrics, batch artifacts, and tool groups.
 - [Prompt examples](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/prompt_examples/00_overview.md): practical requests for an MCP-capable agent.
 - [Examples](https://github.com/UadKLab/proteomics-mcp/blob/main/examples/README.md): rendered spectra and dashboard artifacts included with the repository.
-- [GitHub releases](https://github.com/UadKLab/proteomics-mcp/releases): versioned source and build artifacts.
+- [GitHub releases](https://github.com/UadKLab/proteomics-mcp/releases): versioned source and build artifacts, and the Claude Desktop extension.
+- [Changelog](https://github.com/UadKLab/proteomics-mcp/blob/main/CHANGELOG.md): changes per release.
 
 ## Testing
+
+From a source checkout:
 
 ```bash
 uv run pytest -q
 uv run proteomics-mcp --help
 ```
+
+Tests that download MS2PIP models are marked `network`; deselect them when offline with `uv run pytest -m "not network"`.

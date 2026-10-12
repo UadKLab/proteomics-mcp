@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import logging
 import os
 from pathlib import Path
@@ -93,8 +94,11 @@ from proteomics_mcp.tools.workflows import (
     summarize_score_metrics_tool,
 )
 
+from proteomics_mcp.predictors.ms2pip import MissingOpenMPError
+
 try:
     from mcp.server import MCPServer  # type: ignore
+    from mcp.server.mcpserver.exceptions import ToolError
     from mcp.types import ToolAnnotations
 except ImportError:  # pragma: no cover - exercised when optional dependency is absent
     MCPServer = None  # type: ignore
@@ -131,6 +135,21 @@ if MCPServer is not None:
         "get_peptidoform_summary",
     }
 
+    # The MCP SDK hides the message of any exception other than ToolError from the
+    # client ("Error executing tool <name>"). Re-raise errors that carry a fix the
+    # user can apply as ToolError so the message reaches the agent.
+    _ACTIONABLE_ERRORS = (MissingOpenMPError,)
+
+    def _surface_actionable_errors(func: Any) -> Any:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except _ACTIONABLE_ERRORS as exc:
+                raise ToolError(str(exc)) from exc
+
+        return wrapper
+
     class AnnotatedMCPServer(MCPServer):
         def tool(self, *args: Any, **kwargs: Any) -> Any:
             def register(func: Any) -> Any:
@@ -151,7 +170,7 @@ if MCPServer is not None:
                     title=annotations.title,
                     annotations=annotations,
                     **kwargs,
-                )(func)
+                )(_surface_actionable_errors(func))
 
             return register
 

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,13 +9,27 @@ description = "Spectrum-level proteomics scoring tools exposed through CLI and M
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-authors = [{name = "UadKLab"}]
+license-files = ["LICENSE"]
+authors = [
+  {name = "Simon Nándor Sugár"},
+  {name = "Jeroen van Goey"},
+  {name = "Alexey Nesterovich"},
+  {name = "Isaac H.J. Houngue"},
+  {name = "Marco Reverenna"},
+  {name = "Chiara Francavilla"},
+  {name = "Konstantinos Kalogeropoulos"},
+]
 keywords = ["proteomics", "mass spectrometry", "MCP", "MS2", "peptide-spectrum matches"]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 dependencies = [
@@ -23,7 +37,6 @@ dependencies = [
   "pandas>=2",
   "pyarrow>=15",
   "pydantic>=2",
-  "typer>=0.12",
   "mcp>=2,<3",
   "ms2pip>=4.1",
   "pyopenms>=3.3",
@@ -41,6 +54,7 @@ Homepage = "https://github.com/UadKLab/proteomics-mcp"
 Repository = "https://github.com/UadKLab/proteomics-mcp"
 Issues = "https://github.com/UadKLab/proteomics-mcp/issues"
 Documentation = "https://uadklab.github.io/proteomics-mcp/"
+Changelog = "https://github.com/UadKLab/proteomics-mcp/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
