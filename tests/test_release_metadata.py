@@ -31,3 +31,15 @@ def test_citation_version_matches_package():
 
     assert match is not None, "CITATION.cff has no top-level version"
     assert match.group(1) == __version__
+
+
+def test_pyproject_authors_match_citation():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    cited = [
+        f"{given} {family}"
+        for given, family in re.findall(r'- given-names: "([^"]+)"\n\s+family-names: "([^"]+)"', citation)
+    ]
+
+    assert cited, "CITATION.cff lists no authors"
+    assert [author["name"] for author in project["authors"]] == cited

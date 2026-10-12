@@ -10,7 +10,15 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{name = "UadKLab"}]
+authors = [
+  {name = "Simon Nándor Sugár"},
+  {name = "Jeroen van Goey"},
+  {name = "Alexey Nesterovich"},
+  {name = "Isaac H.J. Houngue"},
+  {name = "Marco Reverenna"},
+  {name = "Chiara Francavilla"},
+  {name = "Konstantinos Kalogeropoulos"},
+]
 keywords = ["proteomics", "mass spectrometry", "MCP", "MS2", "peptide-spectrum matches"]
 classifiers = [
   "Programming Language :: Python :: 3",
