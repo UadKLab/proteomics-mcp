@@ -146,7 +146,7 @@ def _ion_ladder_toggle_script() -> str:
 
 
 def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | Path | None = None) -> str:
-    """Render a self-contained interactive mirror plot with Plotly image download enabled."""
+    """Render an interactive mirror plot (data embedded; Plotly loaded from a CDN) with image download enabled."""
     observed = payload["observed"]
     predicted = payload["predicted"]
     metrics = payload.get("metrics") or {}
