@@ -58,3 +58,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+  "network: needs network access, e.g. MS2PIP model download on first use; deselect with -m \"not network\"",
+]
