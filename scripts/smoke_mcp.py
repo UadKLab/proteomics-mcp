@@ -13,6 +13,12 @@ No network access and no real data are needed. Run it with the Python of the
 environment where the package is installed, e.g.
 
     .venv/bin/python scripts/smoke_mcp.py --manifest manifest.json
+
+``--server-command`` launches another command instead, e.g. the Claude Desktop
+extension entry point from manifest.json:
+
+    python scripts/smoke_mcp.py --expect-version 0.1.8 \
+        --server-command "uv run --directory . --no-dev extension_server.py"
 """
 
 from __future__ import annotations
@@ -20,6 +26,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import shlex
 import shutil
 import sys
 from importlib.metadata import PackageNotFoundError, version
@@ -38,7 +45,7 @@ CORE_TOOLS = {
     "describe_predictor_model",
     "annotate_observed_spectrum",
 }
-TIMEOUT_SECONDS = 120
+TIMEOUT_SECONDS = 600  # allows a first-run `uv run` environment sync with --server-command
 
 
 def _server_command() -> str:
@@ -57,7 +64,12 @@ def _server_command() -> str:
 async def _run(args: argparse.Namespace) -> list[str]:
     problems: list[str] = []
     fixture = json.loads(args.fixture.read_text(encoding="utf-8"))
-    params = StdioServerParameters(command=_server_command(), args=["serve"])
+    if args.server_command:
+        command, *command_args = shlex.split(args.server_command)
+    else:
+        command, command_args = _server_command(), ["serve"]
+    print(f"server command: {' '.join([command, *command_args])}")
+    params = StdioServerParameters(command=command, args=command_args)
 
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -109,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expect-version", default=installed, help="expected server version (default: installed version)")
     parser.add_argument("--skip-version-check", action="store_true", help="do not compare the server version")
     parser.add_argument("--manifest", type=Path, help="manifest.json whose tool names must match the server exactly")
+    parser.add_argument("--server-command", help="command that starts the MCP server (default: proteomics-mcp serve)")
     parser.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not args.skip_version_check and args.expect_version is None:
