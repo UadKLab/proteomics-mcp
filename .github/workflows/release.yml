@@ -1,61 +1,228 @@
+# Release pipeline (decision 5 in #1, Option B):
+#   push of tag v<version>: build -> verify -> TestPyPI -> PyPI (environment `pypi`)
+#                           -> GitHub release with sdist, wheel and .mcpb attached.
+#   workflow_dispatch:      build from the current ref -> verify -> TestPyPI only.
+# The file name must stay release.yml: the PyPI and TestPyPI trusted publishers point to it.
 name: release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
+  workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
+  build:
+    name: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          enable-cache: true
+          persist-credentials: false
 
-      - name: Set up Python 3.12
-        run: uv python install 3.12
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
-      - name: Verify tag matches package version
+      - name: Read package version
+        id: version
+        run: |
+          version=$(uv run --no-project python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Package version: $version"
+
+      - name: Check version consistency against the tag
+        if: github.event_name == 'push'
+        run: uv run --no-project python scripts/check_version.py --tag "$GITHUB_REF_NAME"
+
+      - name: Check version consistency and that v<version> is not yet tagged
+        if: github.event_name == 'workflow_dispatch'
         env:
-          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          uv run --no-project --python 3.12 python -c 'import os, pathlib, tomllib; version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]; assert os.environ["TAG"] == f"v{version}", "Tag and package version differ"'
+          uv run --no-project python scripts/check_version.py
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" --silent 2>/dev/null; then
+            echo "::error::Tag v$VERSION already exists. Bump the version before a TestPyPI dry run."
+            exit 1
+          fi
 
-      - name: Run tests
-        run: |
-          uv sync --all-extras
-          uv run pytest -q
+      - name: Check lockfile is up to date
+        run: uv lock --check
 
-      - name: Build wheel and sdist
+      - name: Build sdist and wheel
         run: uv build
 
-      - name: Validate Python distributions
-        run: uvx --from twine twine check dist/*
+      - name: Check wheel contents
+        run: uv run --no-project python scripts/check_wheel.py dist/*.whl
 
-      - name: Build Claude Desktop extension
-        run: npx --yes @anthropic-ai/mcpb@2.1.2 pack . dist/proteomics-mcp-${{ github.ref_name }}.mcpb
+      - name: Check distribution metadata
+        run: uvx twine check --strict dist/*
 
-      - name: Inspect extension
-        run: npx --yes @anthropic-ai/mcpb@2.1.2 info dist/proteomics-mcp-${{ github.ref_name }}.mcpb
+      - name: Build and inspect the Claude Desktop extension
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/extension"
+          npx --yes @anthropic-ai/mcpb@2.1.2 pack . "$RUNNER_TEMP/extension/proteomics-mcp-v$VERSION.mcpb"
+          npx --yes @anthropic-ai/mcpb@2.1.2 info "$RUNNER_TEMP/extension/proteomics-mcp-v$VERSION.mcpb"
 
-      - name: Upload build artifacts to workflow
-        uses: actions/upload-artifact@v4
+      - name: Record SHA-256 of the release files
+        run: |
+          {
+            echo "### Release files"
+            echo '```'
+            (cd dist && sha256sum ./*.whl ./*.tar.gz)
+            (cd "$RUNNER_TEMP/extension" && sha256sum ./*.mcpb)
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: dist
-          path: dist/*
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
+          name: python-dist
+          path: |
             dist/*.whl
             dist/*.tar.gz
-            dist/*.mcpb
-          body_path: docs/releases/${{ github.ref_name }}.md
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: extension
+          path: ${{ runner.temp }}/extension/*.mcpb
+          if-no-files-found: error
+
+  verify:
+    name: verify (${{ matrix.os }}, ${{ matrix.python-version }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-dist
+          path: dist/
+
+      - name: Install the built wheel in a clean environment
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          uv venv --python "$PYTHON_VERSION" "$RUNNER_TEMP/wheel-env"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            py="$RUNNER_TEMP/wheel-env/Scripts/python.exe"
+          else
+            py="$RUNNER_TEMP/wheel-env/bin/python"
+          fi
+          uv pip install --python "$py" dist/*.whl pytest
+          echo "WHEEL_PY=$py" >> "$GITHUB_ENV"
+          # Remove the source tree so nothing can be imported from it by accident.
+          rm -rf src
+
+      - name: Run tests against the installed package
+        env:
+          PROTEOMICS_MCP_TEST_INSTALLED: "1"
+        run: '"$WHEEL_PY" -m pytest -o pythonpath= -rs'
+
+      - name: MCP stdio smoke test
+        run: '"$WHEEL_PY" scripts/smoke_mcp.py --manifest manifest.json'
+
+      - name: Check version consistency (installed)
+        run: '"$WHEEL_PY" scripts/check_version.py --installed'
+
+  publish-testpypi:
+    name: publish to TestPyPI
+    needs: [build, verify]
+    # Tag pushes, or manual dry runs from main; never from other branches.
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/proteomics-mcp/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write # OIDC token for TestPyPI Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+          attestations: true
+          print-hash: true
+
+  publish-pypi:
+    name: publish to PyPI
+    needs: [build, publish-testpypi]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/proteomics-mcp/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write # OIDC token for PyPI Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          attestations: true
+          print-hash: true
+
+  github-release:
+    name: GitHub release
+    needs: [build, publish-pypi]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub release and upload its assets
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-dist
+          path: release-files/
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: extension
+          path: release-files/
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release-files/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file "docs/releases/$GITHUB_REF_NAME.md" \
+            --verify-tag
