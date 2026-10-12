@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from proteomics_mcp import __version__
 from proteomics_mcp.resources.docs import SCHEMAS
 
 # --- Logging --------------------------------------------------------------
@@ -154,7 +155,7 @@ if MCPServer is not None:
 
             return register
 
-    mcp = AnnotatedMCPServer("proteomics-mcp")
+    mcp = AnnotatedMCPServer("proteomics-mcp", version=__version__)
 
     @mcp.tool()
     def load_candidates(path: str, adapter: str = "instanovo", limit: int | None = None) -> list[dict[str, Any]]:
