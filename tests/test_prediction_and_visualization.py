@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -17,7 +19,12 @@ from proteomics_mcp.core.visualization import (
 from proteomics_mcp.core.scoring import score_candidate_spectrum
 from proteomics_mcp.models.schemas import CandidatePSM, ObservedSpectrum, PredictedFragment, PredictedSpectrum, SpectrumMetricResult
 from proteomics_mcp.predictors.mock import mock_predicted_spectrum
-from proteomics_mcp.predictors.ms2pip import predict_fragments_ms2pip, predict_fragments_ms2pip_batch
+from proteomics_mcp.predictors.ms2pip import (
+    MissingOpenMPError,
+    _predict_fragments_ms2pip_cached,
+    predict_fragments_ms2pip,
+    predict_fragments_ms2pip_batch,
+)
 from proteomics_mcp.tools.workflows import render_spectra_batch_tool
 
 
@@ -32,6 +39,50 @@ def test_ms2pip_wrapper_requires_dependency_when_absent():
             assert "ms2pip" in str(exc).lower()
         else:
             raise AssertionError("Expected RuntimeError when ms2pip is absent")
+
+
+def _break_ms2pip_import(monkeypatch, message):
+    """Make `from ms2pip.core import ...` raise like xgboost does when its native library cannot load."""
+
+    class _BrokenModule(types.ModuleType):
+        def __getattr__(self, name):
+            raise OSError(message)
+
+    monkeypatch.setitem(sys.modules, "ms2pip", types.ModuleType("ms2pip"))
+    monkeypatch.setitem(sys.modules, "ms2pip.core", _BrokenModule("ms2pip.core"))
+    _predict_fragments_ms2pip_cached.cache_clear()
+
+
+LIBOMP_LOAD_ERROR = "XGBoost Library (libxgboost.dylib) could not be loaded. Library not loaded: @rpath/libomp.dylib"
+
+
+@pytest.mark.parametrize("call", [
+    lambda: predict_fragments_ms2pip("PEPTIDE", 2),
+    lambda: predict_fragments_ms2pip_batch([("PEPTIDE", 2)]),
+], ids=["single", "batch"])
+def test_ms2pip_missing_libomp_on_macos_raises_actionable_error(monkeypatch, call):
+    _break_ms2pip_import(monkeypatch, LIBOMP_LOAD_ERROR)
+    monkeypatch.setattr(sys, "platform", "darwin")
+
+    with pytest.raises(MissingOpenMPError, match="brew install libomp") as excinfo:
+        call()
+    assert "libomp" in str(excinfo.value.__cause__)
+
+
+def test_ms2pip_other_load_errors_are_not_rewritten(monkeypatch):
+    _break_ms2pip_import(monkeypatch, "unrelated native library failure")
+    monkeypatch.setattr(sys, "platform", "darwin")
+
+    with pytest.raises(OSError, match="unrelated native library failure"):
+        predict_fragments_ms2pip("PEPTIDE", 2)
+
+
+def test_ms2pip_libomp_hint_is_macos_only(monkeypatch):
+    _break_ms2pip_import(monkeypatch, LIBOMP_LOAD_ERROR)
+    monkeypatch.setattr(sys, "platform", "linux")
+
+    with pytest.raises(OSError, match="libomp"):
+        predict_fragments_ms2pip("PEPTIDE", 2)
 
 
 @pytest.mark.network

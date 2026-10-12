@@ -1,11 +1,28 @@
 from __future__ import annotations
 
+import sys
 from copy import deepcopy
 from functools import lru_cache
 from typing import Any
 
 from proteomics_mcp.core.ion_annotation import parse_ion_annotation, parse_ms2pip_ion_type
 from proteomics_mcp.models.schemas import PredictedFragment, PredictedSpectrum
+
+class MissingOpenMPError(RuntimeError):
+    """MS2PIP is installed but XGBoost cannot load the OpenMP runtime (libomp)."""
+
+
+LIBOMP_HINT = (
+    "MS2PIP could not load XGBoost because the OpenMP runtime (libomp) is missing. "
+    "On macOS, install it with `brew install libomp`, then restart proteomics-mcp."
+)
+
+
+def _libomp_error(exc: Exception) -> MissingOpenMPError | None:
+    """Return an actionable error if xgboost failed to load libomp on macOS, otherwise None."""
+    if sys.platform == "darwin" and "libomp" in str(exc):
+        return MissingOpenMPError(LIBOMP_HINT)
+    return None
 
 
 def _resolve_ms2pip_model(model: str, precursor_charge: int, max_fragment_charge: int | None) -> str:
@@ -87,6 +104,11 @@ def _predict_fragments_ms2pip_cached(
         from ms2pip.core import predict_single  # type: ignore
     except ImportError as exc:
         raise RuntimeError("MS2PIP prediction requires ms2pip to be installed.") from exc
+    except Exception as exc:  # xgboost raises XGBoostError, not ImportError, when libomp is missing
+        actionable = _libomp_error(exc)
+        if actionable is None:
+            raise
+        raise actionable from exc
     requested_max_fragment_charge = max_fragment_charge
     resolved_model = _resolve_ms2pip_model(model, precursor_charge, max_fragment_charge)
     result = predict_single(f"{peptidoform}/{precursor_charge}", model=resolved_model)
@@ -125,6 +147,11 @@ def predict_fragments_ms2pip_batch(
         from psm_utils import PSM, PSMList, Peptidoform  # type: ignore
     except ImportError as exc:
         raise RuntimeError("MS2PIP batch prediction requires ms2pip and psm-utils to be installed.") from exc
+    except Exception as exc:  # xgboost raises XGBoostError, not ImportError, when libomp is missing
+        actionable = _libomp_error(exc)
+        if actionable is None:
+            raise
+        raise actionable from exc
 
     grouped: dict[str, list[tuple[int, str, int]]] = {}
     for index, (peptidoform, precursor_charge) in enumerate(requests):
