@@ -3,5 +3,5 @@ include CITATION.cff
 include manifest.json
 include mkdocs.yml
 graft docs
-graft tests/fixtures
+graft tests
 global-exclude __pycache__ *.py[cod]
