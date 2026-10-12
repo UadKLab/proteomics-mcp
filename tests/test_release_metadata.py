@@ -1,4 +1,5 @@
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -22,3 +23,11 @@ def test_package_and_extension_versions_match():
     assert project["version"] == __version__ == extension["version"]
     assert project["name"] == extension["name"]
     assert (ROOT / "docs" / "releases" / f"v{__version__}.md").is_file()
+
+
+def test_citation_version_matches_package():
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    match = re.search(r"""^version:\s*["']?([^"'\s#]+)""", citation, flags=re.MULTILINE)
+
+    assert match is not None, "CITATION.cff has no top-level version"
+    assert match.group(1) == __version__
