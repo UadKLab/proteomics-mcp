@@ -6,7 +6,7 @@ It is an inspection and evidence layer, not a de novo sequencing model, search e
 
 ## Install
 
-Python 3.11 or newer is required. After the first PyPI publication:
+Python 3.11 to 3.14 is supported. Install from [PyPI](https://pypi.org/project/proteomics-mcp/):
 
 ```bash
 pip install proteomics-mcp
@@ -16,8 +16,10 @@ proteomics-mcp --help
 To run the server from an MCP-capable client without installing it in the current environment:
 
 ```bash
-uvx --from proteomics-mcp proteomics-mcp serve
+uvx proteomics-mcp serve
 ```
+
+Platform requirements (glibc for Python 3.13+ on Linux, macOS versions, and `brew install libomp` for local MS2PIP on macOS) are listed in the [README](https://github.com/UadKLab/proteomics-mcp#requirements).
 
 The server uses stdio and must be launched by an MCP client, not run interactively in a terminal. For Claude Desktop, the [GitHub release](https://github.com/UadKLab/proteomics-mcp/releases) also contains a `.mcpb` extension.
 

@@ -74,7 +74,7 @@ Required: a peptide/peptidoform and a spectrum locator (`usi`, `spectrum_id`, or
 
 Prediction backends:
 
-- `ms2pip`: local MS2PIP; the default and offline option. Single-spectrum requests use a bounded process cache, while `build_prediction_batch` groups compatible requests through MS2PIP's native batch API.
+- `ms2pip`: local MS2PIP; the default. It runs on your computer; its model files are downloaded once on first use (from `genesis.ugent.be`, with a Zenodo fallback) and cached in `~/.ms2pip`, after which predictions run offline. On macOS it needs the OpenMP runtime (`brew install libomp`). Single-spectrum requests use a bounded process cache, while `build_prediction_batch` groups compatible requests through MS2PIP's native batch API.
 - `koina`: remote model inference, including `Prosit_2020_intensity_HCD`.
 - `mock`: deterministic test backend; never use it for scientific interpretation.
 
