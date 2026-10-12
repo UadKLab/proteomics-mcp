@@ -21,10 +21,15 @@ authors = [
 ]
 keywords = ["proteomics", "mass spectrometry", "MCP", "MS2", "peptide-spectrum matches"]
 classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 dependencies = [
@@ -50,6 +55,7 @@ Homepage = "https://github.com/UadKLab/proteomics-mcp"
 Repository = "https://github.com/UadKLab/proteomics-mcp"
 Issues = "https://github.com/UadKLab/proteomics-mcp/issues"
 Documentation = "https://uadklab.github.io/proteomics-mcp/"
+Changelog = "https://github.com/UadKLab/proteomics-mcp/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
