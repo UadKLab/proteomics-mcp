@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 
+import pytest
+
+import proteomics_mcp.server as server_module
 from proteomics_mcp.cli import build_parser
 from proteomics_mcp.server import mcp
 from proteomics_mcp.resources.docs import SCHEMAS
+
+MANIFEST_PATH = Path(__file__).resolve().parents[1] / "manifest.json"
 
 
 def test_cli_has_expected_commands():
@@ -52,7 +58,7 @@ def test_server_module_imports_without_mcp_dependency():
 
 
 def test_server_exposes_typed_mcp_surface_without_options_json():
-    server_source = Path("src/proteomics_mcp/server.py").read_text(encoding="utf-8")
+    server_source = inspect.getsource(server_module)
     assert "options_json" not in server_source
     assert "method://tooling_surface_v1" in SCHEMAS
 
@@ -69,5 +75,7 @@ def test_mcp_tools_have_directory_annotations():
     assert tools["mgf_to_feather"].annotations.destructive_hint is True
     assert tools["retrieve_usi_spectrum"].annotations.open_world_hint is True
 
-    manifest = json.loads(Path("manifest.json").read_text(encoding="utf-8"))
+    if not MANIFEST_PATH.is_file():
+        pytest.skip("manifest.json is only available in a source tree or sdist")
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert {tool["name"] for tool in manifest["tools"]} == set(tools)

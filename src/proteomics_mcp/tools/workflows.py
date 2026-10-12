@@ -71,8 +71,6 @@ import pandas as pd
 from pandas.errors import EmptyDataError
 import pyarrow.feather as pyarrow_feather
 
-JOBS_DIR = Path(__file__).resolve().parents[3] / ".proteomics_mcp_jobs"
-
 
 def _preview_records(frame: pd.DataFrame, limit: int = 10) -> list[dict[str, Any]]:
     if frame.empty:

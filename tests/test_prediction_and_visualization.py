@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
+import pytest
+
 import proteomics_mcp.core.visualization as visualization
 from proteomics_mcp.core.visualization import (
     build_spectrum_payload,
@@ -18,6 +21,7 @@ from proteomics_mcp.predictors.ms2pip import predict_fragments_ms2pip, predict_f
 from proteomics_mcp.tools.workflows import render_spectra_batch_tool
 
 
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_wrapper_requires_dependency_when_absent():
     try:
         import ms2pip  # noqa: F401
@@ -30,6 +34,8 @@ def test_ms2pip_wrapper_requires_dependency_when_absent():
             raise AssertionError("Expected RuntimeError when ms2pip is absent")
 
 
+@pytest.mark.network
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_auto_uses_charge2_fragments_for_charge3_precursor():
     try:
         import ms2pip  # noqa: F401
@@ -44,6 +50,8 @@ def test_ms2pip_auto_uses_charge2_fragments_for_charge3_precursor():
     assert {fragment.charge for fragment in predicted.fragments} == {1, 2}
 
 
+@pytest.mark.network
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_explicit_max_fragment_charge_filters_charge2_fragments():
     try:
         import ms2pip  # noqa: F401
@@ -57,6 +65,8 @@ def test_ms2pip_explicit_max_fragment_charge_filters_charge2_fragments():
     assert {fragment.charge for fragment in predicted.fragments} == {1}
 
 
+@pytest.mark.network
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_batch_wrapper_retains_request_order():
     try:
         import ms2pip  # noqa: F401

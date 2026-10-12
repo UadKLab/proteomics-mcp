@@ -2,10 +2,17 @@ import json
 import tomllib
 from pathlib import Path
 
+import pytest
+
 from proteomics_mcp import __version__
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+pytestmark = pytest.mark.skipif(
+    not (ROOT / "pyproject.toml").is_file(),
+    reason="release metadata files are only available in a source tree or sdist",
+)
 
 
 def test_package_and_extension_versions_match():
