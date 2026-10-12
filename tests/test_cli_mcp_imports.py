@@ -77,6 +77,26 @@ def test_mcp_initialize_reports_package_version():
     assert server_info.name == "proteomics-mcp"
     assert server_info.version == __version__
 
+
+def test_actionable_tool_errors_reach_the_client(monkeypatch):
+    from mcp import Client
+
+    from proteomics_mcp.predictors.ms2pip import LIBOMP_HINT, MissingOpenMPError
+
+    def missing_libomp(*args, **kwargs):
+        raise MissingOpenMPError(LIBOMP_HINT)
+
+    monkeypatch.setattr(server_module, "predict_fragments_tool", missing_libomp)
+
+    async def call():
+        async with Client(mcp) as client:
+            return await client.call_tool("predict_fragments", {"peptidoform": "PEPTIDE", "charge": 2})
+
+    result = asyncio.run(call())
+    assert result.is_error
+    assert "brew install libomp" in result.content[0].text
+
+
 def test_mcp_tools_have_directory_annotations():
     tools = {tool.name: tool for tool in mcp._tool_manager.list_tools()}
     assert len(tools) >= 50
