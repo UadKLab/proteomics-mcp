@@ -50,6 +50,8 @@ proteomics-mcp = "proteomics_mcp.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+# Runtime files under src/proteomics_mcp must be listed explicitly in
+# [tool.setuptools.package-data]; scripts/check_wheel.py fails otherwise.
 include-package-data = false
 
 [tool.setuptools.packages.find]
