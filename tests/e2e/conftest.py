@@ -142,16 +142,16 @@ def run_cli(*args: str, timeout: int = 600) -> subprocess.CompletedProcess[str]:
     return subprocess.run([str(script), *args], capture_output=True, text=True, timeout=timeout)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def tool():
     return call_tool
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def cli():
     return run_cli
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def report():
     return record
