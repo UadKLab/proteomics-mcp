@@ -76,4 +76,5 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
   "network: needs network access, e.g. MS2PIP model download on first use; deselect with -m \"not network\"",
+  "e2e: end-to-end verification of the installed package on public data (tests/e2e); deselected unless -m mentions e2e",
 ]
