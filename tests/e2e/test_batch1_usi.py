@@ -120,6 +120,13 @@ def test_usi_peaks_vs_payload(retrieved, report, folder, path):
     report("usi", f"step a {path.name}", "identical" if comparison["identical"] else "differs", {"usi": usi, **comparison})
 
 
+@pytest.mark.xfail(strict=True, reason="#41: the PRIDE precursor m/z (MS:1000744 / MS:1000827) is not parsed")
+def test_usi_spectra_carry_precursor_mz(retrieved, report):
+    missing = [usi for usi, (is_error, spectrum) in retrieved.values() if not is_error and spectrum.get("precursor_mz") is None]
+    report("usi", "precursor_mz present in USI spectra", "fail (#41)" if missing else "pass", {"missing": len(missing), "of": len(retrieved)})
+    assert not missing, f"{len(missing)} of {len(retrieved)} USI spectra have no precursor_mz"
+
+
 @pytest.mark.parametrize(("folder", "path"), CASES, ids=[p.name.removesuffix("_payload.json") for _, p in CASES])
 def test_usi_metrics_with_stored_prediction(retrieved, tool, report, folder, path):
     """Step b (scoring engine): only where peaks match; predictions taken from the payload."""

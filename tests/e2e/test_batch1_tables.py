@@ -65,13 +65,13 @@ def test_render_tables(zenodo, tool, report, tmp_path, adapter, table):
     report("tables", f"render_psm_table / render_peptide_table {adapter} {table}", "pass", {"html_bytes": outputs})
 
 
+@pytest.mark.xfail(strict=True, reason="#38: MCP and CLI expose no column-mapping arguments for the generic adapter")
 def test_generic_adapter_needs_column_mapping_over_mcp(zenodo, tool, report):
     """The generic adapter is documented, but MCP and CLI expose no column-mapping arguments."""
     is_error, result = tool("load_candidates", {"path": str(zenodo / "processed/arabidopsis/supplementary_scored_psms.csv"),
                                                 "adapter": "generic", "limit": 5})
-    report("tables", "load_candidates generic (MCP)", "fail" if is_error else "pass", {"result": str(result)[:300]})
-    if is_error:
-        pytest.xfail("generic adapter is unusable over MCP/CLI: no column-mapping arguments (bug, see #30 batch 1)")
+    report("tables", "load_candidates generic (MCP)", "fail (#38)" if is_error else "pass", {"result": str(result)[:300]})
+    assert not is_error, result
 
 
 def test_scored_tables(zenodo, tool, report):
@@ -91,14 +91,16 @@ def test_scored_tables(zenodo, tool, report):
            {"summary_keys": sorted(first)[:12], "groups": str(groups)[:200]})
 
 
-def test_sdrf_local_and_pride(zenodo, tool, report):
+def test_load_sdrf_local(zenodo, tool, report):
     is_error, local = tool("load_sdrf", {"path": str(zenodo / "processed/arabidopsis/sdrf.tsv")})
     assert not is_error, local
     report("sdrf", "load_sdrf arabidopsis/sdrf.tsv", "pass", {"result": str(local)[:200]})
-    failures = {}
-    for accession in ("PXD014877", "PXD010595"):
-        is_error, remote = tool("retrieve_pride_sdrf", {"project_accession": accession, "timeout_seconds": 60})
-        report("sdrf", f"retrieve_pride_sdrf {accession}", "fail" if is_error else "pass", {"result": str(remote)[:300]})
-        if is_error:
-            failures[accession] = remote
-    assert not failures, failures
+
+
+@pytest.mark.network
+@pytest.mark.xfail(strict=True, reason="#40: only the first 100 files of a PRIDE project are searched")
+@pytest.mark.parametrize("accession", ["PXD014877", "PXD010595"])
+def test_retrieve_pride_sdrf(tool, report, accession):
+    is_error, remote = tool("retrieve_pride_sdrf", {"project_accession": accession, "timeout_seconds": 60})
+    report("sdrf", f"retrieve_pride_sdrf {accession}", "fail (#40)" if is_error else "pass", {"result": str(remote)[:300]})
+    assert not is_error, remote

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -111,13 +112,6 @@ def test_renderers(tool, cli, report, tmp_path, name):
         outputs[tool_name] = target.stat().st_size
 
     static = {}
-    for view in ("mirror", "annotated", "plain"):
-        for suffix in (".svg", ".png", ".pdf"):
-            target = tmp_path / f"static_{view}{suffix}"
-            is_error, result = tool("render_static_spectrum", {"payload_or_observed": payload, "output_path": str(target), "view": view,
-                                                               "peptidoform": payload["predicted"]["peptidoform"]})
-            static[f"mcp:{view}{suffix}"] = "error: " + str(result)[:120] if is_error else target.stat().st_size
-            assert not is_error, f"render_static_spectrum via MCP ({view}{suffix}): {result}"
     payload_file = tmp_path / "payload.json"
     payload_file.write_text(json.dumps(payload))
     cli_target = tmp_path / "static_cli.svg"
@@ -126,3 +120,20 @@ def test_renderers(tool, cli, report, tmp_path, name):
     static["cli:annotated.svg"] = cli_target.stat().st_size if completed.returncode == 0 else "error: " + completed.stderr[-200:]
     report("spectra", f"renderers {name.split('/')[0]}", "pass", {"html_bytes": outputs, "static": static})
     assert completed.returncode == 0, completed.stderr[-2000:]
+
+
+@pytest.mark.xfail(sys.platform == "darwin", strict=True,
+                   reason="#35: pyplot selects the macosx backend, which fails in the MCP worker thread")
+@pytest.mark.parametrize("name", PAYLOADS, ids=IDS)
+def test_static_spectrum_via_mcp(tool, report, tmp_path, name):
+    payload = _load(name)
+    static = {}
+    for view in ("mirror", "annotated", "plain"):
+        for suffix in (".svg", ".png", ".pdf"):
+            target = tmp_path / f"static_{view}{suffix}"
+            is_error, result = tool("render_static_spectrum", {"payload_or_observed": payload, "output_path": str(target), "view": view,
+                                                               "peptidoform": payload["predicted"]["peptidoform"]})
+            static[f"{view}{suffix}"] = "error: " + str(result)[:120] if is_error else target.stat().st_size
+    failed = {key: value for key, value in static.items() if isinstance(value, str)}
+    report("spectra", f"render_static_spectrum via MCP {name.split('/')[0]}", "fail (#35)" if failed else "pass", {"outputs": static})
+    assert not failed, failed
