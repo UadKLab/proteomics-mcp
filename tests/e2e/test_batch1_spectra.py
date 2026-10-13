@@ -18,6 +18,7 @@ PAYLOADS = [
     "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload.json",
     "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload.json",
 ]
+RESCORE_ATOL = 1e-9  # same inputs; allows cross-platform floating-point rounding (observed <= 4e-15)
 METRICS = ("spectral_angle", "cosine_similarity", "pearson_correlation", "explained_intensity_fraction",
            "matched_ion_count", "log2_xcorr", "log2_hyperscore")
 IDS = [name.split("/")[0] for name in PAYLOADS]
@@ -64,12 +65,12 @@ def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, name):
     if cli_ok:
         cli_result = json.loads(completed.stdout)
         cli_deltas = {m: abs(cli_result[m] - result[m]) for m in deltas}
-    report("spectra", f"score_spectrum (stored prediction) {name.split('/')[0]}", "pass" if max(deltas.values()) == 0 else "fail",
+    report("spectra", f"score_spectrum (stored prediction) {name.split('/')[0]}", "pass" if max(deltas.values()) <= RESCORE_ATOL else "fail",
            {"max_abs_delta_vs_payload": deltas, "cli_returncode": completed.returncode, "cli_vs_mcp": cli_deltas,
             "cli_stderr": completed.stderr[-300:] if not cli_ok else ""})
-    assert max(deltas.values()) == 0, deltas
+    assert max(deltas.values()) <= RESCORE_ATOL, deltas
     assert cli_ok, completed.stderr[-2000:]
-    assert max(cli_deltas.values(), default=0) == 0, cli_deltas
+    assert max(cli_deltas.values(), default=0) <= RESCORE_ATOL, cli_deltas
 
 
 @pytest.mark.parametrize("name", PAYLOADS, ids=IDS)
