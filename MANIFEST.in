@@ -1,5 +1,7 @@
 include PRIVACY.md
 include CITATION.cff
+include CHANGELOG.md
+include RELEASING.md
 include manifest.json
 include mkdocs.yml
 graft docs
