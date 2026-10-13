@@ -4,6 +4,8 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-10-13
+
 Packaging, CI and documentation only. No changes to adapters, scoring, annotation, metrics or rendering.
 
 ### Fixed
@@ -35,7 +37,12 @@ Packaging, CI and documentation only. No changes to adapters, scoring, annotatio
   - `scripts/check_version.py`: version consistency across `pyproject.toml`, `manifest.json`, `CITATION.cff`, the tag and the release notes ([#19](https://github.com/UadKLab/proteomics-mcp/pull/19)).
   - `scripts/check_wheel.py`: wheel contents ([#18](https://github.com/UadKLab/proteomics-mcp/pull/18)).
   - `scripts/smoke_mcp.py`: MCP stdio smoke test ([#20](https://github.com/UadKLab/proteomics-mcp/pull/20)).
-- **Docs:** `RELEASING.md` (release and contribution process) and this changelog ([#7](https://github.com/UadKLab/proteomics-mcp/issues/7)).
+- **Docs:** `RELEASING.md` (release and contribution process) and this changelog ([#28](https://github.com/UadKLab/proteomics-mcp/pull/28)).
+
+### Known issues
+
+- With `mcp` ≥ 2.3, which fresh `pip`/`uvx` installs get, tool error messages are hidden from MCP clients ([#27](https://github.com/UadKLab/proteomics-mcp/issues/27)).
+- On macOS, MS2PIP needs `brew install libomp`.
 
 ## [0.1.8] - 2026-10-11
 
@@ -55,5 +62,6 @@ Releases 0.1.1–0.1.7 predate the public repository and were not published to P
 - [0.1.2](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/releases/v0.1.2.md)
 - [0.1.1](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/releases/v0.1.1.md)
 
-[Unreleased]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/UadKLab/proteomics-mcp/releases/tag/v0.1.8
