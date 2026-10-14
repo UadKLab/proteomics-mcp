@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+from packaging.version import Version
 
 pytestmark = pytest.mark.e2e
+
+INSTALLED = Version(version("proteomics-mcp"))
 
 REPO_EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 # One PSM per dataset/engine; rank 2 of the HeLa set is the Figure 2 PSM (EFHLNESGDPSSK, scan 11648).
@@ -122,8 +126,18 @@ def test_renderers(tool, cli, report, tmp_path, name):
     assert completed.returncode == 0, completed.stderr[-2000:]
 
 
-@pytest.mark.xfail(sys.platform == "darwin", strict=True,
-                   reason="#35: pyplot selects the macosx backend, which fails in the MCP worker thread")
+def _tk_unusable() -> bool:
+    """Whether pyplot's Tk backend cannot create a figure here (broken Tcl/Tk on some Windows runners)."""
+    import subprocess
+
+    probe = "import matplotlib; matplotlib.use('TkAgg'); import matplotlib.pyplot as plt; plt.figure()"
+    return subprocess.run([sys.executable, "-c", probe], capture_output=True).returncode != 0
+
+
+@pytest.mark.skipif(sys.platform == "win32" and INSTALLED < Version("0.1.10") and _tk_unusable(),
+                    reason="#35 (fixed in 0.1.10): with a broken Tcl/Tk, pyplot's TkAgg aborts the whole interpreter")
+@pytest.mark.xfail(sys.platform == "darwin" and INSTALLED < Version("0.1.10"), strict=True,
+                   reason="#35 (fixed in 0.1.10): pyplot selects the macosx backend, which fails in the MCP worker thread")
 @pytest.mark.parametrize("name", PAYLOADS, ids=IDS)
 def test_static_spectrum_via_mcp(tool, report, tmp_path, name):
     payload = _load(name)
@@ -137,3 +151,19 @@ def test_static_spectrum_via_mcp(tool, report, tmp_path, name):
     failed = {key: value for key, value in static.items() if isinstance(value, str)}
     report("spectra", f"render_static_spectrum via MCP {name.split('/')[0]}", "fail (#35)" if failed else "pass", {"outputs": static})
     assert not failed, failed
+
+
+@pytest.mark.xfail(INSTALLED < Version("0.1.10"), strict=True,
+                   reason="#45 (fixed in 0.1.10): render_spectra_batch reads only plain JSON")
+def test_render_spectra_batch_reads_gzip_json_lines(tool, report, tmp_path):
+    """§2.8: batch rendering from a file-backed JSON Lines manifest, gzip-compressed."""
+    import gzip
+
+    spec = tmp_path / "items.jsonl.gz"
+    with gzip.open(spec, "wt", encoding="utf-8") as handle:
+        for name in PAYLOADS:
+            handle.write(json.dumps({"name": name.split("/")[0], "payload": _load(name)}) + "\n")
+    is_error, result = tool("render_spectra_batch", {"input_path": str(spec), "validate_only": True})
+    report("spectra", "render_spectra_batch from .jsonl.gz", "pass" if not is_error else "fail (#45)", {"result": str(result)[:300]})
+    assert not is_error, result
+    assert (result["items_requested"], result["valid_items"]) == (len(PAYLOADS), len(PAYLOADS))
