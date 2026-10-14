@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from copy import deepcopy
 from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from proteomics_mcp.core.ion_annotation import parse_ion_annotation, parse_ms2pip_ion_type
@@ -23,6 +24,15 @@ def _libomp_error(exc: Exception) -> MissingOpenMPError | None:
     if sys.platform == "darwin" and "libomp" in str(exc):
         return MissingOpenMPError(LIBOMP_HINT)
     return None
+
+
+@lru_cache(maxsize=1)
+def ms2pip_version() -> str | None:
+    """The installed MS2PIP release, recorded with every prediction (predictions differ between releases)."""
+    try:
+        return version("ms2pip")
+    except PackageNotFoundError:
+        return None
 
 
 def _resolve_ms2pip_model(model: str, precursor_charge: int, max_fragment_charge: int | None) -> str:
@@ -80,7 +90,7 @@ def _predicted_spectrum_from_result(
         precursor_charge=precursor_charge,
         fragments=fragments,
         predictor_name="ms2pip",
-        predictor_version=None,
+        predictor_version=ms2pip_version(),
         model=resolved_model,
         metadata={
             "requested_model": model,

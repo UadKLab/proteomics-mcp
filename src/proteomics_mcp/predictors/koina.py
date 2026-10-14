@@ -165,6 +165,7 @@ def _predicted_spectrum_from_rows(
     instrument_type: str,
     server_url: str,
     cache_hit: bool,
+    model_version: str | None = None,
 ) -> PredictedSpectrum:
     if annotation_row is None:
         if ion_type_row is None or ordinal_row is None:
@@ -203,10 +204,12 @@ def _predicted_spectrum_from_rows(
         precursor_charge=precursor_charge,
         fragments=fragments,
         predictor_name="koina",
-        predictor_version=None,
+        # Koina serves versioned Triton models; record the version that answered, e.g. "Prosit_2020_intensity_HCD@1"
+        predictor_version=f"{model}@{model_version}" if model_version else None,
         model=model,
         metadata={
             "server_url": server_url,
+            "model_version": model_version,
             "collision_energy": collision_energy,
             "fragmentation_type": fragmentation_type,
             "instrument_type": instrument_type,
@@ -345,8 +348,9 @@ def predict_fragments_koina_batch(
             max_fragment_charge=max_fragment_charge,
         )
         path = _cache_path(cache_dir, key)
-        if path.exists():
-            payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        # entries cached before model versions were recorded (<= 0.1.9) are predicted again
+        if payload is not None and "model_version" in (payload.get("metadata") or {}):
             fragments = [PredictedFragment(**fragment) for fragment in payload.get("fragments", [])]
             cache_hits[index] = PredictedSpectrum(
                 peptidoform=payload["peptidoform"],
@@ -414,6 +418,7 @@ def predict_fragments_koina_batch(
                 instrument_type=instrument_type,
                 server_url=server_url,
                 cache_hit=False,
+                model_version=str(response["model_version"]) if response.get("model_version") else None,
             )
             predictions[prediction_index] = predicted
             cache_path.write_text(json.dumps(predicted.model_dump(), indent=2), encoding="utf-8")

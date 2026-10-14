@@ -86,6 +86,20 @@ def test_ms2pip_libomp_hint_is_macos_only(monkeypatch):
         predict_fragments_ms2pip("PEPTIDE", 2)
 
 
+def test_ms2pip_prediction_records_the_installed_ms2pip_version():
+    """MS2PIP releases predict slightly differently (#23), so each prediction records the version (#22)."""
+    from importlib.metadata import version
+
+    from proteomics_mcp.predictors.ms2pip import _predicted_spectrum_from_result
+
+    result = types.SimpleNamespace(theoretical_mz={"b": [98.06, 227.10], "y": [148.06, 263.09]},
+                                   predicted_intensity={"b": [-3.0, -1.0], "y": [-2.0, 0.0]})
+    predicted = _predicted_spectrum_from_result(result, "PEPTIDE", 2, model="HCD")
+
+    assert predicted.predictor_name == "ms2pip"
+    assert predicted.predictor_version == version("ms2pip")
+
+
 @pytest.mark.network
 @pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_auto_uses_charge2_fragments_for_charge3_precursor():

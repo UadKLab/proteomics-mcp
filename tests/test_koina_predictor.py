@@ -237,3 +237,63 @@ def test_koina_batch_failure_is_written_as_row_failures(monkeypatch, tmp_path):
     assert result["predictions_failed"] == 1
     failures = workflows.pd.read_csv(result["output_files"]["failures_csv"])
     assert "Koina prediction failed" in failures.loc[0, "error"]
+
+
+def test_koina_prediction_records_the_model_version_that_answered(monkeypatch, tmp_path):
+    """predictor_version is "<model>@<Triton model_version>" from the inference response (#22)."""
+
+    def fake_urlopen(req, timeout):
+        if req.data is None:
+            return _FakeResponse({"name": "Prosit_2020_intensity_HCD", "inputs": [
+                {"name": "peptide_sequences", "datatype": "BYTES", "shape": [-1, -1]},
+                {"name": "precursor_charges", "datatype": "INT32", "shape": [-1, 1]},
+                {"name": "collision_energies", "datatype": "FP32", "shape": [-1, 1]}]})
+        return _FakeResponse({
+            "model_name": "Prosit_2020_intensity_HCD",
+            "model_version": "1",
+            "outputs": [
+                {"name": "mz", "shape": [1, 2], "data": [100.0, 200.0]},
+                {"name": "intensities", "shape": [1, 2], "data": [0.2, 1.0]},
+                {"name": "annotation", "shape": [1, 2], "data": ["b1+1", "y2+1"]},
+            ],
+        })
+
+    monkeypatch.setattr(koina, "_urlopen", fake_urlopen)
+    koina._describe_koina_model_cached.cache_clear()
+
+    predicted = koina.predict_fragments_koina("PEPTIDE", 2, model="Prosit_2020_intensity_HCD", cache_dir=str(tmp_path))
+    cached = koina.predict_fragments_koina("PEPTIDE", 2, model="Prosit_2020_intensity_HCD", cache_dir=str(tmp_path))
+
+    assert predicted.predictor_version == "Prosit_2020_intensity_HCD@1"
+    assert cached.metadata["cache_hit"] is True and cached.predictor_version == "Prosit_2020_intensity_HCD@1"
+
+
+def test_koina_cache_entries_without_a_version_are_predicted_again(monkeypatch, tmp_path):
+    """Predictions cached by releases that did not record the model version are refreshed."""
+    calls = {"infer": 0}
+
+    def fake_urlopen(req, timeout):
+        if req.data is None:
+            return _FakeResponse({"name": "Prosit_2020_intensity_HCD", "inputs": [
+                {"name": "peptide_sequences", "datatype": "BYTES", "shape": [-1, -1]},
+                {"name": "precursor_charges", "datatype": "INT32", "shape": [-1, 1]},
+                {"name": "collision_energies", "datatype": "FP32", "shape": [-1, 1]}]})
+        calls["infer"] += 1
+        return _FakeResponse({"model_version": "1", "outputs": [
+            {"name": "mz", "shape": [1, 1], "data": [100.0]},
+            {"name": "intensities", "shape": [1, 1], "data": [1.0]},
+            {"name": "annotation", "shape": [1, 1], "data": ["b1+1"]}]})
+
+    monkeypatch.setattr(koina, "_urlopen", fake_urlopen)
+    koina._describe_koina_model_cached.cache_clear()
+    first = koina.predict_fragments_koina("PEPTIDE", 2, model="Prosit_2020_intensity_HCD", cache_dir=str(tmp_path))
+    [entry] = list(tmp_path.glob("*.json"))
+    old = json.loads(entry.read_text(encoding="utf-8"))
+    old["predictor_version"] = None  # as written by 0.1.9: no version, and no model_version in the metadata
+    del old["metadata"]["model_version"]
+    entry.write_text(json.dumps(old), encoding="utf-8")
+
+    refreshed = koina.predict_fragments_koina("PEPTIDE", 2, model="Prosit_2020_intensity_HCD", cache_dir=str(tmp_path))
+
+    assert first.predictor_version == refreshed.predictor_version == "Prosit_2020_intensity_HCD@1"
+    assert calls["infer"] == 2 and refreshed.metadata["cache_hit"] is False
