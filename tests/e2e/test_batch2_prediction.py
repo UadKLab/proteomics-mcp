@@ -17,11 +17,15 @@ import signal
 import subprocess
 import sys
 import time
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+from packaging.version import Version
 
 pytestmark = pytest.mark.e2e
+
+INSTALLED = Version(version("proteomics-mcp"))
 
 REPO_EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 ALL_PAYLOADS = sorted(p.relative_to(REPO_EXAMPLES).as_posix() for p in REPO_EXAMPLES.glob("*_top5/rank_*_payload.json"))
@@ -110,6 +114,8 @@ def test_live_ms2pip_reproduces_stored_metrics(tool, report, name):
     stored = payload["metrics"]
     deltas = _deltas(result, stored)
     printed_equal = all(round(result[m], 3) == round(stored[m], 3) for m in CLOSE if stored.get(m) is not None)
+    if INSTALLED >= Version("0.1.10"):  # #22: the MS2PIP release is recorded with the score
+        assert (result.get("predictor_metadata") or {}).get("predictor_version") == version("ms2pip")
     report("prediction", f"live MS2PIP re-score {name}", "pass" if max(deltas.values()) <= LIVE_ATOL else "fail",
            {"resolved_model": (result.get("predictor_metadata") or {}).get("model"), "max_delta": deltas,
             "equal_at_3_decimals": printed_equal})
@@ -166,6 +172,8 @@ def test_koina_describe_and_predict(tool, cli, report):
     assert all(f["mz"] > 0 for f in predicted["fragments"])
     assert completed.returncode == 0, completed.stderr[-2000:]
     assert [(f["annotation"], f["mz"]) for f in cli_fragments] == [(f["annotation"], f["mz"]) for f in predicted["fragments"]]
+    if INSTALLED >= Version("0.1.10"):  # #22
+        assert predicted["predictor_version"] == "Prosit_2020_intensity_HCD@1", predicted["predictor_version"]
 
 
 # --- batch prediction -> scoring ------------------------------------------------------------------------------------
@@ -299,7 +307,7 @@ def interrupted_batch(hela_batch_inputs):
         else:
             process.send_signal(signal.SIGINT)
     process.wait(timeout=60)
-    if manifest_json.exists():
+    if manifest_json.exists() and json.loads(manifest_json.read_text()).get("phase", "completed") == "completed":
         pytest.skip("the batch finished before it could be interrupted")
     return {"dir": prefix.parent, "status_json": status_json, "manifest_json": manifest_json, "backend": backend}
 
@@ -312,12 +320,16 @@ def test_interrupted_batch_keeps_only_its_status(report, interrupted_batch):
         "backend": interrupted_batch["backend"], "files_left": left,
         "status": {k: (status or {}).get(k) for k in ("phase", "completed", "total")}})
     assert status is not None and status["phase"] == "predicting", status
-    # all outputs are written at the end; only the status file survives an interruption
-    assert left == [interrupted_batch["status_json"].name], left
+    # results are written at the end; only the status (and, from 0.1.10, the running manifest) survive
+    expected = [interrupted_batch["status_json"].name]
+    if INSTALLED >= Version("0.1.10"):
+        expected = sorted(expected + [interrupted_batch["manifest_json"].name])
+    assert left == expected, left
 
 
-@pytest.mark.xfail(strict=True, reason="#46: the status tool reads the manifest, which is written only when the batch finishes")
+@pytest.mark.xfail(INSTALLED < Version("0.1.10"), strict=True,
+                   reason="#46 (fixed in 0.1.10): the status tool reads the manifest, which is written only when the batch finishes")
 def test_interrupted_batch_status_can_be_inspected(tool, interrupted_batch):
     is_error, result = tool("inspect_prediction_batch_status", {"manifest_path": str(interrupted_batch["manifest_json"])})
     assert not is_error, result
-    assert result["phase"] != "completed", result
+    assert result["phase"] != "completed" and result["seconds_since_update"] >= 0, result
