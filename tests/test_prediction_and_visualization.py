@@ -85,8 +85,6 @@ def test_ms2pip_libomp_hint_is_macos_only(monkeypatch):
         predict_fragments_ms2pip("PEPTIDE", 2)
 
 
-@pytest.mark.network
-@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_prediction_records_the_installed_ms2pip_version():
     """MS2PIP releases predict slightly differently (#23), so each prediction records the version (#22)."""
     from importlib.metadata import version
@@ -101,6 +99,8 @@ def test_ms2pip_prediction_records_the_installed_ms2pip_version():
     assert predicted.predictor_version == version("ms2pip")
 
 
+@pytest.mark.network
+@pytest.mark.usefixtures("ms2pip_runtime")
 def test_ms2pip_auto_uses_charge2_fragments_for_charge3_precursor():
     try:
         import ms2pip  # noqa: F401
