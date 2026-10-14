@@ -5,6 +5,7 @@ import html as html_lib
 import json
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -1479,8 +1480,9 @@ def join_scored_enrichment(frame: pd.DataFrame, scored_frame: pd.DataFrame) -> t
     """Merge scored metrics onto candidate rows and report how the rows were matched.
 
     Rows join on candidate_id. Most adapters derive candidate_id from the input file name, so a renamed or
-    copied table changes every id; scored rows whose id is not found then join on run + scan + peptidoform,
-    when that key identifies exactly one candidate row.
+    copied table changes every id; scored rows whose id is not found then join on run + scan + peptidoform, one to
+    one only. A scored row is left unmatched, and counted as ambiguous, when its key matches several candidate rows,
+    is shared with another such scored row, or matches a candidate row already scored by candidate_id.
     """
     summary = {
         "scored_rows": int(len(scored_frame)),
@@ -1488,6 +1490,7 @@ def join_scored_enrichment(frame: pd.DataFrame, scored_frame: pd.DataFrame) -> t
         "matched_by_candidate_id": 0,
         "matched_by_run_scan_peptidoform": 0,
         "unmatched_scored_rows": int(len(scored_frame)),
+        "ambiguous_scored_rows": 0,
     }
     if frame.empty or scored_frame.empty:
         return frame.copy(), summary
@@ -1503,17 +1506,20 @@ def join_scored_enrichment(frame: pd.DataFrame, scored_frame: pd.DataFrame) -> t
     by_id = scored["candidate_id"].isin(candidate_ids)
     summary["matched_by_candidate_id"] = int(by_id.sum())
     if not by_id.all() and all(column in enriched.columns and column in scored.columns for column in _FALLBACK_JOIN_KEYS):
-        keys = pd.Series([_fallback_key(row) for row in enriched.to_dict("records")], index=enriched.index)
-        unique = keys.dropna()
-        unique = unique[~unique.duplicated(keep=False)]
-        id_by_key = dict(zip(unique, enriched.loc[unique.index, "candidate_id"]))
-        claimed = set(scored.loc[by_id, "candidate_id"])
-        for index, row in zip(scored.index[~by_id], scored.loc[~by_id].to_dict("records")):
-            candidate_id = id_by_key.get(_fallback_key(row))
-            if candidate_id is not None and candidate_id not in claimed:
-                scored.at[index, "candidate_id"] = candidate_id
-                claimed.add(candidate_id)
-                summary["matched_by_run_scan_peptidoform"] += 1
+        candidate_keys = [_fallback_key(row) for row in enriched.to_dict("records")]
+        candidates_per_key = Counter(key for key in candidate_keys if key is not None)
+        id_by_key = {key: candidate_id for key, candidate_id in zip(candidate_keys, enriched["candidate_id"]) if key is not None}
+        scored_keys = [_fallback_key(row) for row in scored.loc[~by_id].to_dict("records")]
+        scored_per_key = Counter(key for key in scored_keys if key is not None)
+        scored_by_id = set(scored.loc[by_id, "candidate_id"])
+        for index, key in zip(scored.index[~by_id], scored_keys):
+            if key is None or key not in candidates_per_key:
+                continue
+            if candidates_per_key[key] > 1 or scored_per_key[key] > 1 or id_by_key[key] in scored_by_id:
+                summary["ambiguous_scored_rows"] += 1
+                continue
+            scored.at[index, "candidate_id"] = id_by_key[key]
+            summary["matched_by_run_scan_peptidoform"] += 1
     summary["unmatched_scored_rows"] = summary["scored_rows"] - summary["matched_by_candidate_id"] - summary["matched_by_run_scan_peptidoform"]
 
     available_columns = [column for column in SCORING_ENRICHMENT_COLUMNS if column in scored.columns]

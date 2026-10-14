@@ -384,7 +384,8 @@ _SCORED_JOIN: contextvars.ContextVar[dict[str, Any] | None] = contextvars.Contex
 
 
 def _reports_scored_join(func: Any) -> Any:
-    """Add how scored_path joined the candidates ("scored_join") to the tool result, with a warning if nothing matched."""
+    """Add how scored_path joined the candidates ("scored_join") to the tool result, with warnings if nothing matched
+    or if rows were left unmatched as ambiguous."""
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -401,6 +402,12 @@ def _reports_scored_join(func: Any) -> Any:
                     f"scored_path matched none of its {summary['scored_rows']} rows to the candidate table, by candidate_id "
                     "or by run + scan + peptidoform; score-aware columns and plots are missing. Check that scored_path "
                     "was scored from this candidate table."
+                )
+            if summary.get("ambiguous_scored_rows"):
+                result.setdefault("warnings", []).append(
+                    f"{summary['ambiguous_scored_rows']} scored rows were left unmatched because their run + scan + "
+                    "peptidoform matches several candidate rows, another scored row, or a candidate already scored by "
+                    "candidate_id; no match was guessed."
                 )
         return result
 
