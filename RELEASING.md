@@ -59,6 +59,7 @@ Replace `X.Y.Z` with the new version.
    - `pyproject.toml` (`[project].version`, the single source of truth)
    - `manifest.json` (`version`)
    - `CITATION.cff` (`version`)
+   - the pinned install commands in `README.md` and `docs/clients.md` (`proteomics-mcp@X.Y.Z`, `vX.Y.Z` release links)
 3. **Release notes.** Add `docs/releases/vX.Y.Z.md`. The workflow uses it as the GitHub release text.
 4. **Changelog.** In `CHANGELOG.md`, move the *Unreleased* entries under a new `X.Y.Z` heading with the release date.
 5. **Check:**
