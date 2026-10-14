@@ -151,3 +151,19 @@ def test_static_spectrum_via_mcp(tool, report, tmp_path, name):
     failed = {key: value for key, value in static.items() if isinstance(value, str)}
     report("spectra", f"render_static_spectrum via MCP {name.split('/')[0]}", "fail (#35)" if failed else "pass", {"outputs": static})
     assert not failed, failed
+
+
+@pytest.mark.xfail(INSTALLED < Version("0.1.10"), strict=True,
+                   reason="#45 (fixed in 0.1.10): render_spectra_batch reads only plain JSON")
+def test_render_spectra_batch_reads_gzip_json_lines(tool, report, tmp_path):
+    """§2.8: batch rendering from a file-backed JSON Lines manifest, gzip-compressed."""
+    import gzip
+
+    spec = tmp_path / "items.jsonl.gz"
+    with gzip.open(spec, "wt", encoding="utf-8") as handle:
+        for name in PAYLOADS:
+            handle.write(json.dumps({"name": name.split("/")[0], "payload": _load(name)}) + "\n")
+    is_error, result = tool("render_spectra_batch", {"input_path": str(spec), "validate_only": True})
+    report("spectra", "render_spectra_batch from .jsonl.gz", "pass" if not is_error else "fail (#45)", {"result": str(result)[:300]})
+    assert not is_error, result
+    assert (result["items_requested"], result["valid_items"]) == (len(PAYLOADS), len(PAYLOADS))

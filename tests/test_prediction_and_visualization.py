@@ -627,6 +627,37 @@ def test_render_spectra_batch_tool_accepts_input_path(tmp_path):
     assert (tmp_path / "batch_out" / "observed" / "scan_a.html").exists()
 
 
+@pytest.mark.parametrize("file_name", ["items.json", "items.json.gz", "items.jsonl", "items.ndjson", "items.jsonl.gz"])
+def test_render_spectra_batch_tool_reads_json_json_lines_and_gzip(tmp_path, file_name):
+    """§2.8 of the manuscript: a file-backed JSON, JSON Lines, or gzip manifest (#45)."""
+    import gzip
+
+    payload = build_spectrum_payload(ObservedSpectrum(mz=[100.0], intensity=[10.0], precursor_mz=400.0, precursor_charge=2),
+                                     mock_predicted_spectrum("PEPTIDE", 2))
+    items = [{"name": "scan_a", "payload": payload}, {"name": "scan_b", "payload": payload}]
+    if ".jsonl" in file_name or ".ndjson" in file_name:
+        text = "\n".join(json.dumps(item) for item in items) + "\n\n"
+    else:
+        text = json.dumps({"items": items})
+    input_path = tmp_path / file_name
+    if file_name.endswith(".gz"):
+        with gzip.open(input_path, "wt", encoding="utf-8") as handle:
+            handle.write(text)
+    else:
+        input_path.write_text(text, encoding="utf-8")
+
+    result = render_spectra_batch_tool(input_path=str(input_path), validate_only=True)
+
+    assert (result["items_requested"], result["valid_items"], result["invalid_items"]) == (2, 2, 0)
+
+
+def test_render_spectra_batch_tool_names_the_bad_json_lines_line(tmp_path):
+    input_path = tmp_path / "items.jsonl"
+    input_path.write_text('{"name": "ok", "payload": {}}\n{not json\n', encoding="utf-8")
+    with pytest.raises(ValueError, match=r"items\.jsonl, line 2: not valid JSON"):
+        render_spectra_batch_tool(input_path=str(input_path), validate_only=True)
+
+
 def test_render_spectra_batch_tool_validate_only_reports_schema_failures(tmp_path):
     input_path = tmp_path / "invalid_batch_items.json"
     input_path.write_text(json.dumps({"items": [{"name": "bad_item"}], "views": ["comparison"]}), encoding="utf-8")

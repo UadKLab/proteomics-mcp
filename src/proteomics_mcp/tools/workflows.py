@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import gzip
 import inspect
 import json
 import os
@@ -2336,8 +2337,23 @@ def _render_batch_item(
 
 
 def _load_render_batch_spec_from_path(input_path: str) -> tuple[list[dict[str, Any]], list[str] | None]:
+    """Read a batch render spec: JSON (a list of items, or {"items": [...], "views": [...]}), or JSON Lines
+    (.jsonl/.ndjson, one item per line); either may be gzip-compressed (.gz)."""
     path = Path(input_path)
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+    compressed = bool(suffixes) and suffixes[-1] == ".gz"
+    with (gzip.open(path, "rt", encoding="utf-8") if compressed else path.open(encoding="utf-8")) as handle:
+        text = handle.read()
+    if (suffixes[-2:-1] if compressed else suffixes[-1:]) in ([".jsonl"], [".ndjson"]):
+        lines = [(number, line) for number, line in enumerate(text.splitlines(), start=1) if line.strip()]
+        items = []
+        for number, line in lines:
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{input_path}, line {number}: not valid JSON ({exc.msg}).") from exc
+        return items, None
+    payload = json.loads(text)
     if isinstance(payload, dict) and "items" in payload:
         items = payload["items"]
         views = payload.get("views")

@@ -1067,7 +1067,11 @@ if MCPServer is not None:
         validate_only: bool = False,
         status_path: str | None = None,
     ) -> dict[str, Any]:
-        """Render many spectrum HTML artifacts at once from inline items or a file-backed batch manifest."""
+        """Render many spectrum HTML artifacts at once from inline items or a file-backed batch manifest.
+
+        input_path may be JSON (a list of items, or {"items": [...], "views": [...]}), JSON Lines
+        (.jsonl or .ndjson, one item per line), or either of them gzip-compressed (.gz).
+        """
         return render_spectra_batch_tool(
             items=items,
             output_dir=_resolve(output_dir),
