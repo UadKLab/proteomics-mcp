@@ -47,6 +47,9 @@ FIGURE2_LEGEND = {
     "precursor_signal_fraction": (10.3, 1, 100), "fragment_mass_error_abs_mean_ppm": (15.822, 3),
     "fragment_mass_error_abs_mean_da": (0.004, 3), "precursor_mass_error_ppm": (-3.055, 3),
 }
+# Fragment mass errors are measured against the predicted fragment m/z. MS2PIP 4.2.0 moved those by ~4.6e-5 Da (b1 of E:
+# 130.04982 -> 130.04987, the theoretical value), so live values match the legend only with the 4.1.2 of the figures (#23).
+PREDICTED_MZ_DEPENDENT = ("fragment_mass_error_abs_mean_ppm", "fragment_mass_error_abs_mean_da")
 
 LIBOMP_HINT = "brew install libomp"
 
@@ -138,12 +141,16 @@ def test_figure2_legend_values(tool, report, source):
         assert not is_error, metrics
     mismatches = {m: (_printed(metrics[m], spec), spec[0]) for m, spec in FIGURE2_LEGEND.items()
                   if _printed(metrics[m], spec) != spec[0]}
+    version_dependent = {}
+    if source == "live" and Version(version("ms2pip")) != Version("4.1.2"):
+        version_dependent = {m: mismatches.pop(m) for m in PREDICTED_MZ_DEPENDENT if m in mismatches}
     candidate = payload["metrics"]["candidate"]
     if round(candidate["confidence"] * 100, 1) != 100.0:
         mismatches["confidence"] = (candidate["confidence"], 100.0)
     if f"{candidate['raw_score']:.2e}" != "-2.80e-04":
         mismatches["raw_score"] = (candidate["raw_score"], -2.80e-4)
-    report("figures", f"Figure 2 legend values ({source})", "pass" if not mismatches else "fail", {"mismatches": mismatches})
+    report("figures", f"Figure 2 legend values ({source})", "fail" if mismatches else "differs (#23)" if version_dependent else "pass",
+           {"mismatches": mismatches, "ms2pip": version("ms2pip"), "ms2pip_version_dependent": version_dependent})
     assert not mismatches, mismatches
 
 
