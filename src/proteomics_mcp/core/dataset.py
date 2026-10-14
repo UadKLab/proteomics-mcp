@@ -5,6 +5,7 @@ import html as html_lib
 import json
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -1461,9 +1462,38 @@ def load_scored_psm_table(path: str | Path) -> pd.DataFrame:
     return frame
 
 
+_FALLBACK_JOIN_KEYS = ("run_key", "scan_number", "peptidoform")
+
+
 def merge_scored_enrichment(frame: pd.DataFrame, scored_frame: pd.DataFrame) -> pd.DataFrame:
+    return join_scored_enrichment(frame, scored_frame)[0]
+
+
+def _fallback_key(row: Any) -> tuple[str, int, str] | None:
+    run_key, scan, peptidoform = (row.get(column) for column in _FALLBACK_JOIN_KEYS)
+    if run_key is None or pd.isna(run_key) or scan is None or pd.isna(scan) or not peptidoform:
+        return None
+    return str(run_key), int(scan), str(peptidoform)
+
+
+def join_scored_enrichment(frame: pd.DataFrame, scored_frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Merge scored metrics onto candidate rows and report how the rows were matched.
+
+    Rows join on candidate_id. Most adapters derive candidate_id from the input file name, so a renamed or
+    copied table changes every id; scored rows whose id is not found then join on run + scan + peptidoform, one to
+    one only. A scored row is left unmatched, and counted as ambiguous, when its key matches several candidate rows,
+    is shared with another such scored row, or matches a candidate row already scored by candidate_id.
+    """
+    summary = {
+        "scored_rows": int(len(scored_frame)),
+        "candidate_rows": int(len(frame)),
+        "matched_by_candidate_id": 0,
+        "matched_by_run_scan_peptidoform": 0,
+        "unmatched_scored_rows": int(len(scored_frame)),
+        "ambiguous_scored_rows": 0,
+    }
     if frame.empty or scored_frame.empty:
-        return frame.copy()
+        return frame.copy(), summary
     if "candidate_id" not in frame.columns or "candidate_id" not in scored_frame.columns:
         raise ValueError("Scored enrichment requires 'candidate_id' in both frames.")
 
@@ -1472,9 +1502,29 @@ def merge_scored_enrichment(frame: pd.DataFrame, scored_frame: pd.DataFrame) -> 
     scored["candidate_id"] = scored["candidate_id"].astype(str)
     enriched["candidate_id"] = enriched["candidate_id"].astype(str)
 
+    candidate_ids = set(enriched["candidate_id"])
+    by_id = scored["candidate_id"].isin(candidate_ids)
+    summary["matched_by_candidate_id"] = int(by_id.sum())
+    if not by_id.all() and all(column in enriched.columns and column in scored.columns for column in _FALLBACK_JOIN_KEYS):
+        candidate_keys = [_fallback_key(row) for row in enriched.to_dict("records")]
+        candidates_per_key = Counter(key for key in candidate_keys if key is not None)
+        id_by_key = {key: candidate_id for key, candidate_id in zip(candidate_keys, enriched["candidate_id"]) if key is not None}
+        scored_keys = [_fallback_key(row) for row in scored.loc[~by_id].to_dict("records")]
+        scored_per_key = Counter(key for key in scored_keys if key is not None)
+        scored_by_id = set(scored.loc[by_id, "candidate_id"])
+        for index, key in zip(scored.index[~by_id], scored_keys):
+            if key is None or key not in candidates_per_key:
+                continue
+            if candidates_per_key[key] > 1 or scored_per_key[key] > 1 or id_by_key[key] in scored_by_id:
+                summary["ambiguous_scored_rows"] += 1
+                continue
+            scored.at[index, "candidate_id"] = id_by_key[key]
+            summary["matched_by_run_scan_peptidoform"] += 1
+    summary["unmatched_scored_rows"] = summary["scored_rows"] - summary["matched_by_candidate_id"] - summary["matched_by_run_scan_peptidoform"]
+
     available_columns = [column for column in SCORING_ENRICHMENT_COLUMNS if column in scored.columns]
     if not available_columns:
-        return enriched
+        return enriched, summary
 
     scored_subset = scored[["candidate_id", *available_columns]].drop_duplicates(subset=["candidate_id"], keep="last")
     merged = enriched.merge(scored_subset, on="candidate_id", how="left", suffixes=("", "__scored"))
@@ -1494,7 +1544,7 @@ def merge_scored_enrichment(frame: pd.DataFrame, scored_frame: pd.DataFrame) -> 
             merged[column] = pd.to_numeric(merged[column], errors="coerce")
     if "ion_type_counts" in merged.columns:
         merged["ion_type_counts"] = merged["ion_type_counts"].apply(_parse_mapping)
-    return merged
+    return merged, summary
 
 
 def candidate_models_to_frame(candidates: list[CandidatePSM]) -> pd.DataFrame:

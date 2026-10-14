@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import contextvars
+import functools
 import gzip
 import inspect
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -41,7 +44,7 @@ from proteomics_mcp.core.dataset import (
     inspection_peptide_table,
     inspection_psm_table,
     load_scored_psm_table,
-    merge_scored_enrichment,
+    join_scored_enrichment,
     render_peptide_table_html,
     render_psm_table_html,
     render_dashboard_bundle_html,
@@ -72,6 +75,8 @@ from proteomics_mcp.predictors.ms2pip import predict_fragments_ms2pip_batch
 import pandas as pd
 from pandas.errors import EmptyDataError
 import pyarrow.feather as pyarrow_feather
+
+logger = logging.getLogger("proteomics_mcp")
 
 
 def _preview_records(frame: pd.DataFrame, limit: int = 10) -> list[dict[str, Any]]:
@@ -366,8 +371,47 @@ def _load_candidate_frame(
     candidates = _load_candidate_models(path, adapter, limit=limit, **adapter_options)
     frame = candidate_models_to_frame(candidates)
     if scored_path:
-        frame = merge_scored_enrichment(frame, load_scored_psm_table(scored_path))
+        frame, summary = join_scored_enrichment(frame, load_scored_psm_table(scored_path))
+        _SCORED_JOIN.set({"scored_path": scored_path, **summary})
+        if summary["unmatched_scored_rows"]:
+            logger.warning("scored_path %s: %d of %d scored rows match no candidate row", scored_path,
+                           summary["unmatched_scored_rows"], summary["scored_rows"])
     return frame
+
+
+# The join summary of the scored table loaded during the current tool call (see _reports_scored_join).
+_SCORED_JOIN: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("scored_join", default=None)
+
+
+def _reports_scored_join(func: Any) -> Any:
+    """Add how scored_path joined the candidates ("scored_join") to the tool result, with warnings if nothing matched
+    or if rows were left unmatched as ambiguous."""
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        token = _SCORED_JOIN.set(None)
+        try:
+            result = func(*args, **kwargs)
+            summary = _SCORED_JOIN.get()
+        finally:
+            _SCORED_JOIN.reset(token)
+        if summary is not None and isinstance(result, dict):
+            result["scored_join"] = summary
+            if summary["scored_rows"] and summary["unmatched_scored_rows"] == summary["scored_rows"]:
+                result.setdefault("warnings", []).append(
+                    f"scored_path matched none of its {summary['scored_rows']} rows to the candidate table, by candidate_id "
+                    "or by run + scan + peptidoform; score-aware columns and plots are missing. Check that scored_path "
+                    "was scored from this candidate table."
+                )
+            if summary.get("ambiguous_scored_rows"):
+                result.setdefault("warnings", []).append(
+                    f"{summary['ambiguous_scored_rows']} scored rows were left unmatched because their run + scan + "
+                    "peptidoform matches several candidate rows, another scored row, or a candidate already scored by "
+                    "candidate_id; no match was guessed."
+                )
+        return result
+
+    return wrapper
 
 
 def enrich_frame_with_spectra_metadata(
@@ -486,6 +530,7 @@ def enrich_frame_with_spectra_metadata(
     }
 
 
+@_reports_scored_join
 def inspect_psm_table_tool(
     *,
     path: str,
@@ -514,6 +559,7 @@ def inspect_psm_table_tool(
     }
 
 
+@_reports_scored_join
 def inspect_peptide_table_tool(
     *,
     path: str,
@@ -544,6 +590,7 @@ def inspect_peptide_table_tool(
     }
 
 
+@_reports_scored_join
 def list_distribution_fields_tool(
     *,
     path: str,
@@ -556,6 +603,7 @@ def list_distribution_fields_tool(
     return distribution_field_catalog(frame)
 
 
+@_reports_scored_join
 def summarize_numeric_field_tool(
     *,
     path: str,
@@ -572,6 +620,7 @@ def summarize_numeric_field_tool(
     return summarize_numeric_distribution(frame, field=field, group_by=group_by, percentiles=percentiles, weight_field=weight_field)
 
 
+@_reports_scored_join
 def bin_numeric_field_tool(
     *,
     path: str,
@@ -598,6 +647,7 @@ def bin_numeric_field_tool(
     )
 
 
+@_reports_scored_join
 def summarize_categorical_field_tool(
     *,
     path: str,
@@ -613,6 +663,7 @@ def summarize_categorical_field_tool(
     return summarize_categorical_distribution(frame, field=field, group_by=group_by, top_n=top_n)
 
 
+@_reports_scored_join
 def summarize_missing_values_tool(
     *,
     path: str,
@@ -626,6 +677,7 @@ def summarize_missing_values_tool(
     return summarize_missing_values(frame, fields=fields)
 
 
+@_reports_scored_join
 def summarize_cv_by_category_tool(
     *,
     path: str,
@@ -641,6 +693,7 @@ def summarize_cv_by_category_tool(
     return summarize_cv_by_category(frame, value_field=value_field, category_field=category_field, top_n=top_n)
 
 
+@_reports_scored_join
 def bin_2d_numeric_fields_tool(
     *,
     path: str,
@@ -669,6 +722,7 @@ def bin_2d_numeric_fields_tool(
     )
 
 
+@_reports_scored_join
 def summarize_dashboard_tool(
     *,
     path: str,
@@ -693,6 +747,7 @@ def summarize_dashboard_tool(
     )
 
 
+@_reports_scored_join
 def summarize_overlap_tool(
     *,
     path: str,
@@ -707,6 +762,7 @@ def summarize_overlap_tool(
     return summarize_overlap(frame, entity=entity, group_field=group_field)
 
 
+@_reports_scored_join
 def summarize_modifications_tool(
     *,
     path: str,
@@ -720,6 +776,7 @@ def summarize_modifications_tool(
     return summarize_modifications(frame, group_field=group_field)
 
 
+@_reports_scored_join
 def summarize_prediction_accuracy_tool(
     *,
     path: str,
@@ -751,6 +808,7 @@ def render_prediction_accuracy_html_tool(
     return {"format": "html", "output_path": str(output_path), "title": title}
 
 
+@_reports_scored_join
 def summarize_quant_quality_tool(
     *,
     path: str,
@@ -767,6 +825,7 @@ def summarize_quant_quality_tool(
     return summarize_quant_quality(frame, quant_field=quant_field, entity=entity, group_field=group_field, min_groups_for_cv=min_groups_for_cv)
 
 
+@_reports_scored_join
 def summarize_file_coverage_tool(
     *,
     path: str,
@@ -801,6 +860,7 @@ def render_dashboard_html_tool(summary: dict[str, Any], output_path: str, title:
     return {"format": "html", "output_path": str(output_path), "title": title}
 
 
+@_reports_scored_join
 def build_id_dashboard_tool(
     *,
     path: str,
@@ -1686,6 +1746,7 @@ def inspect_scored_batch_status_tool(manifest_path: str) -> dict[str, Any]:
     }
 
 
+@_reports_scored_join
 def render_psm_table_tool(
     *,
     path: str,
@@ -1706,6 +1767,7 @@ def render_psm_table_tool(
     return render_psm_table_html(inspection, output_path)
 
 
+@_reports_scored_join
 def render_peptide_table_tool(
     *,
     path: str,

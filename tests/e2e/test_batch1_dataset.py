@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from importlib.metadata import version
 
 import pytest
+from packaging.version import Version
 
 pytestmark = pytest.mark.e2e
+
+INSTALLED = Version(version("proteomics-mcp"))
 
 FRAGPIPE = "processed/arabidopsis/fragpipe_psm.tsv"
 SCORED = "processed/arabidopsis/supplementary_scored_psms.csv"
@@ -78,7 +82,8 @@ def _plot_ids(html_path) -> set[str]:
 
 @pytest.mark.parametrize("table_name", [
     pytest.param("fragpipe_psm.tsv", id="zenodo-name",
-                 marks=pytest.mark.xfail(strict=True, reason="#39: candidate_id depends on the file name; the join matches nothing")),
+                 marks=pytest.mark.xfail(INSTALLED < Version("0.1.10"), strict=True,
+                                         reason="#39 (fixed in 0.1.10): candidate_id depends on the file name; the join matches nothing")),
     pytest.param("psm.tsv", id="original-name"),
 ])
 def test_figure4_score_aware_dashboard(zenodo, tool, report, tmp_path, table_name):
