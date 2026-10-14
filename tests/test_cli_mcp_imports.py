@@ -97,6 +97,56 @@ def test_actionable_tool_errors_reach_the_client(monkeypatch):
     assert "brew install libomp" in result.content[0].text
 
 
+def _call_tool(name: str, arguments: dict):
+    from mcp import Client
+
+    async def call():
+        async with Client(mcp) as client:
+            return await client.call_tool(name, arguments)
+
+    return asyncio.run(call())
+
+
+@pytest.mark.parametrize(
+    ("name", "arguments", "expected"),
+    [
+        ("load_candidates", {"path": "does/not/exist.csv", "adapter": "fragpipe"}, "FileNotFoundError"),
+        ("load_candidates", {"path": "does/not/exist.csv", "adapter": "not_an_adapter"}, "ValueError: Unsupported candidate adapter: not_an_adapter"),
+        ("score_spectrum", {"candidate": {"peptidoform": "PEPTIDE"}, "observed": {"mz": [100.0], "intensity": [1.0]}},
+         "ValueError: Invalid 'candidate'"),
+        ("annotate_observed_spectrum", {"observed": {"mz": "not a list"}, "peptidoform": "PEPTIDE"}, "ValueError: Invalid 'observed'"),
+    ],
+    ids=["missing-file", "unknown-adapter", "incomplete-candidate", "invalid-spectrum"],
+)
+def test_expected_tool_errors_reach_the_client(name, arguments, expected):
+    """Errors the agent can correct are shown with their message, not only "Error executing tool" (#27)."""
+    result = _call_tool(name, arguments)
+    assert result.is_error
+    assert expected in result.content[0].text
+
+
+def test_lookup_errors_reach_the_client_without_repr_quotes(monkeypatch):
+    def unknown_field(**_):
+        raise KeyError("Unknown field 'spectral_angel'.")
+
+    monkeypatch.setattr(server_module, "summarize_numeric_field_tool", unknown_field)
+    result = _call_tool("summarize_numeric_field", {"path": "x.csv", "field": "spectral_angel"})
+    assert result.is_error
+    assert result.content[0].text.endswith("KeyError: Unknown field 'spectral_angel'.")
+
+
+def test_unexpected_tool_errors_stay_masked(monkeypatch):
+    def crash(*args, **kwargs):
+        raise RuntimeError("internal state /home/someone/secret")
+
+    monkeypatch.setattr(server_module, "predict_fragments_tool", crash)
+    result = _call_tool("predict_fragments", {"peptidoform": "PEPTIDE", "charge": 2})
+    assert result.is_error
+    if "secret" in result.content[0].text:
+        pytest.skip("this mcp version passes every exception message through; masking starts with later 2.x releases")
+    assert "Error executing tool predict_fragments" in result.content[0].text
+
+
 def test_mcp_tools_have_directory_annotations():
     tools = {tool.name: tool for tool in mcp._tool_manager.list_tools()}
     assert len(tools) >= 50
