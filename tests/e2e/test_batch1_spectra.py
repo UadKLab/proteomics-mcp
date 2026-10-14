@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 import sys
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+from packaging.version import Version
 
 pytestmark = pytest.mark.e2e
+
+INSTALLED = Version(version("proteomics-mcp"))
 
 REPO_EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 # One PSM per dataset/engine; rank 2 of the HeLa set is the Figure 2 PSM (EFHLNESGDPSSK, scan 11648).
@@ -122,8 +126,8 @@ def test_renderers(tool, cli, report, tmp_path, name):
     assert completed.returncode == 0, completed.stderr[-2000:]
 
 
-@pytest.mark.xfail(sys.platform == "darwin", strict=True,
-                   reason="#35: pyplot selects the macosx backend, which fails in the MCP worker thread")
+@pytest.mark.xfail(sys.platform == "darwin" and INSTALLED < Version("0.1.10"), strict=True,
+                   reason="#35 (fixed in 0.1.10): pyplot selects the macosx backend, which fails in the MCP worker thread")
 @pytest.mark.parametrize("name", PAYLOADS, ids=IDS)
 def test_static_spectrum_via_mcp(tool, report, tmp_path, name):
     payload = _load(name)
