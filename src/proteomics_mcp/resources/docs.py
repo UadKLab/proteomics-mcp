@@ -82,6 +82,11 @@ Recommended additional fields:
 
 The generic adapter accepts user-specified column mappings for peptide, scan, spectrum_id, usi, charge, precursor m/z, score, next-score equivalents, and token-log-probability arrays. Generic mapped tables can be .csv, .tsv, or .xlsx.
 
+Pass the mapping as column_mapping_path (MCP) or --column-mapping (CLI): a JSON file whose keys name the table's columns, for example
+{"peptide_column": "Sequence", "scan_column": "Scan", "charge_column": "Charge", "score_column": "Score", "score_type": "confidence_0_1"}.
+Every tool and command that takes adapter accepts it; it is required for adapter="generic" and rejected for other adapters.
+Keys: peptide_column (required), scan_column, spectrum_id_column, usi_column, charge_column, precursor_mz_column, score_column, next_beam_column, next_beam_margin_column, next_score_column, next_score_margin_column, token_log_probabilities_column, score_type (confidence_0_1, posterior_error_probability, evalue, score_unscaled, unknown; default unknown), source_engine (default "generic").
+
 For multi-run local data, prefer joining by experiment_name/raw-file stem plus scan_number rather than scan_number alone.""",
     "method://supported_predictors": """Supported predictors:
 - ms2pip: local MS2PIP fragment-intensity prediction.

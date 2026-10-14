@@ -53,7 +53,14 @@ Supported adapters:
 - `maxquant`: `msms.txt` exports.
 - `fragpipe`: PSM tables including run/scan parsing from spectrum fields.
 - `proteome_discoverer`: PSM exports, including `.xlsx`.
-- `generic`: CSV, TSV, or XLSX using explicit column mappings.
+- `generic`: CSV, TSV, or XLSX using explicit column mappings. Pass a JSON mapping file with `--column-mapping` (CLI) or `column_mapping_path` (MCP), on any command or tool that takes an adapter:
+
+  ```json
+  {"peptide_column": "Sequence", "scan_column": "Scan", "charge_column": "Charge",
+   "score_column": "Score", "score_type": "confidence_0_1"}
+  ```
+
+  `peptide_column` is required. The other keys are `scan_column`, `spectrum_id_column`, `usi_column`, `charge_column`, `precursor_mz_column`, `score_column`, `next_beam_column`, `next_beam_margin_column`, `next_score_column`, `next_score_margin_column`, `token_log_probabilities_column`, `score_type` (`confidence_0_1`, `posterior_error_probability`, `evalue`, `score_unscaled` or `unknown`, the default) and `source_engine` (default `generic`). The mapping is rejected for the named adapters.
 
 Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, match spectra using raw-file stem plus scan number rather than scan number alone.
 
