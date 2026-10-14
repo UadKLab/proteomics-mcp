@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import logging
 import os
+import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -136,9 +137,30 @@ if MCPServer is not None:
     }
 
     # The MCP SDK hides the message of any exception other than ToolError from the
-    # client ("Error executing tool <name>"). Re-raise errors that carry a fix the
-    # user can apply as ToolError so the message reaches the agent.
-    _ACTIONABLE_ERRORS = (MissingOpenMPError,)
+    # client ("Error executing tool <name>"). Re-raise the errors the tools raise
+    # deliberately for input the user or agent can correct (bad arguments or tables,
+    # missing files, unknown fields or peptides, unreachable services) as ToolError,
+    # so the message reaches the agent. Their messages name only the user's own inputs.
+    # Anything else (RuntimeError, TypeError, ...) is a defect and stays masked and logged.
+    _ACTIONABLE_ERRORS = (
+        MissingOpenMPError,
+        ValueError,  # includes pydantic ValidationError
+        LookupError,  # KeyError, and LookupError for unknown peptides, spectra and SDRF files
+        FileNotFoundError,
+        IsADirectoryError,
+        NotADirectoryError,
+        PermissionError,
+        ConnectionError,
+        TimeoutError,
+        urllib.error.URLError,
+    )
+
+    def _actionable_message(exc: BaseException) -> str:
+        if isinstance(exc, MissingOpenMPError):
+            return str(exc)
+        # str(KeyError("x")) is "'x'"; show the message itself
+        detail = exc.args[0] if isinstance(exc, KeyError) and len(exc.args) == 1 else exc
+        return f"{type(exc).__name__}: {detail}"
 
     def _surface_actionable_errors(func: Any) -> Any:
         @functools.wraps(func)
@@ -146,7 +168,7 @@ if MCPServer is not None:
             try:
                 return func(*args, **kwargs)
             except _ACTIONABLE_ERRORS as exc:
-                raise ToolError(str(exc)) from exc
+                raise ToolError(_actionable_message(exc)) from exc
 
         return wrapper
 
