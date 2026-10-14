@@ -199,14 +199,24 @@ if MCPServer is not None:
     mcp = AnnotatedMCPServer("proteomics-mcp", version=__version__)
 
     @mcp.tool()
-    def load_candidates(path: str, adapter: str = "instanovo", limit: int | None = None) -> list[dict[str, Any]]:
-        """Normalize an upstream candidate or identification table into the canonical PSM schema."""
-        return load_candidates_tool(path, adapter, limit=limit)
+    def load_candidates(
+        path: str,
+        adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Normalize an upstream candidate or identification table into the canonical PSM schema.
+
+        For adapter="generic", column_mapping_path is a JSON file mapping the table's columns,
+        e.g. {"peptide_column": "Sequence", "scan_column": "Scan"}; see method://generic_mapping_v1.
+        """
+        return load_candidates_tool(path, adapter, column_mapping_path=column_mapping_path, limit=limit)
 
     @mcp.tool()
     def inspect_psm_table(
         path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         sdrf_path: str | None = None,
         pride_project_accession: str | None = None,
@@ -217,6 +227,7 @@ if MCPServer is not None:
         return inspect_psm_table_tool(
             path=path,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             sdrf_path=sdrf_path,
             pride_project_accession=pride_project_accession,
@@ -228,6 +239,7 @@ if MCPServer is not None:
     def inspect_peptide_table(
         path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         peptide: str | None = None,
         scored_path: str | None = None,
         sdrf_path: str | None = None,
@@ -239,6 +251,7 @@ if MCPServer is not None:
         return inspect_peptide_table_tool(
             path=path,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             peptide=peptide,
             scored_path=scored_path,
             sdrf_path=sdrf_path,
@@ -251,17 +264,19 @@ if MCPServer is not None:
     def list_distribution_fields(
         path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         limit: int | None = None,
     ) -> dict[str, Any]:
         """List numeric and categorical fields available for summary and binning on a normalized table."""
-        return list_distribution_fields_tool(path=path, adapter=adapter, scored_path=scored_path, limit=limit)
+        return list_distribution_fields_tool(path=path, adapter=adapter, column_mapping_path=column_mapping_path, scored_path=scored_path, limit=limit)
 
     @mcp.tool()
     def summarize_numeric_field(
         path: str,
         field: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         group_by: str | None = None,
         percentiles: list[float] | None = None,
@@ -273,6 +288,7 @@ if MCPServer is not None:
             path=path,
             field=field,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             group_by=group_by,
             percentiles=percentiles,
@@ -285,6 +301,7 @@ if MCPServer is not None:
         path: str,
         field: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         group_by: str | None = None,
         top_n: int | None = None,
@@ -295,6 +312,7 @@ if MCPServer is not None:
             path=path,
             field=field,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             group_by=group_by,
             top_n=top_n,
@@ -305,12 +323,13 @@ if MCPServer is not None:
     def summarize_missing_values(
         path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         fields: list[str] | None = None,
         limit: int | None = None,
     ) -> dict[str, Any]:
         """Count missing values and missing fractions for selected or inferred fields."""
-        return summarize_missing_values_tool(path=path, adapter=adapter, scored_path=scored_path, fields=fields, limit=limit)
+        return summarize_missing_values_tool(path=path, adapter=adapter, column_mapping_path=column_mapping_path, scored_path=scored_path, fields=fields, limit=limit)
 
     @mcp.tool()
     def summarize_cv_by_category(
@@ -318,6 +337,7 @@ if MCPServer is not None:
         value_field: str,
         category_field: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         top_n: int | None = None,
         limit: int | None = None,
@@ -328,6 +348,7 @@ if MCPServer is not None:
             value_field=value_field,
             category_field=category_field,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             top_n=top_n,
             limit=limit,
@@ -338,6 +359,7 @@ if MCPServer is not None:
         path: str,
         field: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         group_by: str | None = None,
         bin_edges: list[float] | None = None,
@@ -353,6 +375,7 @@ if MCPServer is not None:
             path=path,
             field=field,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             group_by=group_by,
             bin_edges=bin_edges,
@@ -368,6 +391,7 @@ if MCPServer is not None:
         x_field: str,
         y_field: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         x_bin_edges: list[float] | None = None,
         y_bin_edges: list[float] | None = None,
@@ -382,6 +406,7 @@ if MCPServer is not None:
             x_field=x_field,
             y_field=y_field,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             x_bin_edges=x_bin_edges,
             y_bin_edges=y_bin_edges,
@@ -395,6 +420,7 @@ if MCPServer is not None:
     def summarize_dashboard(
         path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         rt_field: str | None = None,
         mz_field: str = "precursor_mz",
@@ -407,6 +433,7 @@ if MCPServer is not None:
         return summarize_dashboard_tool(
             path=path,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             rt_field=rt_field,
             mz_field=mz_field,
@@ -420,6 +447,7 @@ if MCPServer is not None:
     def summarize_overlap(
         path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         entity: str = "peptide",
         group_field: str = "run_key",
@@ -429,6 +457,7 @@ if MCPServer is not None:
         return summarize_overlap_tool(
             path=path,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             entity=entity,
             group_field=group_field,
@@ -439,6 +468,7 @@ if MCPServer is not None:
     def summarize_modifications(
         path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         group_field: str = "run_key",
         limit: int | None = None,
@@ -447,6 +477,7 @@ if MCPServer is not None:
         return summarize_modifications_tool(
             path=path,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             group_field=group_field,
             limit=limit,
@@ -457,6 +488,7 @@ if MCPServer is not None:
         path: str,
         target_field: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         confidence_field: str | None = "confidence",
         mass_error_field: str | None = None,
@@ -469,6 +501,7 @@ if MCPServer is not None:
             path=path,
             target_field=target_field,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             confidence_field=confidence_field,
             mass_error_field=mass_error_field,
@@ -487,6 +520,7 @@ if MCPServer is not None:
         path: str,
         quant_field: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         entity: str = "peptide",
         group_field: str = "run_key",
@@ -498,6 +532,7 @@ if MCPServer is not None:
             path=path,
             quant_field=quant_field,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             entity=entity,
             group_field=group_field,
@@ -509,6 +544,7 @@ if MCPServer is not None:
     def summarize_file_coverage(
         path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         group_field: str = "run_key",
         mz_field: str = "precursor_mz",
@@ -521,6 +557,7 @@ if MCPServer is not None:
         return summarize_file_coverage_tool(
             path=path,
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             group_field=group_field,
             mz_field=mz_field,
@@ -535,6 +572,7 @@ if MCPServer is not None:
         path: str,
         output_path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         sdrf_path: str | None = None,
         pride_project_accession: str | None = None,
@@ -546,6 +584,7 @@ if MCPServer is not None:
             path=path,
             output_path=_resolve(output_path),
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             sdrf_path=sdrf_path,
             pride_project_accession=pride_project_accession,
@@ -558,6 +597,7 @@ if MCPServer is not None:
         path: str,
         output_path: str,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         sdrf_path: str | None = None,
         pride_project_accession: str | None = None,
@@ -569,6 +609,7 @@ if MCPServer is not None:
             path=path,
             output_path=_resolve(output_path),
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             sdrf_path=sdrf_path,
             pride_project_accession=pride_project_accession,
@@ -592,6 +633,7 @@ if MCPServer is not None:
         output_prefix: str,
         spectra_path: str | None = None,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         scored_path: str | None = None,
         top_n: int | None = None,
         rt_source_field: str = "rt",
@@ -606,6 +648,7 @@ if MCPServer is not None:
             spectra_path=spectra_path,
             output_prefix=_resolve(output_prefix),
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             scored_path=scored_path,
             top_n=top_n,
             rt_source_field=rt_source_field,
@@ -621,6 +664,7 @@ if MCPServer is not None:
         output_prefix: str,
         spectra_path: str | None = None,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         predictor_backend: str | None = None,
         predictor_model: str | None = None,
         ms2pip_model: str | None = None,
@@ -636,6 +680,7 @@ if MCPServer is not None:
             output_prefix=_resolve(output_prefix),
             spectra_path=_resolve(spectra_path),
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             predictor_backend=predictor_backend,
             predictor_model=predictor_model,
             ms2pip_model=ms2pip_model,
@@ -819,6 +864,7 @@ if MCPServer is not None:
         spectra_path: str | None = None,
         output_path: str | None = None,
         adapter: str = "instanovo",
+        column_mapping_path: str | None = None,
         predictor_backend: str | None = None,
         predictor_model: str | None = None,
         ms2pip_model: str | None = None,
@@ -839,6 +885,7 @@ if MCPServer is not None:
             spectra_path=spectra_path,
             output_path=_resolve(output_path),
             adapter=adapter,
+            column_mapping_path=column_mapping_path,
             predictor_backend=predictor_backend,
             predictor_model=predictor_model,
             ms2pip_model=ms2pip_model,
