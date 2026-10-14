@@ -116,7 +116,7 @@ Structured tools support field discovery, numeric/categorical summaries, binning
 
 ## Batch Workflows
 
-`build_prediction_batch` writes reusable prediction, fragment, mapping, failure, log, status, and manifest artifacts. MS2PIP and Koina batches isolate malformed requests recursively so valid rows still complete; `score_from_prediction_batch` reuses predictions against local spectra and creates analogous scored artifacts. Use the corresponding `inspect_*_status` tools to report durable progress during long operations.
+`build_prediction_batch` writes reusable prediction, fragment, mapping, failure, log, status, and manifest artifacts. MS2PIP and Koina batches isolate malformed requests recursively so valid rows still complete; `score_from_prediction_batch` reuses predictions against local spectra and creates analogous scored artifacts. Use the corresponding `inspect_*_status` tools to report durable progress during long operations: the manifest is written when a batch starts (`phase: running`) and completed at the end, so its status can be read while the batch runs and after an interruption (`seconds_since_update` shows when the batch last reported). Results are written when a batch finishes; an interrupted batch has to be run again.
 
 The direct `score_candidates` path is suitable for smaller selected sets.
 
