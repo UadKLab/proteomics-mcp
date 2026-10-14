@@ -126,6 +126,16 @@ def test_renderers(tool, cli, report, tmp_path, name):
     assert completed.returncode == 0, completed.stderr[-2000:]
 
 
+def _tk_unusable() -> bool:
+    """Whether pyplot's Tk backend cannot create a figure here (broken Tcl/Tk on some Windows runners)."""
+    import subprocess
+
+    probe = "import matplotlib; matplotlib.use('TkAgg'); import matplotlib.pyplot as plt; plt.figure()"
+    return subprocess.run([sys.executable, "-c", probe], capture_output=True).returncode != 0
+
+
+@pytest.mark.skipif(sys.platform == "win32" and INSTALLED < Version("0.1.10") and _tk_unusable(),
+                    reason="#35 (fixed in 0.1.10): with a broken Tcl/Tk, pyplot's TkAgg aborts the whole interpreter")
 @pytest.mark.xfail(sys.platform == "darwin" and INSTALLED < Version("0.1.10"), strict=True,
                    reason="#35 (fixed in 0.1.10): pyplot selects the macosx backend, which fails in the MCP worker thread")
 @pytest.mark.parametrize("name", PAYLOADS, ids=IDS)
