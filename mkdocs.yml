@@ -7,6 +7,7 @@ theme:
   name: readthedocs
 nav:
   - Overview: index.md
+  - Connect a client: clients.md
   - Reference: reference.md
   - Prompt examples:
       - Workflow overview: prompt_examples/00_overview.md

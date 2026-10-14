@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import gzip
+import inspect
 import json
 import os
 from pathlib import Path
@@ -159,29 +161,45 @@ def summarize_score_metrics_tool(score_result: dict[str, Any]) -> dict[str, Any]
 
 
 def load_candidates_tool(path: str, adapter: str = "instanovo", **kwargs: Any) -> list[dict[str, Any]]:
-    if adapter == "instanovo":
-        return [
-            c.model_dump()
-            for c in load_instanovo_predictions(
-                path,
-                limit=kwargs.get("limit"),
-                default_experiment_name=kwargs.get("default_experiment_name"),
-            )
-        ]
-    if adapter == "casanovo":
-        return [c.model_dump() for c in load_casanovo_predictions(path, limit=kwargs.get("limit"))]
-    if adapter == "fragpipe":
-        return [c.model_dump() for c in load_fragpipe_psms(path, limit=kwargs.get("limit"))]
-    if adapter == "maxquant":
-        return [c.model_dump() for c in load_maxquant_psms(path, limit=kwargs.get("limit"))]
-    if adapter == "proteome_discoverer":
-        return [c.model_dump() for c in load_proteome_discoverer_psms(path, limit=kwargs.get("limit"), sheet_name=kwargs.get("sheet_name", 0))]
+    return [candidate.model_dump() for candidate in _load_candidate_models(path, adapter, **kwargs)]
+
+
+# Keys of a generic-adapter column mapping file: the keyword arguments of load_generic_candidates.
+GENERIC_MAPPING_KEYS = tuple(
+    name
+    for name, parameter in inspect.signature(load_generic_candidates).parameters.items()
+    if parameter.kind is inspect.Parameter.KEYWORD_ONLY and name != "limit"
+)
+
+
+def load_column_mapping(column_mapping_path: str) -> dict[str, Any]:
+    """Read a generic-adapter column mapping: a JSON object such as {"peptide_column": "Sequence", "scan_column": "Scan"}."""
+    try:
+        mapping = json.loads(Path(column_mapping_path).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Column mapping {column_mapping_path} is not valid JSON: {exc}") from exc
+    if not isinstance(mapping, dict):
+        raise ValueError(f"Column mapping {column_mapping_path} must be a JSON object.")
+    unknown = sorted(set(mapping) - set(GENERIC_MAPPING_KEYS))
+    if unknown:
+        raise ValueError(f"Unknown column mapping keys: {', '.join(unknown)}. Allowed keys: {', '.join(GENERIC_MAPPING_KEYS)}.")
+    not_text = sorted(key for key, value in mapping.items() if value is not None and not isinstance(value, str))
+    if not_text:
+        raise ValueError(f"Column mapping values must be strings (column names or score_type/source_engine): {', '.join(not_text)}.")
+    return mapping
+
+
+def _load_candidate_models(path: str, adapter: str, *, column_mapping_path: str | None = None, **kwargs: Any) -> list[CandidatePSM]:
+    if column_mapping_path and adapter != "generic":
+        raise ValueError(f"column_mapping_path applies only to adapter='generic', not '{adapter}'.")
     if adapter == "generic":
-        return [c.model_dump() for c in load_generic_candidates(path, **kwargs)]
-    raise ValueError(f"Unsupported candidate adapter: {adapter}")
-
-
-def _load_candidate_models(path: str, adapter: str, **kwargs: Any) -> list[CandidatePSM]:
+        mapping = load_column_mapping(column_mapping_path) if column_mapping_path else {}
+        kwargs = {**mapping, **{key: value for key, value in kwargs.items() if value is not None}}
+        if not kwargs.get("peptide_column"):
+            raise ValueError(
+                "adapter='generic' needs a column mapping: pass column_mapping_path, a JSON file with at least "
+                f"\"peptide_column\". Allowed keys: {', '.join(GENERIC_MAPPING_KEYS)}."
+            )
     if adapter == "instanovo":
         return load_instanovo_predictions(
             path,
@@ -199,6 +217,16 @@ def _load_candidate_models(path: str, adapter: str, **kwargs: Any) -> list[Candi
     if adapter == "generic":
         return load_generic_candidates(path, **kwargs)
     raise ValueError(f"Unsupported candidate adapter: {adapter}")
+
+
+def _model_from_argument(model: Any, value: Any, argument: str) -> Any:
+    """Build a schema object from a tool argument; report bad input as ValueError naming the argument."""
+    if not isinstance(value, dict):
+        raise ValueError(f"'{argument}' must be a JSON object, got {type(value).__name__}.")
+    try:
+        return model(**value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid '{argument}': {exc}") from exc
 
 
 def _serialize_cell(value: Any) -> Any:
@@ -232,6 +260,15 @@ def _status_update_interval(total: int) -> int:
     if total <= 10:
         return 1
     return max(1, min(25, total // 20))
+
+
+def _read_batch_status(path: Path) -> dict[str, Any]:
+    """The last status written by a batch. While unfinished, also how long ago it was written: a batch that
+    stopped updating was most likely interrupted (outputs are written at the end, so it must be run again)."""
+    status = json.loads(path.read_text(encoding="utf-8"))
+    if status.get("phase") != "completed":
+        status["seconds_since_update"] = max(time.time() - path.stat().st_mtime, 0.0)
+    return status
 
 
 def _write_batch_status(
@@ -899,6 +936,27 @@ def build_prediction_batch_tool(
     log_rows: list[dict[str, Any]] = []
     status_json = _batch_status_path(prefix, "_prediction_status.json")
     update_interval = _status_update_interval(int(len(unique_rows)))
+    predictions_csv = prefix.with_name(prefix.name + "_predictions.csv")
+    fragments_csv = prefix.with_name(prefix.name + "_prediction_fragments.csv")
+    map_csv = prefix.with_name(prefix.name + "_prediction_map.csv")
+    failures_csv = prefix.with_name(prefix.name + "_prediction_failures.csv")
+    log_jsonl = prefix.with_name(prefix.name + "_prediction_log.jsonl")
+    manifest_json = prefix.with_name(prefix.name + "_prediction_manifest.json")
+    output_files = {
+        "predictions_csv": str(predictions_csv),
+        "fragments_csv": str(fragments_csv),
+        "prediction_map_csv": str(map_csv),
+        "failures_csv": str(failures_csv),
+        "log_jsonl": str(log_jsonl),
+        "status_json": str(status_json),
+        "manifest_json": str(manifest_json),
+    }
+    # Written now, so the status tools can follow the batch while it runs or after it was interrupted;
+    # rewritten with the results (phase "completed") at the end.
+    _write_json(manifest_json, {"batch_id": run_id, "phase": "running", "input_path": path, "spectra_path": spectra_path,
+                                "adapter": adapter, "predictor_backend": config.predictor_backend,
+                                "requested_model": config.predictor_model, "top_n": top_n,
+                                "unique_prediction_requests": int(len(unique_rows)), "output_files": output_files})
 
     _write_batch_status(
         status_json,
@@ -1105,13 +1163,6 @@ def build_prediction_batch_tool(
         ]
     ].copy()
 
-    predictions_csv = prefix.with_name(prefix.name + "_predictions.csv")
-    fragments_csv = prefix.with_name(prefix.name + "_prediction_fragments.csv")
-    map_csv = prefix.with_name(prefix.name + "_prediction_map.csv")
-    failures_csv = prefix.with_name(prefix.name + "_prediction_failures.csv")
-    log_jsonl = prefix.with_name(prefix.name + "_prediction_log.jsonl")
-    manifest_json = prefix.with_name(prefix.name + "_prediction_manifest.json")
-
     pd.DataFrame(prediction_rows).to_csv(predictions_csv, index=False)
     pd.DataFrame(fragment_rows).to_csv(fragments_csv, index=False)
     prediction_map.to_csv(map_csv, index=False)
@@ -1120,10 +1171,12 @@ def build_prediction_batch_tool(
 
     manifest = {
         "batch_id": run_id,
+        "phase": "completed",
         "input_path": path,
         "spectra_path": spectra_path,
         "metadata_join": metadata_join,
         "adapter": adapter,
+        "column_mapping_path": adapter_options.get("column_mapping_path"),
         "predictor_backend": config.predictor_backend,
         "requested_model": config.predictor_model,
         "requested_max_fragment_charge": config.max_fragment_charge,
@@ -1135,15 +1188,7 @@ def build_prediction_batch_tool(
         "predictions_succeeded": int(len(prediction_rows)),
         "predictions_failed": int(len(failure_rows)),
         "batch_seconds": time.time() - started,
-        "output_files": {
-            "predictions_csv": str(predictions_csv),
-            "fragments_csv": str(fragments_csv),
-            "prediction_map_csv": str(map_csv),
-            "failures_csv": str(failures_csv),
-            "log_jsonl": str(log_jsonl),
-            "status_json": str(status_json),
-            "manifest_json": str(manifest_json),
-        },
+        "output_files": output_files,
     }
     _write_json(manifest_json, manifest)
     _write_batch_status(
@@ -1221,7 +1266,7 @@ def inspect_prediction_batch_status_tool(manifest_path: str) -> dict[str, Any]:
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     status_path = (manifest.get("output_files") or {}).get("status_json")
     if status_path and Path(status_path).exists():
-        return json.loads(Path(status_path).read_text(encoding="utf-8"))
+        return _read_batch_status(Path(status_path))
     return {
         "batch_id": manifest.get("batch_id"),
         "phase": "completed",
@@ -1318,6 +1363,11 @@ def score_from_prediction_batch_tool(
     config_path: str | None = None,
 ) -> dict[str, Any]:
     manifest, prediction_map, predicted_lookup = _load_prediction_batch_artifacts(manifest_path)
+    if manifest.get("phase", "completed") != "completed":
+        raise ValueError(
+            f"Prediction batch {manifest.get('batch_id')} has not finished (phase '{manifest.get('phase')}'); check it with "
+            "inspect_prediction_batch_status, and build it again if the run was interrupted."
+        )
     if prediction_map.empty:
         raise ValueError("Prediction batch contains no candidate-to-prediction map.")
 
@@ -1335,7 +1385,7 @@ def score_from_prediction_batch_tool(
 
     input_path = manifest.get("input_path")
     adapter = manifest.get("adapter", "instanovo")
-    candidates = _load_candidate_models(str(input_path), str(adapter))
+    candidates = _load_candidate_models(str(input_path), str(adapter), column_mapping_path=manifest.get("column_mapping_path"))
     candidate_by_id = {str(candidate.candidate_id): candidate for candidate in candidates}
 
     batch_id = f"score_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
@@ -1348,6 +1398,20 @@ def score_from_prediction_batch_tool(
     prefix.parent.mkdir(parents=True, exist_ok=True)
     status_json = _batch_status_path(prefix, "_scoring_status.json")
     update_interval = _status_update_interval(int(len(prediction_map)))
+    scored_csv = prefix.with_name(prefix.name + "_scored.csv")
+    failures_csv = prefix.with_name(prefix.name + "_scoring_failures.csv")
+    log_jsonl = prefix.with_name(prefix.name + "_scoring_log.jsonl")
+    manifest_json = prefix.with_name(prefix.name + "_scoring_manifest.json")
+    output_files = {
+        "scored_csv": str(scored_csv),
+        "failures_csv": str(failures_csv),
+        "log_jsonl": str(log_jsonl),
+        "status_json": str(status_json),
+        "manifest_json": str(manifest_json),
+    }
+    _write_json(manifest_json, {"batch_id": batch_id, "phase": "running", "prediction_manifest_path": manifest_path,
+                                "spectra_path": spectra_path, "candidate_rows_requested": int(len(prediction_map)),
+                                "output_files": output_files})
 
     _write_batch_status(
         status_json,
@@ -1521,17 +1585,13 @@ def score_from_prediction_batch_tool(
                 },
             )
 
-    scored_csv = prefix.with_name(prefix.name + "_scored.csv")
-    failures_csv = prefix.with_name(prefix.name + "_scoring_failures.csv")
-    log_jsonl = prefix.with_name(prefix.name + "_scoring_log.jsonl")
-    manifest_json = prefix.with_name(prefix.name + "_scoring_manifest.json")
-
     pd.DataFrame(scored_rows).to_csv(scored_csv, index=False)
     pd.DataFrame(failure_rows).to_csv(failures_csv, index=False)
     _write_jsonl(log_jsonl, log_rows)
 
     scoring_manifest = {
         "batch_id": batch_id,
+        "phase": "completed",
         "prediction_manifest_path": manifest_path,
         "spectra_path": spectra_path,
         "candidate_rows_requested": int(len(prediction_map)),
@@ -1544,13 +1604,7 @@ def score_from_prediction_batch_tool(
             "observed_annotation_evidence": ["precursor_signal_fraction", "annotated_peak_count", "ion_type_counts", "annotated_intensity_fraction"],
             "mass_error": ["fragment_mass_error_mean_ppm", "fragment_mass_error_abs_mean_ppm", "fragment_mass_error_mean_da", "fragment_mass_error_abs_mean_da", "precursor_mass_error_ppm", "precursor_mass_error_da"],
         },
-        "output_files": {
-            "scored_csv": str(scored_csv),
-            "failures_csv": str(failures_csv),
-            "log_jsonl": str(log_jsonl),
-            "status_json": str(status_json),
-            "manifest_json": str(manifest_json),
-        },
+        "output_files": output_files,
     }
     _write_json(manifest_json, scoring_manifest)
     _write_batch_status(
@@ -1618,7 +1672,7 @@ def inspect_scored_batch_status_tool(manifest_path: str) -> dict[str, Any]:
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     status_path = (manifest.get("output_files") or {}).get("status_json")
     if status_path and Path(status_path).exists():
-        return json.loads(Path(status_path).read_text(encoding="utf-8"))
+        return _read_batch_status(Path(status_path))
     return {
         "batch_id": manifest.get("batch_id"),
         "phase": "completed",
@@ -1778,7 +1832,7 @@ def annotate_observed_spectrum_tool(
     max_ion_charge: int | None = None,
     neutral_losses: bool = False,
 ) -> dict[str, Any]:
-    observed_model = ObservedSpectrum(**observed)
+    observed_model = _model_from_argument(ObservedSpectrum, observed, "observed")
     return annotate_observed_ions(
         observed_model,
         peptidoform=peptidoform,
@@ -1823,13 +1877,13 @@ def score_spectrum_tool(
             "annotation_neutral_losses": annotation_neutral_losses,
         },
     )
-    candidate_model = CandidatePSM(**candidate)
-    observed_model = ObservedSpectrum(**observed)
+    candidate_model = _model_from_argument(CandidatePSM, candidate, "candidate")
+    observed_model = _model_from_argument(ObservedSpectrum, observed, "observed")
     if predicted is None:
         charge = candidate_model.precursor_charge or observed_model.precursor_charge or 2
         predicted_model = _predict_fragment_spectrum(config, candidate_model.peptidoform, charge)
     else:
-        fragments = [PredictedFragment(**fragment) for fragment in predicted.get("fragments", [])]
+        fragments = [_model_from_argument(PredictedFragment, fragment, "predicted.fragments[]") for fragment in predicted.get("fragments", [])]
         predicted_model = PredictedSpectrum(
             peptidoform=predicted["peptidoform"],
             precursor_charge=int(predicted["precursor_charge"]),
@@ -2308,8 +2362,23 @@ def _render_batch_item(
 
 
 def _load_render_batch_spec_from_path(input_path: str) -> tuple[list[dict[str, Any]], list[str] | None]:
+    """Read a batch render spec: JSON (a list of items, or {"items": [...], "views": [...]}), or JSON Lines
+    (.jsonl/.ndjson, one item per line); either may be gzip-compressed (.gz)."""
     path = Path(input_path)
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+    compressed = bool(suffixes) and suffixes[-1] == ".gz"
+    with (gzip.open(path, "rt", encoding="utf-8") if compressed else path.open(encoding="utf-8")) as handle:
+        text = handle.read()
+    if (suffixes[-2:-1] if compressed else suffixes[-1:]) in ([".jsonl"], [".ndjson"]):
+        lines = [(number, line) for number, line in enumerate(text.splitlines(), start=1) if line.strip()]
+        items = []
+        for number, line in lines:
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{input_path}, line {number}: not valid JSON ({exc.msg}).") from exc
+        return items, None
+    payload = json.loads(text)
     if isinstance(payload, dict) and "items" in payload:
         items = payload["items"]
         views = payload.get("views")
