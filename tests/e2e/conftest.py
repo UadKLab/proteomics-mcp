@@ -8,6 +8,7 @@ PyPI (never from this source tree):
 Environment variables:
     PROTEOMICS_MCP_E2E_CACHE   download cache (default: ~/.cache/proteomics-mcp-e2e)
     PROTEOMICS_MCP_E2E_REPORT  write a JSON report of all recorded checks to this path
+    PROTEOMICS_MCP_E2E_BRUKER  set to 1 to download and convert the 522 MB timsTOF run (batch 3)
 """
 
 from __future__ import annotations
@@ -99,6 +100,33 @@ def zenodo() -> Path:
     record("inputs", "Zenodo supplement.zip", "info", {"record": ZENODO_RECORD, "md5": checksum,
                                                          "sha256": hashlib.sha256(archive.read_bytes()).hexdigest()})
     return target / "supplement"
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def download(url: str, name: str, sha256: str) -> Path:
+    """Download a public input once into the cache and verify its sha256."""
+    target = _cache_dir() / name
+    if not target.is_file() or _sha256(target) != sha256:
+        partial = target.with_suffix(target.suffix + ".part")
+        with urllib.request.urlopen(url, timeout=600) as response, partial.open("wb") as handle:
+            shutil.copyfileobj(response, handle)
+        partial.replace(target)
+    checksum = _sha256(target)
+    assert checksum == sha256, f"{name}: sha256 {checksum} != {sha256}"
+    record("inputs", name, "info", {"url": url, "sha256": checksum, "bytes": target.stat().st_size})
+    return target
+
+
+@pytest.fixture(scope="session")
+def fetch():
+    return download
 
 
 @pytest.fixture(scope="session")

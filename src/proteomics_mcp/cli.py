@@ -70,10 +70,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("load-candidates")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--limit", type=int)
     p = sub.add_parser("inspect-psm-table")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--sdrf-path")
     p.add_argument("--project-accession")
@@ -82,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("inspect-peptide-table")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--peptide")
     p.add_argument("--sdrf-path")
@@ -91,6 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("render-psm-table")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--output-path", required=True)
     p.add_argument("--sdrf-path")
@@ -100,6 +104,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("render-peptide-table")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--output-path", required=True)
     p.add_argument("--sdrf-path")
@@ -119,6 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--spectra-path")
     p.add_argument("--output-prefix", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--top-n", type=int)
     p.add_argument("--rt-source-field", default="rt")
@@ -131,6 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--spectra-path", help="Optional Feather/IPC spectra table used to fill missing precursor metadata before prediction.")
     p.add_argument("--output-prefix", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--predictor-backend")
     p.add_argument("--predictor-model")
     p.add_argument("--ms2pip-model")
@@ -161,12 +168,14 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("list-distribution-fields")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--limit", type=int)
     p = sub.add_parser("summarize-numeric-field")
     p.add_argument("--path", required=True)
     p.add_argument("--field", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--group-by")
     p.add_argument("--weight-field")
@@ -176,6 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--path", required=True)
     p.add_argument("--field", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--group-by")
     p.add_argument("--top-n", type=int)
@@ -183,6 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("summarize-missing-values")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--fields-json")
     p.add_argument("--limit", type=int)
@@ -191,6 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--value-field", required=True)
     p.add_argument("--category-field", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--top-n", type=int)
     p.add_argument("--limit", type=int)
@@ -198,6 +210,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--path", required=True)
     p.add_argument("--field", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--group-by")
     p.add_argument("--weight-field")
@@ -210,6 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--x-field", required=True)
     p.add_argument("--y-field", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--x-bin-edges-json")
     p.add_argument("--y-bin-edges-json")
@@ -220,6 +234,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("summarize-dashboard")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--rt-field")
     p.add_argument("--mz-field", default="precursor_mz")
@@ -230,6 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("summarize-overlap")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--entity", default="peptide")
     p.add_argument("--group-field", default="run_key")
@@ -237,6 +253,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("summarize-modifications")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--group-field", default="run_key")
     p.add_argument("--limit", type=int)
@@ -244,6 +261,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--path", required=True)
     p.add_argument("--target-field", required=True, help="Frame column or 'source_columns.<name>' holding ground-truth peptidoforms.")
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--confidence-field", default="confidence")
     p.add_argument("--mass-error-field")
@@ -258,6 +276,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--path", required=True)
     p.add_argument("--quant-field", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--entity", default="peptide")
     p.add_argument("--group-field", default="run_key")
@@ -266,6 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("summarize-file-coverage")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--group-field", default="run_key")
     p.add_argument("--mz-field", default="precursor_mz")
@@ -337,6 +357,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--spectra-path")
     p.add_argument("--output-path")
     p.add_argument("--adapter", default="instanovo")
+    p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--predictor-backend")
     p.add_argument("--predictor-model")
     p.add_argument("--ms2pip-model")
@@ -425,13 +446,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "load-candidates":
-        print(json.dumps(load_candidates_tool(args.path, args.adapter, limit=args.limit), indent=2))
+        print(json.dumps(load_candidates_tool(args.path, args.adapter, column_mapping_path=args.column_mapping_path, limit=args.limit), indent=2))
     elif args.command == "inspect-psm-table":
         print(
             json.dumps(
                 inspect_psm_table_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     sdrf_path=args.sdrf_path,
                     pride_project_accession=args.project_accession,
@@ -447,6 +469,7 @@ def main(argv: list[str] | None = None) -> None:
                 inspect_peptide_table_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     peptide=args.peptide,
                     scored_path=args.scored_path,
                     sdrf_path=args.sdrf_path,
@@ -463,6 +486,7 @@ def main(argv: list[str] | None = None) -> None:
                 render_psm_table_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     output_path=args.output_path,
                     scored_path=args.scored_path,
                     sdrf_path=args.sdrf_path,
@@ -479,6 +503,7 @@ def main(argv: list[str] | None = None) -> None:
                 render_peptide_table_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     output_path=args.output_path,
                     scored_path=args.scored_path,
                     sdrf_path=args.sdrf_path,
@@ -501,6 +526,7 @@ def main(argv: list[str] | None = None) -> None:
                     spectra_path=args.spectra_path,
                     output_prefix=args.output_prefix,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     top_n=args.top_n,
                     rt_source_field=args.rt_source_field,
@@ -520,6 +546,7 @@ def main(argv: list[str] | None = None) -> None:
                     output_prefix=args.output_prefix,
                     spectra_path=args.spectra_path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     predictor_backend=args.predictor_backend,
                     predictor_model=args.predictor_model,
                     ms2pip_model=args.ms2pip_model,
@@ -559,7 +586,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "inspect-scored-batch-status":
         print(json.dumps(inspect_scored_batch_status_tool(args.manifest_path), indent=2))
     elif args.command == "list-distribution-fields":
-        print(json.dumps(list_distribution_fields_tool(path=args.path, adapter=args.adapter, scored_path=args.scored_path, limit=args.limit), indent=2))
+        print(json.dumps(list_distribution_fields_tool(path=args.path, adapter=args.adapter, column_mapping_path=args.column_mapping_path, scored_path=args.scored_path, limit=args.limit), indent=2))
     elif args.command == "summarize-numeric-field":
         print(
             json.dumps(
@@ -567,6 +594,7 @@ def main(argv: list[str] | None = None) -> None:
                     path=args.path,
                     field=args.field,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     group_by=args.group_by,
                     weight_field=args.weight_field,
@@ -583,6 +611,7 @@ def main(argv: list[str] | None = None) -> None:
                     path=args.path,
                     field=args.field,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     group_by=args.group_by,
                     top_n=args.top_n,
@@ -597,6 +626,7 @@ def main(argv: list[str] | None = None) -> None:
                 summarize_missing_values_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     fields=json.loads(args.fields_json) if args.fields_json else None,
                     limit=args.limit,
@@ -612,6 +642,7 @@ def main(argv: list[str] | None = None) -> None:
                     value_field=args.value_field,
                     category_field=args.category_field,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     top_n=args.top_n,
                     limit=args.limit,
@@ -626,6 +657,7 @@ def main(argv: list[str] | None = None) -> None:
                     path=args.path,
                     field=args.field,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     group_by=args.group_by,
                     weight_field=args.weight_field,
@@ -645,6 +677,7 @@ def main(argv: list[str] | None = None) -> None:
                     x_field=args.x_field,
                     y_field=args.y_field,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     x_bin_edges=json.loads(args.x_bin_edges_json) if args.x_bin_edges_json else None,
                     y_bin_edges=json.loads(args.y_bin_edges_json) if args.y_bin_edges_json else None,
@@ -662,6 +695,7 @@ def main(argv: list[str] | None = None) -> None:
                 summarize_dashboard_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     rt_field=args.rt_field,
                     mz_field=args.mz_field,
@@ -679,6 +713,7 @@ def main(argv: list[str] | None = None) -> None:
                 summarize_overlap_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     entity=args.entity,
                     group_field=args.group_field,
@@ -693,6 +728,7 @@ def main(argv: list[str] | None = None) -> None:
                 summarize_modifications_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     group_field=args.group_field,
                     limit=args.limit,
@@ -708,6 +744,7 @@ def main(argv: list[str] | None = None) -> None:
                     path=args.path,
                     target_field=args.target_field,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     confidence_field=args.confidence_field,
                     mass_error_field=args.mass_error_field,
@@ -732,6 +769,7 @@ def main(argv: list[str] | None = None) -> None:
                     path=args.path,
                     quant_field=args.quant_field,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     entity=args.entity,
                     group_field=args.group_field,
@@ -747,6 +785,7 @@ def main(argv: list[str] | None = None) -> None:
                 summarize_file_coverage_tool(
                     path=args.path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     scored_path=args.scored_path,
                     group_field=args.group_field,
                     mz_field=args.mz_field,
@@ -855,6 +894,7 @@ def main(argv: list[str] | None = None) -> None:
                     spectra_path=args.spectra_path,
                     output_path=args.output_path,
                     adapter=args.adapter,
+                    column_mapping_path=args.column_mapping_path,
                     predictor_backend=args.predictor_backend,
                     predictor_model=args.predictor_model,
                     ms2pip_model=args.ms2pip_model,

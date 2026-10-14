@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -83,6 +84,20 @@ def test_ms2pip_libomp_hint_is_macos_only(monkeypatch):
 
     with pytest.raises(OSError, match="libomp"):
         predict_fragments_ms2pip("PEPTIDE", 2)
+
+
+def test_ms2pip_prediction_records_the_installed_ms2pip_version():
+    """MS2PIP releases predict slightly differently (#23), so each prediction records the version (#22)."""
+    from importlib.metadata import version
+
+    from proteomics_mcp.predictors.ms2pip import _predicted_spectrum_from_result
+
+    result = types.SimpleNamespace(theoretical_mz={"b": [98.06, 227.10], "y": [148.06, 263.09]},
+                                   predicted_intensity={"b": [-3.0, -1.0], "y": [-2.0, 0.0]})
+    predicted = _predicted_spectrum_from_result(result, "PEPTIDE", 2, model="HCD")
+
+    assert predicted.predictor_name == "ms2pip"
+    assert predicted.predictor_version == version("ms2pip")
 
 
 @pytest.mark.network
@@ -277,6 +292,63 @@ def test_render_static_spectrum_writes_annotated_svg(monkeypatch, tmp_path):
     assert "a1+" in text
     assert "b1+ | P" in text
     assert "a1+ | P" not in text
+
+
+_GUI_MODULES = ("tkinter", "matplotlib.backends.backend_tkagg", "matplotlib.backends.backend_macosx", "matplotlib.backends._backend_tk")
+
+
+def _static_payload() -> dict:
+    observed = ObservedSpectrum(mz=[100.0, 150.0, 200.0], intensity=[10.0, 20.0, 5.0], precursor_charge=2)
+    payload = build_spectrum_payload(observed, mock_predicted_spectrum("PEPTIDE", 2))
+    payload["metrics"] = {"candidate": {"peptidoform": "PEPTIDE"}}
+    return payload
+
+
+def test_render_static_spectrum_selects_no_backend_and_keeps_rcparams(tmp_path):
+    """In a fresh process: no GUI backend is loaded or even selected, and global rcParams stay as they were (#35).
+
+    MCP tools run in worker threads, where GUI backends fail (macOS), and Tk may be broken (Windows runners).
+    seaborn imports matplotlib.pyplot itself; that is harmless as long as no figure manager picks a backend.
+    """
+    import subprocess
+
+    payload_path = tmp_path / "payload.json"
+    payload_path.write_text(json.dumps(_static_payload()), encoding="utf-8")
+    script = f"""
+import json, sys
+from pathlib import Path
+import matplotlib
+from proteomics_mcp.core.visualization import render_static_spectrum
+payload = json.loads(Path(sys.argv[1]).read_text())
+# rcParams["backend"] itself resolves the backend when read, so it is left out of the snapshot.
+snapshot = lambda: {{key: repr(matplotlib.rcParams[key]) for key in matplotlib.rcParams if key != "backend"}}
+import seaborn  # noqa: F401  imported by the renderer; importing it alone does not change rcParams
+before = snapshot()
+for view in ("mirror", "annotated", "plain"):
+    for suffix in ("svg", "pdf", "png"):
+        render_static_spectrum(payload, Path(sys.argv[2]) / f"{{view}}.{{suffix}}", view=view)
+after = snapshot()
+print(json.dumps({{
+    "gui_modules": sorted(name for name in {_GUI_MODULES!r} if name in sys.modules),
+    "backend": matplotlib.rcParams._get_backend_or_none(),
+    "changed_rcparams": sorted(key for key in before if before[key] != after[key]),
+}}))
+"""
+    env = {key: value for key, value in os.environ.items() if key != "MPLBACKEND"}
+    completed = subprocess.run([sys.executable, "-c", script, str(payload_path), str(tmp_path)], capture_output=True, text=True, env=env)
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert result == {"gui_modules": [], "backend": None, "changed_rcparams": []}
+    assert len(list(tmp_path.glob("*.pdf"))) == 3 and len(list(tmp_path.glob("*.png"))) == 3
+
+
+def test_render_static_spectrum_works_from_a_worker_thread(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    payload = _static_payload()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        rendered = pool.submit(render_static_spectrum, payload, tmp_path / "mirror.png", view="mirror").result()
+    assert rendered.stat().st_size > 0
 
 
 def test_render_annotated_observed_spectrum_supports_configurable_ion_series(monkeypatch, tmp_path):
@@ -553,6 +625,37 @@ def test_render_spectra_batch_tool_accepts_input_path(tmp_path):
     assert result["views"] == ["observed"]
     assert result["items_per_view"] == {"observed": 1}
     assert (tmp_path / "batch_out" / "observed" / "scan_a.html").exists()
+
+
+@pytest.mark.parametrize("file_name", ["items.json", "items.json.gz", "items.jsonl", "items.ndjson", "items.jsonl.gz"])
+def test_render_spectra_batch_tool_reads_json_json_lines_and_gzip(tmp_path, file_name):
+    """§2.8 of the manuscript: a file-backed JSON, JSON Lines, or gzip manifest (#45)."""
+    import gzip
+
+    payload = build_spectrum_payload(ObservedSpectrum(mz=[100.0], intensity=[10.0], precursor_mz=400.0, precursor_charge=2),
+                                     mock_predicted_spectrum("PEPTIDE", 2))
+    items = [{"name": "scan_a", "payload": payload}, {"name": "scan_b", "payload": payload}]
+    if ".jsonl" in file_name or ".ndjson" in file_name:
+        text = "\n".join(json.dumps(item) for item in items) + "\n\n"
+    else:
+        text = json.dumps({"items": items})
+    input_path = tmp_path / file_name
+    if file_name.endswith(".gz"):
+        with gzip.open(input_path, "wt", encoding="utf-8") as handle:
+            handle.write(text)
+    else:
+        input_path.write_text(text, encoding="utf-8")
+
+    result = render_spectra_batch_tool(input_path=str(input_path), validate_only=True)
+
+    assert (result["items_requested"], result["valid_items"], result["invalid_items"]) == (2, 2, 0)
+
+
+def test_render_spectra_batch_tool_names_the_bad_json_lines_line(tmp_path):
+    input_path = tmp_path / "items.jsonl"
+    input_path.write_text('{"name": "ok", "payload": {}}\n{not json\n', encoding="utf-8")
+    with pytest.raises(ValueError, match=r"items\.jsonl, line 2: not valid JSON"):
+        render_spectra_batch_tool(input_path=str(input_path), validate_only=True)
 
 
 def test_render_spectra_batch_tool_validate_only_reports_schema_failures(tmp_path):
