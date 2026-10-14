@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import inspect
 import json
 import os
 from pathlib import Path
@@ -159,29 +160,45 @@ def summarize_score_metrics_tool(score_result: dict[str, Any]) -> dict[str, Any]
 
 
 def load_candidates_tool(path: str, adapter: str = "instanovo", **kwargs: Any) -> list[dict[str, Any]]:
-    if adapter == "instanovo":
-        return [
-            c.model_dump()
-            for c in load_instanovo_predictions(
-                path,
-                limit=kwargs.get("limit"),
-                default_experiment_name=kwargs.get("default_experiment_name"),
-            )
-        ]
-    if adapter == "casanovo":
-        return [c.model_dump() for c in load_casanovo_predictions(path, limit=kwargs.get("limit"))]
-    if adapter == "fragpipe":
-        return [c.model_dump() for c in load_fragpipe_psms(path, limit=kwargs.get("limit"))]
-    if adapter == "maxquant":
-        return [c.model_dump() for c in load_maxquant_psms(path, limit=kwargs.get("limit"))]
-    if adapter == "proteome_discoverer":
-        return [c.model_dump() for c in load_proteome_discoverer_psms(path, limit=kwargs.get("limit"), sheet_name=kwargs.get("sheet_name", 0))]
+    return [candidate.model_dump() for candidate in _load_candidate_models(path, adapter, **kwargs)]
+
+
+# Keys of a generic-adapter column mapping file: the keyword arguments of load_generic_candidates.
+GENERIC_MAPPING_KEYS = tuple(
+    name
+    for name, parameter in inspect.signature(load_generic_candidates).parameters.items()
+    if parameter.kind is inspect.Parameter.KEYWORD_ONLY and name != "limit"
+)
+
+
+def load_column_mapping(column_mapping_path: str) -> dict[str, Any]:
+    """Read a generic-adapter column mapping: a JSON object such as {"peptide_column": "Sequence", "scan_column": "Scan"}."""
+    try:
+        mapping = json.loads(Path(column_mapping_path).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Column mapping {column_mapping_path} is not valid JSON: {exc}") from exc
+    if not isinstance(mapping, dict):
+        raise ValueError(f"Column mapping {column_mapping_path} must be a JSON object.")
+    unknown = sorted(set(mapping) - set(GENERIC_MAPPING_KEYS))
+    if unknown:
+        raise ValueError(f"Unknown column mapping keys: {', '.join(unknown)}. Allowed keys: {', '.join(GENERIC_MAPPING_KEYS)}.")
+    not_text = sorted(key for key, value in mapping.items() if value is not None and not isinstance(value, str))
+    if not_text:
+        raise ValueError(f"Column mapping values must be strings (column names or score_type/source_engine): {', '.join(not_text)}.")
+    return mapping
+
+
+def _load_candidate_models(path: str, adapter: str, *, column_mapping_path: str | None = None, **kwargs: Any) -> list[CandidatePSM]:
+    if column_mapping_path and adapter != "generic":
+        raise ValueError(f"column_mapping_path applies only to adapter='generic', not '{adapter}'.")
     if adapter == "generic":
-        return [c.model_dump() for c in load_generic_candidates(path, **kwargs)]
-    raise ValueError(f"Unsupported candidate adapter: {adapter}")
-
-
-def _load_candidate_models(path: str, adapter: str, **kwargs: Any) -> list[CandidatePSM]:
+        mapping = load_column_mapping(column_mapping_path) if column_mapping_path else {}
+        kwargs = {**mapping, **{key: value for key, value in kwargs.items() if value is not None}}
+        if not kwargs.get("peptide_column"):
+            raise ValueError(
+                "adapter='generic' needs a column mapping: pass column_mapping_path, a JSON file with at least "
+                f"\"peptide_column\". Allowed keys: {', '.join(GENERIC_MAPPING_KEYS)}."
+            )
     if adapter == "instanovo":
         return load_instanovo_predictions(
             path,
@@ -1124,6 +1141,7 @@ def build_prediction_batch_tool(
         "spectra_path": spectra_path,
         "metadata_join": metadata_join,
         "adapter": adapter,
+        "column_mapping_path": adapter_options.get("column_mapping_path"),
         "predictor_backend": config.predictor_backend,
         "requested_model": config.predictor_model,
         "requested_max_fragment_charge": config.max_fragment_charge,
@@ -1335,7 +1353,7 @@ def score_from_prediction_batch_tool(
 
     input_path = manifest.get("input_path")
     adapter = manifest.get("adapter", "instanovo")
-    candidates = _load_candidate_models(str(input_path), str(adapter))
+    candidates = _load_candidate_models(str(input_path), str(adapter), column_mapping_path=manifest.get("column_mapping_path"))
     candidate_by_id = {str(candidate.candidate_id): candidate for candidate in candidates}
 
     batch_id = f"score_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
