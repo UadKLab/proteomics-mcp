@@ -201,6 +201,16 @@ def _load_candidate_models(path: str, adapter: str, **kwargs: Any) -> list[Candi
     raise ValueError(f"Unsupported candidate adapter: {adapter}")
 
 
+def _model_from_argument(model: Any, value: Any, argument: str) -> Any:
+    """Build a schema object from a tool argument; report bad input as ValueError naming the argument."""
+    if not isinstance(value, dict):
+        raise ValueError(f"'{argument}' must be a JSON object, got {type(value).__name__}.")
+    try:
+        return model(**value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid '{argument}': {exc}") from exc
+
+
 def _serialize_cell(value: Any) -> Any:
     if isinstance(value, (dict, list)):
         return json.dumps(value, sort_keys=True)
@@ -1778,7 +1788,7 @@ def annotate_observed_spectrum_tool(
     max_ion_charge: int | None = None,
     neutral_losses: bool = False,
 ) -> dict[str, Any]:
-    observed_model = ObservedSpectrum(**observed)
+    observed_model = _model_from_argument(ObservedSpectrum, observed, "observed")
     return annotate_observed_ions(
         observed_model,
         peptidoform=peptidoform,
@@ -1823,13 +1833,13 @@ def score_spectrum_tool(
             "annotation_neutral_losses": annotation_neutral_losses,
         },
     )
-    candidate_model = CandidatePSM(**candidate)
-    observed_model = ObservedSpectrum(**observed)
+    candidate_model = _model_from_argument(CandidatePSM, candidate, "candidate")
+    observed_model = _model_from_argument(ObservedSpectrum, observed, "observed")
     if predicted is None:
         charge = candidate_model.precursor_charge or observed_model.precursor_charge or 2
         predicted_model = _predict_fragment_spectrum(config, candidate_model.peptidoform, charge)
     else:
-        fragments = [PredictedFragment(**fragment) for fragment in predicted.get("fragments", [])]
+        fragments = [_model_from_argument(PredictedFragment, fragment, "predicted.fragments[]") for fragment in predicted.get("fragments", [])]
         predicted_model = PredictedSpectrum(
             peptidoform=predicted["peptidoform"],
             precursor_charge=int(predicted["precursor_charge"]),
