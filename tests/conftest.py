@@ -29,6 +29,17 @@ def pytest_sessionstart(session):
         )
 
 
+def pytest_collection_modifyitems(config, items):
+    """Deselect end-to-end tests unless the -m expression asks for them (e.g. -m e2e)."""
+    if "e2e" in (config.getoption("markexpr") or ""):
+        return
+    selected = [item for item in items if item.get_closest_marker("e2e") is None]
+    deselected = [item for item in items if item.get_closest_marker("e2e") is not None]
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
+
+
 @pytest.fixture
 def ms2pip_runtime():
     """Skip on macOS when ms2pip cannot load because xgboost cannot find libomp.

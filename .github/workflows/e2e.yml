@@ -1,0 +1,82 @@
+# End-to-end verification of the package as published on PyPI (#30).
+# Not a pull-request check: it downloads public data (Zenodo, PRIDE) and calls external
+# services, so it runs on demand and weekly, against a released version.
+name: e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "proteomics-mcp version to install from PyPI (empty: latest)"
+        required: false
+        default: ""
+        type: string
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: e2e (${{ matrix.os }}, ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.11", "3.14"]
+    defaults:
+      run:
+        shell: bash
+    env:
+      PROTEOMICS_MCP_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Cache public test data
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .e2e-cache
+          key: e2e-zenodo-23295902-1445e7af348b12c703f477d50fb01130
+
+      - name: Install proteomics-mcp from PyPI in a clean environment
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "$VERSION" ] && ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must look like X.Y.Z"; exit 1
+          fi
+          uv venv --python "$PYTHON_VERSION" "$RUNNER_TEMP/pypi-env"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            py="$RUNNER_TEMP/pypi-env/Scripts/python.exe"
+          else
+            py="$RUNNER_TEMP/pypi-env/bin/python"
+          fi
+          uv pip install --python "$py" --refresh "proteomics-mcp${VERSION:+==$VERSION}" pytest
+          echo "PYPI_PY=$py" >> "$GITHUB_ENV"
+          # Only the published package may be imported.
+          rm -rf src
+
+      - name: Run end-to-end checks
+        env:
+          PROTEOMICS_MCP_E2E_REPORT: ${{ runner.temp }}/e2e-report.json
+        run: '"$PYPI_PY" -m pytest -o pythonpath= -m e2e -rs tests/e2e'
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-report-${{ matrix.os }}-${{ matrix.python-version }}
+          path: ${{ runner.temp }}/e2e-report.json
+          if-no-files-found: warn
