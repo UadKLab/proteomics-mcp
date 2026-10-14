@@ -262,6 +262,15 @@ def _status_update_interval(total: int) -> int:
     return max(1, min(25, total // 20))
 
 
+def _read_batch_status(path: Path) -> dict[str, Any]:
+    """The last status written by a batch. While unfinished, also how long ago it was written: a batch that
+    stopped updating was most likely interrupted (outputs are written at the end, so it must be run again)."""
+    status = json.loads(path.read_text(encoding="utf-8"))
+    if status.get("phase") != "completed":
+        status["seconds_since_update"] = max(time.time() - path.stat().st_mtime, 0.0)
+    return status
+
+
 def _write_batch_status(
     path: Path,
     *,
@@ -927,6 +936,27 @@ def build_prediction_batch_tool(
     log_rows: list[dict[str, Any]] = []
     status_json = _batch_status_path(prefix, "_prediction_status.json")
     update_interval = _status_update_interval(int(len(unique_rows)))
+    predictions_csv = prefix.with_name(prefix.name + "_predictions.csv")
+    fragments_csv = prefix.with_name(prefix.name + "_prediction_fragments.csv")
+    map_csv = prefix.with_name(prefix.name + "_prediction_map.csv")
+    failures_csv = prefix.with_name(prefix.name + "_prediction_failures.csv")
+    log_jsonl = prefix.with_name(prefix.name + "_prediction_log.jsonl")
+    manifest_json = prefix.with_name(prefix.name + "_prediction_manifest.json")
+    output_files = {
+        "predictions_csv": str(predictions_csv),
+        "fragments_csv": str(fragments_csv),
+        "prediction_map_csv": str(map_csv),
+        "failures_csv": str(failures_csv),
+        "log_jsonl": str(log_jsonl),
+        "status_json": str(status_json),
+        "manifest_json": str(manifest_json),
+    }
+    # Written now, so the status tools can follow the batch while it runs or after it was interrupted;
+    # rewritten with the results (phase "completed") at the end.
+    _write_json(manifest_json, {"batch_id": run_id, "phase": "running", "input_path": path, "spectra_path": spectra_path,
+                                "adapter": adapter, "predictor_backend": config.predictor_backend,
+                                "requested_model": config.predictor_model, "top_n": top_n,
+                                "unique_prediction_requests": int(len(unique_rows)), "output_files": output_files})
 
     _write_batch_status(
         status_json,
@@ -1133,13 +1163,6 @@ def build_prediction_batch_tool(
         ]
     ].copy()
 
-    predictions_csv = prefix.with_name(prefix.name + "_predictions.csv")
-    fragments_csv = prefix.with_name(prefix.name + "_prediction_fragments.csv")
-    map_csv = prefix.with_name(prefix.name + "_prediction_map.csv")
-    failures_csv = prefix.with_name(prefix.name + "_prediction_failures.csv")
-    log_jsonl = prefix.with_name(prefix.name + "_prediction_log.jsonl")
-    manifest_json = prefix.with_name(prefix.name + "_prediction_manifest.json")
-
     pd.DataFrame(prediction_rows).to_csv(predictions_csv, index=False)
     pd.DataFrame(fragment_rows).to_csv(fragments_csv, index=False)
     prediction_map.to_csv(map_csv, index=False)
@@ -1148,6 +1171,7 @@ def build_prediction_batch_tool(
 
     manifest = {
         "batch_id": run_id,
+        "phase": "completed",
         "input_path": path,
         "spectra_path": spectra_path,
         "metadata_join": metadata_join,
@@ -1164,15 +1188,7 @@ def build_prediction_batch_tool(
         "predictions_succeeded": int(len(prediction_rows)),
         "predictions_failed": int(len(failure_rows)),
         "batch_seconds": time.time() - started,
-        "output_files": {
-            "predictions_csv": str(predictions_csv),
-            "fragments_csv": str(fragments_csv),
-            "prediction_map_csv": str(map_csv),
-            "failures_csv": str(failures_csv),
-            "log_jsonl": str(log_jsonl),
-            "status_json": str(status_json),
-            "manifest_json": str(manifest_json),
-        },
+        "output_files": output_files,
     }
     _write_json(manifest_json, manifest)
     _write_batch_status(
@@ -1250,7 +1266,7 @@ def inspect_prediction_batch_status_tool(manifest_path: str) -> dict[str, Any]:
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     status_path = (manifest.get("output_files") or {}).get("status_json")
     if status_path and Path(status_path).exists():
-        return json.loads(Path(status_path).read_text(encoding="utf-8"))
+        return _read_batch_status(Path(status_path))
     return {
         "batch_id": manifest.get("batch_id"),
         "phase": "completed",
@@ -1347,6 +1363,11 @@ def score_from_prediction_batch_tool(
     config_path: str | None = None,
 ) -> dict[str, Any]:
     manifest, prediction_map, predicted_lookup = _load_prediction_batch_artifacts(manifest_path)
+    if manifest.get("phase", "completed") != "completed":
+        raise ValueError(
+            f"Prediction batch {manifest.get('batch_id')} has not finished (phase '{manifest.get('phase')}'); check it with "
+            "inspect_prediction_batch_status, and build it again if the run was interrupted."
+        )
     if prediction_map.empty:
         raise ValueError("Prediction batch contains no candidate-to-prediction map.")
 
@@ -1377,6 +1398,20 @@ def score_from_prediction_batch_tool(
     prefix.parent.mkdir(parents=True, exist_ok=True)
     status_json = _batch_status_path(prefix, "_scoring_status.json")
     update_interval = _status_update_interval(int(len(prediction_map)))
+    scored_csv = prefix.with_name(prefix.name + "_scored.csv")
+    failures_csv = prefix.with_name(prefix.name + "_scoring_failures.csv")
+    log_jsonl = prefix.with_name(prefix.name + "_scoring_log.jsonl")
+    manifest_json = prefix.with_name(prefix.name + "_scoring_manifest.json")
+    output_files = {
+        "scored_csv": str(scored_csv),
+        "failures_csv": str(failures_csv),
+        "log_jsonl": str(log_jsonl),
+        "status_json": str(status_json),
+        "manifest_json": str(manifest_json),
+    }
+    _write_json(manifest_json, {"batch_id": batch_id, "phase": "running", "prediction_manifest_path": manifest_path,
+                                "spectra_path": spectra_path, "candidate_rows_requested": int(len(prediction_map)),
+                                "output_files": output_files})
 
     _write_batch_status(
         status_json,
@@ -1550,17 +1585,13 @@ def score_from_prediction_batch_tool(
                 },
             )
 
-    scored_csv = prefix.with_name(prefix.name + "_scored.csv")
-    failures_csv = prefix.with_name(prefix.name + "_scoring_failures.csv")
-    log_jsonl = prefix.with_name(prefix.name + "_scoring_log.jsonl")
-    manifest_json = prefix.with_name(prefix.name + "_scoring_manifest.json")
-
     pd.DataFrame(scored_rows).to_csv(scored_csv, index=False)
     pd.DataFrame(failure_rows).to_csv(failures_csv, index=False)
     _write_jsonl(log_jsonl, log_rows)
 
     scoring_manifest = {
         "batch_id": batch_id,
+        "phase": "completed",
         "prediction_manifest_path": manifest_path,
         "spectra_path": spectra_path,
         "candidate_rows_requested": int(len(prediction_map)),
@@ -1573,13 +1604,7 @@ def score_from_prediction_batch_tool(
             "observed_annotation_evidence": ["precursor_signal_fraction", "annotated_peak_count", "ion_type_counts", "annotated_intensity_fraction"],
             "mass_error": ["fragment_mass_error_mean_ppm", "fragment_mass_error_abs_mean_ppm", "fragment_mass_error_mean_da", "fragment_mass_error_abs_mean_da", "precursor_mass_error_ppm", "precursor_mass_error_da"],
         },
-        "output_files": {
-            "scored_csv": str(scored_csv),
-            "failures_csv": str(failures_csv),
-            "log_jsonl": str(log_jsonl),
-            "status_json": str(status_json),
-            "manifest_json": str(manifest_json),
-        },
+        "output_files": output_files,
     }
     _write_json(manifest_json, scoring_manifest)
     _write_batch_status(
@@ -1647,7 +1672,7 @@ def inspect_scored_batch_status_tool(manifest_path: str) -> dict[str, Any]:
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     status_path = (manifest.get("output_files") or {}).get("status_json")
     if status_path and Path(status_path).exists():
-        return json.loads(Path(status_path).read_text(encoding="utf-8"))
+        return _read_batch_status(Path(status_path))
     return {
         "batch_id": manifest.get("batch_id"),
         "phase": "completed",
