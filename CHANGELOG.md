@@ -4,6 +4,31 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-10-14
+
+Fixes from the end-to-end check of the published package on the manuscript's public data ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30)). This is the version cited in the manuscript. How scores, annotations and metrics are computed is unchanged.
+
+### Fixed
+
+- **Static figures over MCP:** `render_static_spectrum` failed on macOS, and on Windows with a broken Tcl/Tk it aborted the server. Figures are now drawn without pyplot or a GUI backend and no longer change matplotlib's global settings; the output is unchanged ([#35](https://github.com/UadKLab/proteomics-mcp/issues/35), [#56](https://github.com/UadKLab/proteomics-mcp/pull/56)).
+- **Error messages:** with mcp 2.3, MCP clients saw only "Error executing tool". Errors the agent can act on (wrong path, unsupported adapter, malformed table or argument, unknown field, unreachable service) now show their type and message ([#27](https://github.com/UadKLab/proteomics-mcp/issues/27), [#57](https://github.com/UadKLab/proteomics-mcp/pull/57)).
+- **Generic adapter:** `adapter="generic"` could not be used over MCP or the CLI. Every tool and command that takes an adapter accepts a JSON column mapping (`column_mapping_path` / `--column-mapping`) ([#38](https://github.com/UadKLab/proteomics-mcp/issues/38), [#58](https://github.com/UadKLab/proteomics-mcp/pull/58)).
+- **Scored tables:** a scored table joined nothing, silently, when the candidate table had been renamed. Unmatched rows now join on run + scan + peptidoform, one to one only. Tools report the join (`scored_join`) and warn when nothing matched or rows were ambiguous ([#39](https://github.com/UadKLab/proteomics-mcp/issues/39), [#59](https://github.com/UadKLab/proteomics-mcp/pull/59)).
+- **PRIDE SDRF:** `retrieve_pride_sdrf` searched only the first 100 project files and could not download what it found. It now pages through the listing and downloads over HTTPS ([#40](https://github.com/UadKLab/proteomics-mcp/issues/40), [#60](https://github.com/UadKLab/proteomics-mcp/pull/60)).
+- **USI spectra:** spectra retrieved by USI had no precursor m/z, so `precursor_signal_fraction` was missing ([#41](https://github.com/UadKLab/proteomics-mcp/issues/41), [#61](https://github.com/UadKLab/proteomics-mcp/pull/61)).
+- **Batch rendering:** `render_spectra_batch` reads JSON Lines and gzip-compressed specs ([#45](https://github.com/UadKLab/proteomics-mcp/issues/45), [#63](https://github.com/UadKLab/proteomics-mcp/pull/63)).
+- **Batch status:** prediction and scoring batches write their manifest at the start, so their status can be read while they run or after an interruption (`seconds_since_update`). Scoring refuses an unfinished prediction batch ([#46](https://github.com/UadKLab/proteomics-mcp/issues/46), [#64](https://github.com/UadKLab/proteomics-mcp/pull/64)).
+
+### Added
+
+- **Predictor version:** every prediction and score records it: the MS2PIP release, or the Koina model and version ([#22](https://github.com/UadKLab/proteomics-mcp/issues/22), [#62](https://github.com/UadKLab/proteomics-mcp/pull/62)).
+- **Docs:** `docs/clients.md`, setup for Claude Desktop, Claude Code, Codex CLI, Cursor and Windsurf ([#53](https://github.com/UadKLab/proteomics-mcp/issues/53), [#65](https://github.com/UadKLab/proteomics-mcp/pull/65)).
+- **End-to-end tests** (`tests/e2e`, `e2e.yml`): they check the published package against the Zenodo supplement, PRIDE spectra by USI, an OpenMS mzML, a PRIDE MGF and a timsTOF run ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30), [#37](https://github.com/UadKLab/proteomics-mcp/pull/37), [#67](https://github.com/UadKLab/proteomics-mcp/pull/67)).
+
+### Changed
+
+- **Docs:** spectra retrieved by USI can differ from local conversions of the same scan ([#31](https://github.com/UadKLab/proteomics-mcp/issues/31), [#44](https://github.com/UadKLab/proteomics-mcp/pull/44)).
+
 ## [0.1.9] - 2026-10-13
 
 Packaging, CI and documentation only. No changes to adapters, scoring, annotation, metrics or rendering.
@@ -62,6 +87,7 @@ Releases 0.1.1–0.1.7 predate the public repository and were not published to P
 - [0.1.2](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/releases/v0.1.2.md)
 - [0.1.1](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/releases/v0.1.1.md)
 
-[Unreleased]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.10...HEAD
+[0.1.10]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/UadKLab/proteomics-mcp/releases/tag/v0.1.8
