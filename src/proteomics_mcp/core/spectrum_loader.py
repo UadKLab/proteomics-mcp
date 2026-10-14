@@ -179,6 +179,23 @@ def load_spectrum_from_table(
     )
 
 
+# PROXI attributes carrying the precursor m/z, most specific first: selected ion m/z,
+# isolation window target m/z, then a generic "precursor m/z" attribute.
+_PROXI_PRECURSOR_MZ = (("MS:1000744", "selected ion m/z"), ("MS:1000827", "isolation window target m/z"), (None, "precursor m/z"))
+
+
+def _proxi_precursor_mz(attributes: list[dict[str, Any]]) -> float | None:
+    for accession, name in _PROXI_PRECURSOR_MZ:
+        for attr in attributes:
+            matches = (accession is not None and attr.get("accession") == accession) or name in str(attr.get("name", "")).lower()
+            if matches and attr.get("value") is not None:
+                try:
+                    return float(attr["value"])
+                except (TypeError, ValueError):
+                    continue
+    return None
+
+
 def retrieve_spectrum_from_usi(usi: str, *, backend: str = "pride", timeout_seconds: float = 15.0) -> ObservedSpectrum:
     """Retrieve and normalize a USI spectrum through pyteomics PROXI."""
     try:
@@ -207,13 +224,11 @@ def retrieve_spectrum_from_usi(usi: str, *, backend: str = "pride", timeout_seco
         "status": response.get("status"),
         "attributes": attributes,
     }
-    precursor_mz = None
+    precursor_mz = _proxi_precursor_mz(attributes if isinstance(attributes, list) else [])
     precursor_charge = None
     for attr in attributes if isinstance(attributes, list) else []:
         name = str(attr.get("name", "")).lower()
         value = attr.get("value")
-        if "precursor m/z" in name:
-            precursor_mz = float(value)
         if "charge state" in name:
             precursor_charge = int(value)
     parsed_scan = parse_scan_number(usi)
