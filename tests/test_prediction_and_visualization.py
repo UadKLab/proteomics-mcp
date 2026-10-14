@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -291,6 +292,63 @@ def test_render_static_spectrum_writes_annotated_svg(monkeypatch, tmp_path):
     assert "a1+" in text
     assert "b1+ | P" in text
     assert "a1+ | P" not in text
+
+
+_GUI_MODULES = ("tkinter", "matplotlib.backends.backend_tkagg", "matplotlib.backends.backend_macosx", "matplotlib.backends._backend_tk")
+
+
+def _static_payload() -> dict:
+    observed = ObservedSpectrum(mz=[100.0, 150.0, 200.0], intensity=[10.0, 20.0, 5.0], precursor_charge=2)
+    payload = build_spectrum_payload(observed, mock_predicted_spectrum("PEPTIDE", 2))
+    payload["metrics"] = {"candidate": {"peptidoform": "PEPTIDE"}}
+    return payload
+
+
+def test_render_static_spectrum_selects_no_backend_and_keeps_rcparams(tmp_path):
+    """In a fresh process: no GUI backend is loaded or even selected, and global rcParams stay as they were (#35).
+
+    MCP tools run in worker threads, where GUI backends fail (macOS), and Tk may be broken (Windows runners).
+    seaborn imports matplotlib.pyplot itself; that is harmless as long as no figure manager picks a backend.
+    """
+    import subprocess
+
+    payload_path = tmp_path / "payload.json"
+    payload_path.write_text(json.dumps(_static_payload()), encoding="utf-8")
+    script = f"""
+import json, sys
+from pathlib import Path
+import matplotlib
+from proteomics_mcp.core.visualization import render_static_spectrum
+payload = json.loads(Path(sys.argv[1]).read_text())
+# rcParams["backend"] itself resolves the backend when read, so it is left out of the snapshot.
+snapshot = lambda: {{key: repr(matplotlib.rcParams[key]) for key in matplotlib.rcParams if key != "backend"}}
+import seaborn  # noqa: F401  imported by the renderer; importing it alone does not change rcParams
+before = snapshot()
+for view in ("mirror", "annotated", "plain"):
+    for suffix in ("svg", "pdf", "png"):
+        render_static_spectrum(payload, Path(sys.argv[2]) / f"{{view}}.{{suffix}}", view=view)
+after = snapshot()
+print(json.dumps({{
+    "gui_modules": sorted(name for name in {_GUI_MODULES!r} if name in sys.modules),
+    "backend": matplotlib.rcParams._get_backend_or_none(),
+    "changed_rcparams": sorted(key for key in before if before[key] != after[key]),
+}}))
+"""
+    env = {key: value for key, value in os.environ.items() if key != "MPLBACKEND"}
+    completed = subprocess.run([sys.executable, "-c", script, str(payload_path), str(tmp_path)], capture_output=True, text=True, env=env)
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert result == {"gui_modules": [], "backend": None, "changed_rcparams": []}
+    assert len(list(tmp_path.glob("*.pdf"))) == 3 and len(list(tmp_path.glob("*.png"))) == 3
+
+
+def test_render_static_spectrum_works_from_a_worker_thread(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    payload = _static_payload()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        rendered = pool.submit(render_static_spectrum, payload, tmp_path / "mirror.png", view="mirror").result()
+    assert rendered.stat().st_size > 0
 
 
 def test_render_annotated_observed_spectrum_supports_configurable_ion_series(monkeypatch, tmp_path):
