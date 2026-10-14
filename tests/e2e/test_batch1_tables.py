@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 from importlib.metadata import version
 
@@ -69,13 +70,25 @@ def test_render_tables(zenodo, tool, report, tmp_path, adapter, table):
     report("tables", f"render_psm_table / render_peptide_table {adapter} {table}", "pass", {"html_bytes": outputs})
 
 
-@pytest.mark.xfail(strict=True, reason="#38: MCP and CLI expose no column-mapping arguments for the generic adapter")
-def test_generic_adapter_needs_column_mapping_over_mcp(zenodo, tool, report):
-    """The generic adapter is documented, but MCP and CLI expose no column-mapping arguments."""
-    is_error, result = tool("load_candidates", {"path": str(zenodo / "processed/arabidopsis/supplementary_scored_psms.csv"),
-                                                "adapter": "generic", "limit": 5})
-    report("tables", "load_candidates generic (MCP)", "fail (#38)" if is_error else "pass", {"result": str(result)[:300]})
+@pytest.mark.xfail(INSTALLED < Version("0.1.10"), strict=True,
+                   reason="#38 (fixed in 0.1.10): MCP and CLI expose no column-mapping arguments for the generic adapter")
+def test_generic_adapter_with_column_mapping(zenodo, tool, cli, report, tmp_path):
+    """The generic adapter over MCP and the CLI, with a JSON column mapping for the Zenodo scored table."""
+    table = zenodo / "processed/arabidopsis/supplementary_scored_psms.csv"
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({"peptide_column": "peptidoform", "scan_column": "scan_number", "charge_column": "precursor_charge",
+                                   "precursor_mz_column": "precursor_mz", "spectrum_id_column": "spectrum_id",
+                                   "score_column": "confidence", "score_type": "confidence_0_1"}))
+    is_error, result = tool("load_candidates", {"path": str(table), "adapter": "generic", "column_mapping_path": str(mapping), "limit": 5})
+    report("tables", "load_candidates generic with column mapping (MCP)", "fail (#38)" if is_error else "pass", {"result": str(result)[:300]})
     assert not is_error, result
+    with table.open(newline="") as handle:
+        expected = [(row["peptidoform"], int(row["scan_number"])) for row, _ in zip(csv.DictReader(handle), range(5))]
+    assert [(row["peptidoform"], row["scan_number"]) for row in result] == expected
+    completed = cli("load-candidates", "--path", str(table), "--adapter", "generic", "--column-mapping", str(mapping), "--limit", "5")
+    assert completed.returncode == 0, completed.stderr[-2000:]
+    fields = ("peptidoform", "scan_number", "precursor_charge", "precursor_mz", "confidence", "spectrum_id")
+    assert [tuple(row[f] for f in fields) for row in json.loads(completed.stdout)] == [tuple(row[f] for f in fields) for row in result]
 
 
 def test_scored_tables(zenodo, tool, report):

@@ -1608,7 +1608,9 @@ def render_static_spectrum(
     fragment labels.
     """
     try:
-        import matplotlib.pyplot as plt
+        import matplotlib
+        from matplotlib import cycler
+        from matplotlib.figure import Figure
         from matplotlib.lines import Line2D
         import seaborn as sns
     except ImportError as exc:  # pragma: no cover - dependency contract is tested through installation
@@ -1626,109 +1628,113 @@ def render_static_spectrum(
         raise ValueError("Observed spectrum must contain equally sized mz and intensity arrays.")
     maximum = max((abs(value) for value in intensity), default=1.0) or 1.0
     relative = [abs(value) / maximum for value in intensity]
-    sns.set_theme(style="white", context="paper")
-    fig, ax = plt.subplots(figsize=(11.5, 5.8), constrained_layout=True)
-    fig.patch.set_facecolor("#FFFFFF")
-    ax.set_facecolor("#FFFFFF")
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    ax.grid(False)
-    ax.set_xlabel("m/z")
+    # The seaborn "white"/"paper" theme for this figure only: sns.set_theme would change matplotlib's
+    # global rcParams for the whole server process. A bare Figure has no pyplot figure manager, so no
+    # GUI backend is selected and rendering works from any thread (MCP runs tools in worker threads).
+    style = {**sns.axes_style("white"), **sns.plotting_context("paper"), "axes.prop_cycle": cycler(color=sns.color_palette("deep"))}
+    with matplotlib.rc_context(style):
+        fig = Figure(figsize=(11.5, 5.8), layout="constrained")
+        ax = fig.add_subplot()
+        fig.patch.set_facecolor("#FFFFFF")
+        ax.set_facecolor("#FFFFFF")
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.grid(False)
+        ax.set_xlabel("m/z")
 
-    if view == "plain":
-        ax.vlines(mz, 0, relative, color="#068D9D", linewidth=0.8)
-        ax.axhline(0, color="#4D6A7F", linewidth=0.7)
-        ax.set_ylabel("Relative intensity")
-        ax.set_ylim(0, 1.08)
-        ax.set_title(title or "Observed spectrum")
-    elif view == "annotated":
-        peptide = _peptidoform_from_payload(payload_or_observed, peptidoform)
-        if not peptide:
-            raise ValueError("Annotated static rendering requires a peptidoform in the payload or peptidoform argument.")
-        summary = annotate_observed_ions(
-            ObservedSpectrum(**observed),
-            peptidoform=peptide,
-            tolerance=tolerance,
-            tolerance_unit=tolerance_unit,
-            ion_types=ion_types,
-            max_isotope=max_isotope,
-            max_ion_charge=max_ion_charge,
-            neutral_losses=neutral_losses,
-        )
-        annotations = list(summary.get("annotations") or [""] * len(mz))
-        match_by_index = {match.get("observed_index"): match for match in summary.get("matches", []) if isinstance(match, dict)}
-        annotated: list[tuple[float, float, str, str, str]] = []
-        for index, (peak_mz, rel_intensity, annotation) in enumerate(zip(mz, relative, annotations)):
-            if not annotation or str(annotation).startswith("?"):
-                ax.vlines(peak_mz, 0, rel_intensity, color="#A6B3C2", linewidth=0.65)
-                continue
-            label = str(annotation)
-            ion_type = _static_ion_type(label, match_by_index.get(index))
-            color = _STATIC_ION_COLORS.get(ion_type, _STATIC_ION_COLORS["other"])
-            ax.vlines(peak_mz, 0, rel_intensity, color=color, linewidth=1.15)
-            annotated.append((peak_mz, rel_intensity, label, color, ion_type))
-        labels_to_render = sorted(annotated, key=lambda item: item[1], reverse=True)
-        if label_top_n is not None:
-            labels_to_render = labels_to_render[: max(0, label_top_n)]
-        for peak_mz, rel_intensity, label, color, ion_type in labels_to_render:
-            if include_fragment_sequences and ion_type in {"b", "y"}:
-                sequence = _fragment_sequence_from_annotation(peptide, label)
-                label = f"{label} | {sequence}" if sequence else label
-            _static_label(ax, peak_mz, rel_intensity, label, color)
-        ion_types_present = sorted({_static_ion_type(label, match_by_index.get(index)) for index, label in enumerate(annotations) if label and not str(label).startswith("?")})
-        handles = [Line2D([0], [0], color="#A6B3C2", lw=1, label="Unannotated")] + [
-            Line2D([0], [0], color=_STATIC_ION_COLORS.get(ion_type, _STATIC_ION_COLORS["other"]), lw=1.5, label=f"{ion_type}-ions")
-            for ion_type in ion_types_present
-        ]
-        ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=min(5, len(handles)), frameon=False)
-        ax.axhline(0, color="#4D6A7F", linewidth=0.7)
-        ax.set_ylabel("Relative intensity")
-        ax.set_ylim(0, 1.12)
-        ax.set_title(title or "Annotated observed spectrum")
-    else:
-        predicted = payload_or_observed.get("predicted") or {}
-        fragments = predicted.get("fragments") or []
-        if not fragments:
-            raise ValueError("Mirror static rendering requires predicted fragments in the payload.")
-        metrics = payload_or_observed.get("metrics") or {}
-        matched = metrics.get("matched_peaks") or []
-        observed_matches = {match.get("observed_index"): str(match.get("ion_type") or "other") for match in matched if isinstance(match, dict)}
-        predicted_matches = {match.get("predicted_index"): str(match.get("ion_type") or "other") for match in matched if isinstance(match, dict)}
-        ax.vlines(mz, 0, relative, color="#9AA6B2", linewidth=0.65)
-        labelled_observed: list[tuple[float, float, str, str]] = []
-        for index, (peak_mz, rel_intensity) in enumerate(zip(mz, relative)):
-            ion_type = observed_matches.get(index)
-            if ion_type is None:
-                continue
-            color = _STATIC_ION_COLORS.get(ion_type, _STATIC_ION_COLORS["other"])
-            ax.vlines(peak_mz, 0, rel_intensity, color=color, linewidth=1.15)
-            match = next((item for item in matched if isinstance(item, dict) and item.get("observed_index") == index), {})
-            labelled_observed.append((peak_mz, rel_intensity, str(match.get("annotation") or ""), color))
-        predicted_mz = [float(fragment["mz"]) for fragment in fragments if fragment.get("mz") is not None]
-        predicted_intensity = [float(fragment.get("intensity") or 0.0) for fragment in fragments if fragment.get("mz") is not None]
-        predicted_maximum = max(predicted_intensity, default=1.0) or 1.0
-        for index, (fragment_mz, fragment_intensity) in enumerate(zip(predicted_mz, predicted_intensity)):
-            color = "#B8336A" if index in predicted_matches else "#D8A4BC"
-            ax.vlines(fragment_mz, 0, -(fragment_intensity / predicted_maximum), color=color, linewidth=0.85)
-        labels_to_render = sorted(labelled_observed, key=lambda item: item[1], reverse=True)
-        if label_top_n is not None:
-            labels_to_render = labels_to_render[: max(0, label_top_n)]
-        for peak_mz, rel_intensity, label, color in labels_to_render:
-            _static_label(ax, peak_mz, rel_intensity, label, color)
-        ax.axhline(0, color="#4D6A7F", linewidth=0.7)
-        ax.set_ylabel("Relative intensity\nobserved above, predicted below")
-        ax.set_ylim(-1.12, 1.12)
-        ax.set_title(title or "Observed vs predicted spectrum")
-        handles = [
-            Line2D([0], [0], color="#9AA6B2", lw=1, label="Observed unmatched"),
-            Line2D([0], [0], color="#0072B2", lw=1.5, label="b-ions observed"),
-            Line2D([0], [0], color="#D55E00", lw=1.5, label="y-ions observed"),
-            Line2D([0], [0], color="#B8336A", lw=1.5, label="Predicted"),
-        ]
-        ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=4, frameon=False)
+        if view == "plain":
+            ax.vlines(mz, 0, relative, color="#068D9D", linewidth=0.8)
+            ax.axhline(0, color="#4D6A7F", linewidth=0.7)
+            ax.set_ylabel("Relative intensity")
+            ax.set_ylim(0, 1.08)
+            ax.set_title(title or "Observed spectrum")
+        elif view == "annotated":
+            peptide = _peptidoform_from_payload(payload_or_observed, peptidoform)
+            if not peptide:
+                raise ValueError("Annotated static rendering requires a peptidoform in the payload or peptidoform argument.")
+            summary = annotate_observed_ions(
+                ObservedSpectrum(**observed),
+                peptidoform=peptide,
+                tolerance=tolerance,
+                tolerance_unit=tolerance_unit,
+                ion_types=ion_types,
+                max_isotope=max_isotope,
+                max_ion_charge=max_ion_charge,
+                neutral_losses=neutral_losses,
+            )
+            annotations = list(summary.get("annotations") or [""] * len(mz))
+            match_by_index = {match.get("observed_index"): match for match in summary.get("matches", []) if isinstance(match, dict)}
+            annotated: list[tuple[float, float, str, str, str]] = []
+            for index, (peak_mz, rel_intensity, annotation) in enumerate(zip(mz, relative, annotations)):
+                if not annotation or str(annotation).startswith("?"):
+                    ax.vlines(peak_mz, 0, rel_intensity, color="#A6B3C2", linewidth=0.65)
+                    continue
+                label = str(annotation)
+                ion_type = _static_ion_type(label, match_by_index.get(index))
+                color = _STATIC_ION_COLORS.get(ion_type, _STATIC_ION_COLORS["other"])
+                ax.vlines(peak_mz, 0, rel_intensity, color=color, linewidth=1.15)
+                annotated.append((peak_mz, rel_intensity, label, color, ion_type))
+            labels_to_render = sorted(annotated, key=lambda item: item[1], reverse=True)
+            if label_top_n is not None:
+                labels_to_render = labels_to_render[: max(0, label_top_n)]
+            for peak_mz, rel_intensity, label, color, ion_type in labels_to_render:
+                if include_fragment_sequences and ion_type in {"b", "y"}:
+                    sequence = _fragment_sequence_from_annotation(peptide, label)
+                    label = f"{label} | {sequence}" if sequence else label
+                _static_label(ax, peak_mz, rel_intensity, label, color)
+            ion_types_present = sorted({_static_ion_type(label, match_by_index.get(index)) for index, label in enumerate(annotations) if label and not str(label).startswith("?")})
+            handles = [Line2D([0], [0], color="#A6B3C2", lw=1, label="Unannotated")] + [
+                Line2D([0], [0], color=_STATIC_ION_COLORS.get(ion_type, _STATIC_ION_COLORS["other"]), lw=1.5, label=f"{ion_type}-ions")
+                for ion_type in ion_types_present
+            ]
+            ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=min(5, len(handles)), frameon=False)
+            ax.axhline(0, color="#4D6A7F", linewidth=0.7)
+            ax.set_ylabel("Relative intensity")
+            ax.set_ylim(0, 1.12)
+            ax.set_title(title or "Annotated observed spectrum")
+        else:
+            predicted = payload_or_observed.get("predicted") or {}
+            fragments = predicted.get("fragments") or []
+            if not fragments:
+                raise ValueError("Mirror static rendering requires predicted fragments in the payload.")
+            metrics = payload_or_observed.get("metrics") or {}
+            matched = metrics.get("matched_peaks") or []
+            observed_matches = {match.get("observed_index"): str(match.get("ion_type") or "other") for match in matched if isinstance(match, dict)}
+            predicted_matches = {match.get("predicted_index"): str(match.get("ion_type") or "other") for match in matched if isinstance(match, dict)}
+            ax.vlines(mz, 0, relative, color="#9AA6B2", linewidth=0.65)
+            labelled_observed: list[tuple[float, float, str, str]] = []
+            for index, (peak_mz, rel_intensity) in enumerate(zip(mz, relative)):
+                ion_type = observed_matches.get(index)
+                if ion_type is None:
+                    continue
+                color = _STATIC_ION_COLORS.get(ion_type, _STATIC_ION_COLORS["other"])
+                ax.vlines(peak_mz, 0, rel_intensity, color=color, linewidth=1.15)
+                match = next((item for item in matched if isinstance(item, dict) and item.get("observed_index") == index), {})
+                labelled_observed.append((peak_mz, rel_intensity, str(match.get("annotation") or ""), color))
+            predicted_mz = [float(fragment["mz"]) for fragment in fragments if fragment.get("mz") is not None]
+            predicted_intensity = [float(fragment.get("intensity") or 0.0) for fragment in fragments if fragment.get("mz") is not None]
+            predicted_maximum = max(predicted_intensity, default=1.0) or 1.0
+            for index, (fragment_mz, fragment_intensity) in enumerate(zip(predicted_mz, predicted_intensity)):
+                color = "#B8336A" if index in predicted_matches else "#D8A4BC"
+                ax.vlines(fragment_mz, 0, -(fragment_intensity / predicted_maximum), color=color, linewidth=0.85)
+            labels_to_render = sorted(labelled_observed, key=lambda item: item[1], reverse=True)
+            if label_top_n is not None:
+                labels_to_render = labels_to_render[: max(0, label_top_n)]
+            for peak_mz, rel_intensity, label, color in labels_to_render:
+                _static_label(ax, peak_mz, rel_intensity, label, color)
+            ax.axhline(0, color="#4D6A7F", linewidth=0.7)
+            ax.set_ylabel("Relative intensity\nobserved above, predicted below")
+            ax.set_ylim(-1.12, 1.12)
+            ax.set_title(title or "Observed vs predicted spectrum")
+            handles = [
+                Line2D([0], [0], color="#9AA6B2", lw=1, label="Observed unmatched"),
+                Line2D([0], [0], color="#0072B2", lw=1.5, label="b-ions observed"),
+                Line2D([0], [0], color="#D55E00", lw=1.5, label="y-ions observed"),
+                Line2D([0], [0], color="#B8336A", lw=1.5, label="Predicted"),
+            ]
+            ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=4, frameon=False)
 
-    ax.set_xlim(min(mz) - 15, max(mz) + 15)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=300, facecolor=fig.get_facecolor())
-    plt.close(fig)
+        ax.set_xlim(min(mz) - 15, max(mz) + 15)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(path, dpi=300, facecolor=fig.get_facecolor())
     return path
