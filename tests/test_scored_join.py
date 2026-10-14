@@ -77,6 +77,7 @@ def test_ambiguous_fallback_keys_are_not_guessed():
     ])
     merged, summary = join_scored_enrichment(frame, scored)
     assert summary["matched_by_run_scan_peptidoform"] == 1 and summary["unmatched_scored_rows"] == 1
+    assert summary["ambiguous_scored_rows"] == 1
     angles = merged.set_index("candidate_id")["spectral_angle"]
     assert angles.isna().to_dict() == {"a:0": True, "a:1": True, "a:2": False}
     assert angles["a:2"] == 0.7
@@ -94,4 +95,38 @@ def test_candidate_id_match_takes_precedence_over_the_fallback():
     ])
     merged, summary = join_scored_enrichment(frame, scored)
     assert summary["matched_by_candidate_id"] == 1 and summary["matched_by_run_scan_peptidoform"] == 0
+    assert summary["ambiguous_scored_rows"] == 1
     assert merged.set_index("candidate_id").loc["a:1", "spectral_angle"] == 0.7
+
+
+def test_scored_rows_sharing_a_fallback_key_are_not_guessed():
+    """Two scored rows with the same run + scan + peptidoform: neither is assigned to the one candidate."""
+    frame = pd.DataFrame([
+        {"candidate_id": "a:0", "run_key": "runA", "scan_number": 10, "peptidoform": "PEPTIDE"},
+        {"candidate_id": "a:1", "run_key": "runA", "scan_number": 11, "peptidoform": "PEPTIDEK"},
+    ])
+    scored = pd.DataFrame([
+        {"candidate_id": "b:0", "run_key": "runA", "scan_number": 10, "peptidoform": "PEPTIDE", "spectral_angle": 0.9},
+        {"candidate_id": "b:1", "run_key": "runA", "scan_number": 10, "peptidoform": "PEPTIDE", "spectral_angle": 0.2},
+        {"candidate_id": "b:2", "run_key": "runA", "scan_number": 11, "peptidoform": "PEPTIDEK", "spectral_angle": 0.7},
+    ])
+    merged, summary = join_scored_enrichment(frame, scored)
+    assert (summary["matched_by_run_scan_peptidoform"], summary["ambiguous_scored_rows"], summary["unmatched_scored_rows"]) == (1, 2, 2)
+    angles = merged.set_index("candidate_id")["spectral_angle"]
+    assert pd.isna(angles["a:0"]) and angles["a:1"] == 0.7
+
+
+def test_ambiguous_fallback_matches_are_reported_with_a_warning(tmp_path):
+    candidates = tmp_path / "fragpipe_psm.tsv"
+    _fragpipe_table(candidates)
+    scored = tmp_path / "scored.csv"
+    pd.DataFrame([
+        {"candidate_id": "psm:0", "experiment_name": "runA", "scan_number": 10, "peptidoform": "PEPTIDE", "spectral_angle": 0.81},
+        {"candidate_id": "psm:9", "experiment_name": "runA", "scan_number": 10, "peptidoform": "PEPTIDE", "spectral_angle": 0.11},
+        {"candidate_id": "psm:1", "experiment_name": "runA", "scan_number": 11, "peptidoform": "PEPTIDEK", "spectral_angle": 0.62},
+    ]).to_csv(scored, index=False)
+    result = summarize_numeric_field_tool(path=str(candidates), adapter="fragpipe", scored_path=str(scored), field="spectral_angle")
+    assert result["scored_join"]["ambiguous_scored_rows"] == 2
+    assert result["scored_join"]["matched_by_run_scan_peptidoform"] == 1
+    assert (result["count"], result["min"], result["max"]) == (1, 0.62, 0.62)  # neither 0.81 nor 0.11 was picked
+    assert len(result["warnings"]) == 1 and "2 scored rows were left unmatched" in result["warnings"][0]
