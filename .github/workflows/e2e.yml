@@ -25,7 +25,7 @@ jobs:
   e2e:
     name: e2e (${{ matrix.os }}, ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
+    timeout-minutes: 300  # Windows needs about twice the 70-90 minutes of Linux; the job limit is 360
     strategy:
       fail-fast: false
       matrix:
@@ -75,7 +75,7 @@ jobs:
           PROTEOMICS_MCP_E2E_REPORT: ${{ runner.temp }}/e2e-report.json
           # the 522 MB timsTOF conversion runs once per OS
           PROTEOMICS_MCP_E2E_BRUKER: ${{ matrix.python-version == '3.11' && '1' || '0' }}
-        run: '"$PYPI_PY" -m pytest -o pythonpath= -m e2e -rs tests/e2e'
+        run: '"$PYPI_PY" -m pytest -o pythonpath= -m e2e -rs --durations=15 tests/e2e'
 
       - name: Upload report
         if: always()
