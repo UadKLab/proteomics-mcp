@@ -6,7 +6,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [0.1.10] - 2026-10-14
 
-Fixes from the end-to-end check of the published package on the manuscript's public data ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30)). This is the version cited in the manuscript. Scores, annotations and metrics are unchanged.
+Fixes from the end-to-end check of the published package on the manuscript's public data ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30)). This is the version cited in the manuscript. How scores, annotations and metrics are computed is unchanged.
 
 ### Fixed
 
