@@ -9,11 +9,15 @@ from __future__ import annotations
 import csv
 import json
 import math
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+from packaging.version import Version
 
 pytestmark = [pytest.mark.e2e, pytest.mark.network]
+
+INSTALLED = Version(version("proteomics-mcp"))
 
 # examples/ folder -> dataset key in the Zenodo raw_file_inventory.tsv
 EXAMPLE_DATASETS = {
@@ -120,7 +124,8 @@ def test_usi_peaks_vs_payload(retrieved, report, folder, path):
     report("usi", f"step a {path.name}", "identical" if comparison["identical"] else "differs", {"usi": usi, **comparison})
 
 
-@pytest.mark.xfail(strict=True, reason="#41: the PRIDE precursor m/z (MS:1000744 / MS:1000827) is not parsed")
+@pytest.mark.xfail(INSTALLED < Version("0.1.10"), strict=True,
+                   reason="#41 (fixed in 0.1.10): the PRIDE precursor m/z (MS:1000744 / MS:1000827) is not parsed")
 def test_usi_spectra_carry_precursor_mz(retrieved, report):
     missing = [usi for usi, (is_error, spectrum) in retrieved.values() if not is_error and spectrum.get("precursor_mz") is None]
     report("usi", "precursor_mz present in USI spectra", "fail (#41)" if missing else "pass", {"missing": len(missing), "of": len(retrieved)})
