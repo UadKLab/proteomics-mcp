@@ -115,7 +115,7 @@ def test_load_sdrf_local(zenodo, tool, report):
 
 
 @pytest.mark.network
-@pytest.mark.xfail(strict=True, reason="#40: only the first 100 files of a PRIDE project are searched")
+@pytest.mark.xfail(INSTALLED < Version("0.1.10"), strict=True, reason="#40 (fixed in 0.1.10): only the first 100 files of a PRIDE project are searched")
 @pytest.mark.parametrize("accession", ["PXD014877", "PXD010595"])
 def test_retrieve_pride_sdrf(tool, report, accession):
     is_error, remote = tool("retrieve_pride_sdrf", {"project_accession": accession, "timeout_seconds": 60})

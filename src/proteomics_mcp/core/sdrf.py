@@ -140,18 +140,31 @@ def _extract_pride_page_content(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _downloadable_url(location: Any) -> str | None:
+    """A URL urllib can fetch, from a PRIDE location (a string or a {"name", "value"} CvParam)."""
+    value = location.get("value") if isinstance(location, dict) else location
+    if not value:
+        return None
+    url = str(value)
+    if url.startswith("ftp://ftp.pride.ebi.ac.uk/"):
+        # the PRIDE FTP tree is also served over HTTPS, which is not blocked where FTP is
+        return "https://" + url[len("ftp://"):]
+    if url.startswith(("https://", "http://", "ftp://")):
+        return url
+    return None  # e.g. Aspera (prd_ascp@fasp.ebi.ac.uk:...)
+
+
 def _find_download_url(file_record: dict[str, Any]) -> str | None:
     for key in ("downloadLink", "download_url", "publicFileLocation", "ftpLink", "fileDownloadUrl"):
-        value = file_record.get(key)
-        if value:
-            return str(value)
+        url = _downloadable_url(file_record.get(key))
+        if url:
+            return url
     locations = file_record.get("publicFileLocations") or file_record.get("publicFileLocation")
-    if isinstance(locations, list):
-        for value in locations:
-            if value:
-                return str(value)
-    if isinstance(locations, str) and locations:
-        return locations
+    if not isinstance(locations, list):
+        locations = [locations]
+    urls = [url for url in (_downloadable_url(location) for location in locations) if url]
+    if urls:
+        return next((url for url in urls if url.startswith("https://")), urls[0])
     links = file_record.get("_links")
     if isinstance(links, dict):
         for key in ("download", "self"):
@@ -181,19 +194,40 @@ def _read_pride_file_listing(url: str, timeout_seconds: float, project_accession
         raise ConnectionError(f"Could not reach PRIDE while listing files for {project_accession} at {url}: {exc.reason}") from exc
 
 
+PRIDE_PAGE_SIZE = 100  # the PRIDE v2 API returns at most 100 records per page
+MAX_PRIDE_LISTING_PAGES = 1000
+
+
+def _list_pride_project_files(project_accession: str, timeout_seconds: float) -> list[dict[str, Any]]:
+    """All file records of a PRIDE project, page by page until a short or empty page."""
+    files: list[dict[str, Any]] = []
+    for page in range(MAX_PRIDE_LISTING_PAGES):
+        params = urlencode({"pageSize": PRIDE_PAGE_SIZE, "page": page})
+        files_url = f"{PRIDE_API_BASE}/projects/{project_accession}/files?{params}"
+        records = _extract_pride_page_content(_read_pride_file_listing(files_url, timeout_seconds, project_accession))
+        files.extend(records)
+        if len(records) < PRIDE_PAGE_SIZE:
+            break
+    return files
+
+
+def _sdrf_preference(file_record: dict[str, Any]) -> tuple[int, str]:
+    """Prefer a named *.sdrf.tsv (e.g. PXD..._community_annotated.sdrf.tsv) over other SDRF-labelled files; then by name."""
+    name = str(file_record.get("fileName", ""))
+    return (0 if name.lower().endswith(".sdrf.tsv") else 1, name)
+
+
 def retrieve_pride_sdrf(project_accession: str, *, timeout_seconds: float = 20.0) -> dict[str, Any]:
     project_accession = str(project_accession).strip().upper()
     if not project_accession:
         raise ValueError("project_accession must be a non-empty PRIDE accession such as PXD012345.")
-    params = urlencode({"pageSize": 1000, "page": 0})
-    files_url = f"{PRIDE_API_BASE}/projects/{project_accession}/files?{params}"
-    payload = _read_pride_file_listing(files_url, timeout_seconds, project_accession)
-    files = _extract_pride_page_content(payload)
-    sdrf_record = next((record for record in files if _is_sdrf_record(record)), None)
-    if sdrf_record is None:
+    files = _list_pride_project_files(project_accession, timeout_seconds)
+    sdrf_records = sorted((record for record in files if _is_sdrf_record(record)), key=_sdrf_preference)
+    if not sdrf_records:
         names = [str(record.get("fileName", "")) for record in files if record.get("fileName")]
         preview = ", ".join(names[:10]) or "no files returned"
-        raise LookupError(f"No SDRF file found in PRIDE project {project_accession}. Files returned: {preview}.")
+        raise LookupError(f"No SDRF file found among the {len(files)} files of PRIDE project {project_accession}. Files include: {preview}.")
+    sdrf_record = sdrf_records[0]
     download_url = _find_download_url(sdrf_record)
     if not download_url:
         raise LookupError(f"PRIDE project {project_accession} has an SDRF record but no downloadable URL.")
@@ -203,4 +237,5 @@ def retrieve_pride_sdrf(project_accession: str, *, timeout_seconds: float = 20.0
     summary["project_accession"] = project_accession
     summary["file_name"] = sdrf_record.get("fileName")
     summary["download_url"] = download_url
+    summary["sdrf_files_found"] = [record.get("fileName") for record in sdrf_records]
     return summary
