@@ -45,11 +45,12 @@ def _settings(payload: dict) -> dict:
 
 
 @pytest.mark.parametrize("name", PAYLOADS, ids=IDS)
-def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, name):
+def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, legacy_metrics, name):
     """Scoring engine only: the stored observed spectrum and stored prediction must reproduce the stored metrics."""
     payload = _load(name)
     is_error, result = tool("score_spectrum", {"candidate": payload["metrics"]["candidate"], "observed": payload["observed"],
-                                               "predicted": payload["predicted"], **_settings(payload)})
+                                               "predicted": payload["predicted"], "config_path": str(legacy_metrics),
+                                               **_settings(payload)})
     assert not is_error, result
     deltas = {m: abs(result[m] - payload["metrics"][m]) for m in METRICS if payload["metrics"].get(m) is not None}
 
@@ -61,7 +62,8 @@ def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, name):
     s = _settings(payload)
     args = ["score-spectrum", "--candidate-json", str(files["candidate"]), "--spectrum-json", str(files["spectrum"]),
             "--predicted-json", str(files["predicted"]), "--tolerance", str(s["tolerance"]), "--tolerance-unit", s["tolerance_unit"],
-            "--annotation-ion-types", s["annotation_ion_types"], "--annotation-max-isotope", str(s["annotation_max_isotope"])]
+            "--annotation-ion-types", s["annotation_ion_types"], "--annotation-max-isotope", str(s["annotation_max_isotope"]),
+            "--config", str(legacy_metrics)]
     if s["annotation_neutral_losses"]:
         args.append("--annotation-neutral-losses")
     completed = cli(*args)

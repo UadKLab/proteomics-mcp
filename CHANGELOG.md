@@ -4,6 +4,10 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Changed
+
+- **Spectral angle, cosine and Pearson** compare every predicted ion, with zero observed intensity for ions that matched no peak (metric profile `v2`, now the default). Before, only matched ions were compared, so a wrong candidate that matched a single peak scored 1.0, and on real data wrong candidates scored higher than correct ones. Scores change for every PSM with unmatched predicted ions. Set `metric_profile = "legacy_v1"` in a configuration file to reproduce scores from 0.1.10 and earlier, including the manuscript figures ([#72](https://github.com/UadKLab/proteomics-mcp/issues/72)).
+
 ## [0.1.10] - 2026-10-14
 
 Fixes from the end-to-end check of the published package on the manuscript's public data ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30)). This is the version cited in the manuscript. How scores, annotations and metrics are computed is unchanged.

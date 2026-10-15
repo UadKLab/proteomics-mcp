@@ -42,7 +42,19 @@ Spectrum-level metrics:
 - precursor_mass_error_ppm
 - precursor_mass_error_da
 
-The profile preserves the sidecar-style formulas where practical while normalizing all outputs into SpectrumMetricResult.""",
+The profile preserves the sidecar-style formulas where practical while normalizing all outputs into SpectrumMetricResult.
+
+spectral_angle, cosine_similarity and pearson_correlation compare observed and predicted intensities over the matched
+predicted ions only, so a candidate matching a single peak scores 1.0. Kept to reproduce scores from 0.1.10 and earlier;
+the default profile is v2 (method://metric_profile_v2).""",
+    "method://metric_profile_v2": """Metric profile v2 (default).
+
+The same metrics as legacy_v1 (method://metric_profile_legacy_v1). spectral_angle, cosine_similarity and
+pearson_correlation compare observed and predicted intensities over every predicted ion, with zero observed intensity
+for predicted ions that matched no peak, so unexplained predicted signal lowers the score. When no predicted ion
+matches, spectral_angle and cosine_similarity are 0.0 and pearson_correlation is null.
+
+Select a profile with metric_profile in a JSON or TOML config file passed as config_path (CLI: --config).""",
     "method://candidate_schema_v1": "Canonical candidate schema normalizes upstream engines into peptide/peptidoform, scan/spectrum identifiers, raw score, optional 0-1 confidence, and token-confidence summaries. Supported adapters include instanovo, casanovo, maxquant, fragpipe, proteome_discoverer, and generic mapped tables.",
     "schema://candidate_psm_v1": """CandidatePSM fields:
 candidate_id, source_engine, source_engine_version, experiment_name, scan_number, spectrum_id, usi, peptidoform, precursor_mz, precursor_charge, rank, raw_score, raw_score_name, next_beam, next_beam_margin, confidence, token_log_probabilities, token_log_probability_mean, token_log_probability_min, token_confidences, token_confidence_mean, token_confidence_min, token_confidence_min_position, token_confidence_min_token, source_columns.

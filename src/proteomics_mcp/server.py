@@ -1082,6 +1082,10 @@ if MCPServer is not None:
             status_path=_resolve(status_path),
         )
 
+    @mcp.resource("method://metric_profile_v2")
+    def metric_profile_v2() -> str:
+        return SCHEMAS["method://metric_profile_v2"]
+
     @mcp.resource("method://metric_profile_legacy_v1")
     def metric_profile_legacy_v1() -> str:
         return SCHEMAS["method://metric_profile_legacy_v1"]

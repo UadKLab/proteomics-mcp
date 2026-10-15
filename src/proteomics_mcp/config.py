@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+# Metric profiles: how spectral angle, cosine and Pearson are computed (see core.scoring.similarity_vectors).
+METRIC_PROFILES = ("v2", "legacy_v1")
+DEFAULT_METRIC_PROFILE = "v2"
+
 
 @dataclass(frozen=True)
 class ProteomicsMCPConfig:
@@ -22,7 +26,7 @@ class ProteomicsMCPConfig:
     tolerance: float = 0.05
     tolerance_unit: str = "Da"
     usi_backend: str = "pride"
-    metric_profile: str = "legacy_v1"
+    metric_profile: str = DEFAULT_METRIC_PROFILE
     annotation_ion_types: str = "by"
     annotation_max_isotope: int = 1
     annotation_max_ion_charge: int | None = None
@@ -43,6 +47,9 @@ class ProteomicsMCPConfig:
             normalized["predictor_model"] = ms2pip_model
         elif predictor_model is not None and ms2pip_model is None:
             normalized["ms2pip_model"] = predictor_model
+        metric_profile = normalized.get("metric_profile")
+        if metric_profile is not None and metric_profile not in METRIC_PROFILES:
+            raise ValueError(f"Unknown metric_profile {metric_profile!r}; expected one of {', '.join(METRIC_PROFILES)}.")
         known = {field: normalized[field] for field in cls.__dataclass_fields__ if field in normalized}
         return cls(**known)
 
