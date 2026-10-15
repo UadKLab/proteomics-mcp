@@ -8,7 +8,7 @@ from typing import Any
 import pandas as pd
 
 from proteomics_mcp.adapters.instanovo import _as_float, _as_int, normalize_peptidoform_to_instanovo_style
-from proteomics_mcp.adapters.modifications import resolve_mod_token
+from proteomics_mcp.adapters.modifications import build_peptidoform, matching_parenthesis
 from proteomics_mcp.models.schemas import CandidatePSM
 
 
@@ -23,35 +23,48 @@ def _clean_text(value: Any) -> str | None:
     return text or None
 
 
-def _normalize_inline_mod(token: str) -> str:
-    clean = token.strip()
-    if not clean:
-        return clean
-    return resolve_mod_token(clean) or clean
-
-
 def _peptidoform_from_modified_sequence(modified_sequence: Any, fallback_sequence: Any = None) -> str | None:
+    """Peptidoform from a MaxQuant "Modified sequence", e.g. "_(ac)PEPM(ox)K_" or "_(Acetyl (Protein N-term))PEPM(Oxidation (M))K_".
+
+    A modification before the first residue is N-terminal; one whose name mentions "C-term" is C-terminal. Names may
+    contain nested parentheses. Text that is not understood stays in the peptidoform as an explicit token.
+    """
     text = _clean_text(modified_sequence)
     if text:
         text = text.replace("_", "")
-        peptide_parts: list[str] = []
+        residues: list[str] = []
+        residue_mods: dict[int, list[str]] = {}
+        nterm_mods: list[str] = []
+        cterm_mods: list[str] = []
+        unlocalized_mods: list[str] = []
         i = 0
         while i < len(text):
             ch = text[i]
             if ch == "(":
-                end = text.find(")", i + 1)
-                if end == -1:
-                    i += 1
-                    continue
-                if peptide_parts:
-                    peptide_parts[-1] += f"[{_normalize_inline_mod(text[i + 1:end])}]"
+                end = matching_parenthesis(text, i)
+                if end is None:
+                    unlocalized_mods.append(text[i:])
+                    break
+                name = text[i + 1 : end].strip()
+                if not residues:
+                    nterm_mods.append(name)
+                elif "c-term" in name.lower():
+                    cterm_mods.append(name)
+                else:
+                    residue_mods.setdefault(len(residues), []).append(name)
                 i = end + 1
                 continue
             if ch.isalpha():
-                peptide_parts.append(ch.upper())
+                residues.append(ch.upper())
             i += 1
-        if peptide_parts:
-            return normalize_peptidoform_to_instanovo_style("".join(peptide_parts))
+        if residues:
+            return build_peptidoform(
+                "".join(residues),
+                residue_mods=residue_mods,
+                nterm_mods=nterm_mods,
+                cterm_mods=cterm_mods,
+                unlocalized_mods=unlocalized_mods,
+            )
     fallback = _clean_text(fallback_sequence)
     return normalize_peptidoform_to_instanovo_style(fallback) if fallback else None
 
