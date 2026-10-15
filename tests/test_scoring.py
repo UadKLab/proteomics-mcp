@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import pytest
+
+from proteomics_mcp.adapters import modifications
 from proteomics_mcp.core.acquisition import acquisition_metadata_summary
-from proteomics_mcp.core.scoring import match_predicted_to_observed, precursor_mass_errors, score_candidate_spectrum
+from proteomics_mcp.core.scoring import (
+    match_predicted_to_observed,
+    precursor_isotope_corrected_errors,
+    precursor_mass_errors,
+    score_candidate_spectrum,
+)
 from proteomics_mcp.models.schemas import CandidatePSM, ObservedSpectrum, PredictedFragment, PredictedSpectrum
 
 
@@ -46,23 +54,93 @@ def test_score_candidate_spectrum_returns_broad_metrics():
     assert "ion_type_counts" in result.annotation_summary
 
 
-def test_precursor_mass_error_is_zero_for_theoretical_openms_mz():
-    import pyopenms  # type: ignore
+# Reference masses, independent of the package: Unimod monoisotopic residue masses, water and proton.
+RESIDUE = {"P": 97.05276384, "E": 129.04259309, "T": 101.04767846, "I": 113.08406398, "D": 115.02694303, "C": 103.00918448, "K": 128.09496302, "Q": 128.05857754, "S": 87.03202841}
+WATER = 18.0105646863
+PROTON = 1.00727646688
+NEUTRON = 1.00335484
 
-    theoretical_mz = float(pyopenms.AASequence.fromString("PEPTIDE").getMZ(2))
 
-    ppm, da = precursor_mass_errors("PEPTIDE", 2, theoretical_mz)
+def reference_mz(sequence: str, charge: int, delta: float = 0.0) -> float:
+    return (sum(RESIDUE[aa] for aa in sequence) + WATER + delta + charge * PROTON) / charge
+
+
+@pytest.fixture
+def offline_unimod(monkeypatch):
+    """No Unimod catalogue download: only the built-in modification table resolves."""
+    monkeypatch.setattr(modifications, "_load_unimod_catalog", lambda: None)
+
+
+def test_precursor_mass_error_is_zero_for_theoretical_mz():
+    ppm, da = precursor_mass_errors("PEPTIDE", 2, reference_mz("PEPTIDE", 2))
 
     assert ppm is not None
     assert da is not None
-    assert abs(ppm) < 1e-9
-    assert abs(da) < 1e-12
+    assert abs(ppm) < 1e-3
+    assert abs(da) < 1e-6
+
+
+@pytest.mark.parametrize(
+    ("peptidoform", "sequence", "delta"),
+    [
+        ("PEPTC[UNIMOD:4]K", "PEPTCK", 57.021464),
+        ("PEPTC[+57.021464]K", "PEPTCK", 57.021464),
+        ("PEPTC[Carbamidomethyl]K", "PEPTCK", 57.021464),
+        ("Q[UNIMOD:28]PEPTCK", "QPEPTCK", -17.026549),
+        ("[UNIMOD:1]-PEPTIDE", "PEPTIDE", 42.010565),
+        ("[UNIMOD:5]-PEPTIDE", "PEPTIDE", 43.005814),
+        ("PEPS[UNIMOD:21]K", "PEPSK", 79.966331),
+        ("[UNIMOD:1]-PEPS[UNIMOD:21]K-[+0.984016]", "PEPSK", 42.010565 + 79.966331 + 0.984016),
+    ],
+)
+def test_precursor_mass_error_includes_modifications(offline_unimod, peptidoform, sequence, delta):
+    # Before #73, these were off by up to tens of Da: pyOpenMS knew few modifications and dropped or misread the rest.
+    for charge in (1, 2, 3):
+        ppm, _ = precursor_mass_errors(peptidoform, charge, reference_mz(sequence, charge, delta))
+        assert ppm is not None
+        assert abs(ppm) < 0.01, (peptidoform, charge, ppm)
+
+
+@pytest.mark.parametrize("peptidoform", ["[UNIMOD:999999]-PEPTIDE", "PEPT[NotAModification]IDE", "(+42.01)PEPTIDE", "PEPXIDE"])
+def test_precursor_mass_error_is_empty_when_a_modification_is_not_understood(offline_unimod, peptidoform):
+    assert precursor_mass_errors(peptidoform, 2, reference_mz("PEPTIDE", 2)) == (None, None)
+    assert precursor_isotope_corrected_errors(peptidoform, 2, reference_mz("PEPTIDE", 2)) == (None, None, None)
+
+
+@pytest.mark.parametrize(("isotope", "charge"), [(0, 2), (1, 2), (2, 2), (1, 3)])
+def test_isotope_corrected_precursor_error(isotope, charge):
+    observed_mz = reference_mz("PEPTIDE", charge) + isotope * NEUTRON / charge + 2e-6 * reference_mz("PEPTIDE", charge)
+
+    raw_ppm, _ = precursor_mass_errors("PEPTIDE", charge, observed_mz)
+    found, corrected_ppm, corrected_da = precursor_isotope_corrected_errors("PEPTIDE", charge, observed_mz)
+
+    assert found == isotope
+    assert corrected_ppm == pytest.approx(2.0, abs=0.01)
+    assert corrected_da == pytest.approx(2e-6 * reference_mz("PEPTIDE", charge), rel=0.01)
+    if isotope:
+        assert raw_ppm > 500
+
+
+def test_score_candidate_reports_isotope_corrected_precursor_error():
+    candidate = CandidatePSM(candidate_id="c1", source_engine="test", peptidoform="PEPTIDE", precursor_charge=2)
+    observed = ObservedSpectrum(mz=[100.0], intensity=[10.0], precursor_charge=2)
+    predicted = PredictedSpectrum(
+        peptidoform="PEPTIDE",
+        precursor_charge=2,
+        predictor_name="mock",
+        fragments=[PredictedFragment(mz=100.0, intensity=1.0, annotation="b1+", ion_type="b", ordinal=1)],
+    )
+    candidate.precursor_mz = reference_mz("PEPTIDE", 2) + NEUTRON / 2
+
+    result = score_candidate_spectrum(candidate=candidate, observed=observed, predicted=predicted, use_observed_annotation=False)
+
+    assert result.precursor_mass_error_ppm == pytest.approx(NEUTRON / 2 / reference_mz("PEPTIDE", 2) * 1e6, rel=1e-4)
+    assert result.precursor_isotope_error == 1
+    assert abs(result.precursor_mass_error_corrected_ppm) < 1e-3
 
 
 def test_score_candidate_uses_precursor_target_metadata_for_precursor_error():
-    import pyopenms  # type: ignore
-
-    theoretical_mz = float(pyopenms.AASequence.fromString("PEPTIDE").getMZ(2))
+    theoretical_mz = reference_mz("PEPTIDE", 2)
     candidate = CandidatePSM(candidate_id="c1", source_engine="test", peptidoform="PEPTIDE", precursor_charge=2)
     observed = ObservedSpectrum(
         mz=[100.0],
@@ -81,8 +159,8 @@ def test_score_candidate_uses_precursor_target_metadata_for_precursor_error():
 
     assert result.precursor_mass_error_ppm is not None
     assert result.precursor_mass_error_da is not None
-    assert abs(result.precursor_mass_error_ppm) < 1e-9
-    assert abs(result.precursor_mass_error_da) < 1e-12
+    assert abs(result.precursor_mass_error_ppm) < 1e-3
+    assert abs(result.precursor_mass_error_da) < 1e-6
 
 
 def test_acquisition_separates_instrument_model_from_detector_type():

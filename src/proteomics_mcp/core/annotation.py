@@ -250,12 +250,28 @@ def parse_peptidoform(peptidoform: str) -> ParsedPeptidoform:
     )
 
 
+def peptidoform_neutral_mass(peptidoform: str) -> float | None:
+    """Monoisotopic neutral mass of a peptidoform, including residue and terminal modifications.
+
+    Returns None rather than a partial mass when any part of the string is not understood: an unresolved
+    modification token, a letter that is not a standard residue, or modification text outside square brackets.
+    """
+    parsed = parse_peptidoform(peptidoform)
+    if not parsed.residues or parsed.unsupported_modification:
+        return None
+    unbracketed = re.sub(r"\[[^\]]*\]", "", _clean_peptidoform(peptidoform))
+    # Terminal modifications are written "[mod]-PEPTIDE" and "PEPTIDE-[mod]"; their hyphens remain once brackets are removed.
+    if re.sub(r"^-|-$", "", unbracketed) != "".join(parsed.residues):
+        return None
+    return sum(parsed.residue_masses) + parsed.nterm_delta + parsed.cterm_delta + H2O_MASS
+
+
 def residues_from_peptidoform(peptidoform: str) -> list[str]:
     """Return residue letters from a ProForma-like peptide string.
 
-    The internal annotator currently ignores modification mass shifts. Modified
-    precursor masses still use pyOpenMS through aa_sequence_from_proforma where
-    available; fragment annotation remains intentionally simple and transparent.
+    The internal annotator currently ignores modification mass shifts; fragment
+    annotation remains intentionally simple and transparent. Precursor masses
+    use peptidoform_neutral_mass, which includes modifications.
     """
     return parse_peptidoform(peptidoform).residues
 

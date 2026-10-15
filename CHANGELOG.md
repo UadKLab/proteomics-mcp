@@ -4,6 +4,14 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Precursor mass error with modifications:** the theoretical precursor m/z came from pyOpenMS, which recognised only a few UNIMOD ids and silently left out other modifications, and read named ones such as `C[Carbamidomethyl]` as extra residues. TMT, N-terminal and many other modified PSMs were off by up to hundreds of Da. The mass now comes from the package's own peptidoform parser and includes every residue and terminal modification. The error is empty when a modification cannot be resolved. For unmodified peptides, values change by about 0.006 ppm because the residue masses are slightly more exact ([#73](https://github.com/UadKLab/proteomics-mcp/issues/73)).
+
+### Added
+
+- **Isotope-corrected precursor error:** `precursor_isotope_error` (0, 1 or 2) and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` report the error relative to the 13C isotope peak closest to the observed m/z. Before, a precursor selected on its second isotope peak showed an error of hundreds of ppm ([#73](https://github.com/UadKLab/proteomics-mcp/issues/73)).
+
 ## [0.1.10] - 2026-10-14
 
 Fixes from the end-to-end check of the published package on the manuscript's public data ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30)). This is the version cited in the manuscript. How scores, annotations and metrics are computed is unchanged.

@@ -137,6 +137,9 @@ class SpectrumMetricResult:
     precursor_mass_error_ppm: float | None
     precursor_mass_error_da: float | None
     matched_peaks: list[MatchedPeak]
+    precursor_isotope_error: int | None = None
+    precursor_mass_error_corrected_ppm: float | None = None
+    precursor_mass_error_corrected_da: float | None = None
     metric_profile: str = "legacy_v1"
     predictor_metadata: dict[str, Any] = field(default_factory=dict)
     annotation_settings: dict[str, Any] = field(default_factory=dict)
