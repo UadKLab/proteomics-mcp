@@ -447,7 +447,9 @@ def generate_terminal_fragments(
     for ordinal, (prefix_mass, suffix_mass) in enumerate(zip(prefix_masses, suffix_masses), start=1):
         for ion_type in allowed:
             n_term_ion = ion_type in {"a", "a+1", "b", "c", "d", "d-alt"}
-            residue = residues[ordinal - 1] if n_term_ion else residues[peptide_length - ordinal]
+            # The residue at the cleavage site: the last of an N-terminal fragment (residues[:ordinal]), the first of a
+            # C-terminal one (residues[ordinal:]). d and w ions lose part of that residue's side chain.
+            residue = residues[ordinal - 1] if n_term_ion else residues[ordinal]
             ion_ordinal = ordinal if n_term_ion else peptide_length - ordinal
             ion = _ion_neutral_mass(ion_type, prefix_mass, suffix_mass, residue=residue)
             if ion is None:

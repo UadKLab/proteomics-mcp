@@ -4,6 +4,10 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Fixed
+
+- **w-ion masses:** C-terminal fragments (x, y, z, w) took the residue at the wrong end of the peptide as their cleavage-site residue. So w and w-alt ions lost the side chain of the wrong residue, and the `residue` reported for x/y/z/w fragments was wrong in every peptide longer than two residues. Observed-spectrum annotation with `ion_types=all` or `exotic` changes: 20 of the 25 reference payloads get different w-ion assignments, annotated peak counts and annotated intensity fractions. Scores are not affected ([#79](https://github.com/UadKLab/proteomics-mcp/issues/79)).
+
 ## [0.1.10] - 2026-10-14
 
 Fixes from the end-to-end check of the published package on the manuscript's public data ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30)). This is the version cited in the manuscript. How scores, annotations and metrics are computed is unchanged.
