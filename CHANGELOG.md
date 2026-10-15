@@ -7,6 +7,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 ### Changed
 
 - **Spectral angle, cosine and Pearson** compare every predicted ion, with zero observed intensity for ions that matched no peak (metric profile `v2`, now the default). Before, only matched ions were compared, so a wrong candidate that matched a single peak scored 1.0, and on real data wrong candidates scored higher than correct ones. Scores change for every PSM with unmatched predicted ions. Set `metric_profile = "legacy_v1"` in a configuration file to reproduce scores from 0.1.10 and earlier, including the manuscript figures ([#72](https://github.com/UadKLab/proteomics-mcp/issues/72)).
+- **One peak, one ion:** under metric profile `v2`, each observed peak explains at most one predicted ion; pairs are assigned closest first. Before, isobaric ions (for example b3/y2) both claimed the same peak, which counted its intensity twice: explained intensity could exceed 1, and matched-ion counts and the hyperscore were inflated. Static figures labelled such a peak with one ion and coloured it as the other. Of the 25 reference payloads, 3 change (Proteome Discoverer ranks 1–3: 1–3 fewer matched ions, explained intensity 0.007–0.048 lower); `legacy_v1` reproduces all of them ([#74](https://github.com/UadKLab/proteomics-mcp/issues/74)).
 
 ## [0.1.10] - 2026-10-14
 

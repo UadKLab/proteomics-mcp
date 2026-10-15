@@ -200,3 +200,54 @@ def test_unknown_metric_profile_is_rejected():
 
 def test_default_metric_profile_is_v2():
     assert load_config().metric_profile == "v2"
+
+
+def _two_fragments(b_mz: float, y_mz: float) -> PredictedSpectrum:
+    return PredictedSpectrum(
+        peptidoform="PEPTIDEK",
+        precursor_charge=2,
+        predictor_name="mock",
+        fragments=[
+            PredictedFragment(mz=b_mz, intensity=1.0, annotation="b4+", ion_type="b", ordinal=4),
+            PredictedFragment(mz=y_mz, intensity=0.5, annotation="y8++", ion_type="y", ordinal=8, charge=2),
+        ],
+    )
+
+
+def test_one_peak_explains_at_most_one_predicted_ion():
+    # Two predicted ions within tolerance of a single peak (#74).
+    observed = ObservedSpectrum(mz=[500.01], intensity=[100.0])
+
+    result = _score(observed, _two_fragments(500.00, 500.02), "v2")
+
+    assert result.matched_ion_count == 1
+    assert result.explained_intensity_fraction == pytest.approx(1.0)
+    assert len({m.observed_index for m in result.matched_peaks}) == len(result.matched_peaks)
+
+
+def test_legacy_v1_matches_a_peak_to_every_ion_in_tolerance():
+    observed = ObservedSpectrum(mz=[500.01], intensity=[100.0])
+
+    result = _score(observed, _two_fragments(500.00, 500.02), "legacy_v1")
+
+    assert result.matched_ion_count == 2
+    assert result.explained_intensity_fraction == pytest.approx(2.0)
+
+
+def test_competing_ion_takes_its_next_closest_unclaimed_peak():
+    observed = ObservedSpectrum(mz=[500.01, 500.04], intensity=[100.0, 30.0])
+
+    matches = match_predicted_to_observed(observed, _two_fragments(500.00, 500.012).fragments, tolerance=0.05)
+
+    by_annotation = {m.annotation: m.observed_mz for m in matches}
+    assert by_annotation == {"y8++": 500.01, "b4+": 500.04}
+
+
+def test_one_to_one_matching_keeps_nearest_peaks_without_competition():
+    observed = ObservedSpectrum(mz=[300.0, 300.02, 600.0], intensity=[10.0, 50.0, 20.0])
+    fragments = _two_fragments(300.01, 600.01).fragments
+
+    one_to_one = match_predicted_to_observed(observed, fragments, tolerance=0.05)
+    nearest = match_predicted_to_observed(observed, fragments, tolerance=0.05, one_to_one=False)
+
+    assert [(m.annotation, m.observed_index) for m in one_to_one] == [(m.annotation, m.observed_index) for m in nearest]

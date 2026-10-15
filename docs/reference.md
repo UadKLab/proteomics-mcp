@@ -108,6 +108,8 @@ Metrics include spectral angle, cosine similarity, Pearson correlation, XCorr/lo
 
 Spectral angle, cosine similarity and Pearson correlation compare the observed and predicted intensities of every predicted ion, with zero observed intensity where no peak matched (metric profile `v2`, the default). Unexplained predicted signal therefore lowers the score; when nothing matches, spectral angle and cosine are 0. Metric profile `legacy_v1` compares matched ions only, as in 0.1.10 and earlier, where a candidate that matches a single peak scores 1.0. Select it with `metric_profile = "legacy_v1"` in a configuration file to reproduce earlier scores.
 
+Predicted ions are matched to observed peaks one to one under `v2`: candidate pairs within tolerance are assigned closest first, so a peak shared by isobaric ions (for example b3 and y2) explains only one of them, and the other takes its next-closest free peak if there is one. Matched-ion counts, explained intensity (at most 1) and the hyperscore count each peak once. Under `legacy_v1`, every ion takes its nearest peak, even a shared one.
+
 Observed-spectrum annotation is implemented internally. It supports standard terminal-ion families, exotic families, immonium ions, reporter ions, precursor-related peaks, isotope variants, and optional neutral losses. Use `ion_types=by` for b/y ions, `all` for the broad set, or `exotic` for exotic terminal-ion families.
 
 ## Rendering
