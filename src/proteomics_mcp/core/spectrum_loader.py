@@ -108,6 +108,33 @@ def _meta_dict(obj: Any) -> dict[str, Any]:
     return out
 
 
+def _acquisition_meta(spectrum: Any) -> dict[str, Any]:
+    """Metadata of the spectrum's <scan> elements (pyOpenMS AcquisitionInfo), e.g. the ion injection time.
+
+    pyOpenMS keeps some scan-level cvParams under their accession ("MS:1000927"), others under their name.
+    """
+    out: dict[str, Any] = {}
+    try:
+        acquisitions = list(spectrum.getAcquisitionInfo())
+    except Exception:
+        return out
+    for acquisition in acquisitions:
+        for key, value in _meta_dict(acquisition).items():
+            out.setdefault(key, value)
+    return out
+
+
+def _isolation_offset(precursor: Any, getter: str, precursor_meta: dict[str, Any], name: str) -> float | None:
+    """Isolation window offset: pyOpenMS stores it on the Precursor, not as metadata; 0 means not given."""
+    value = precursor_meta.get(name)
+    if value is None and precursor is not None:
+        try:
+            value = float(getattr(precursor, getter)())
+        except Exception:
+            value = None
+    return value if value else None
+
+
 def _read_arrow_table(path: str | Path) -> pd.DataFrame:
     path = Path(path)
     try:
@@ -331,7 +358,18 @@ def mzml_to_feather(mzml_path: str | Path, output_path: str | Path, *, ms_level:
         precursor_mz = float(precursors[0].getMZ()) if precursors else None
         precursor_charge = int(precursors[0].getCharge()) if precursors and precursors[0].getCharge() else None
         precursor_meta = _meta_dict(precursors[0]) if precursors else {}
+        acquisition_meta = _acquisition_meta(spec)
         native_id = spec.getNativeID()
+        # pyOpenMS keeps "isolation window target m/z" as metadata only when it differs from the selected-ion m/z,
+        # which is then the precursor m/z (#77).
+        isolation_target_mz = precursor_meta.get("isolation window target m/z")
+        if isolation_target_mz is None and precursors:
+            isolation_target_mz = precursor_mz
+        ion_injection_time = next(
+            (value for value in (spectrum_meta.get("ion injection time"), acquisition_meta.get("ion injection time"),
+                                 acquisition_meta.get("MS:1000927")) if value is not None),
+            None,
+        )
         spectra.append(
             {
                 "source_file": str(mzml_path),
@@ -346,7 +384,7 @@ def mzml_to_feather(mzml_path: str | Path, output_path: str | Path, *, ms_level:
                 "filter_string": spectrum_meta.get("filter string"),
                 "scan_resolution": spectrum_meta.get("mass resolving power") or spectrum_meta.get("resolution"),
                 "compensation_voltage": spectrum_meta.get("FAIMS compensation voltage") or spectrum_meta.get("compensation voltage"),
-                "ion_injection_time": spectrum_meta.get("ion injection time"),
+                "ion_injection_time": ion_injection_time,
                 "preset_scan_configuration": spectrum_meta.get("preset scan configuration"),
                 "base_peak_mz": spectrum_meta.get("base peak m/z"),
                 "base_peak_intensity": spectrum_meta.get("base peak intensity"),
@@ -355,9 +393,13 @@ def mzml_to_feather(mzml_path: str | Path, output_path: str | Path, *, ms_level:
                 "highest_observed_mz": spectrum_meta.get("highest observed m/z"),
                 "precursor_spectrum_ref": precursor_meta.get("spectrum_ref"),
                 "precursor_ms_level": precursor_meta.get("ms level"),
-                "isolation_target_mz": precursor_meta.get("isolation window target m/z"),
-                "isolation_lower_offset": precursor_meta.get("isolation window lower offset"),
-                "isolation_upper_offset": precursor_meta.get("isolation window upper offset"),
+                "isolation_target_mz": isolation_target_mz,
+                "isolation_lower_offset": _isolation_offset(
+                    precursors[0] if precursors else None, "getIsolationWindowLowerOffset", precursor_meta, "isolation window lower offset"
+                ),
+                "isolation_upper_offset": _isolation_offset(
+                    precursors[0] if precursors else None, "getIsolationWindowUpperOffset", precursor_meta, "isolation window upper offset"
+                ),
                 "collision_energy": precursor_meta.get("collision energy"),
                 "metadata": {
                     "spectrum_header": {
@@ -368,6 +410,7 @@ def mzml_to_feather(mzml_path: str | Path, output_path: str | Path, *, ms_level:
                         "source_name": source_name,
                     },
                     "spectrum_meta": spectrum_meta,
+                    "acquisition_meta": acquisition_meta,
                     "precursor_header": {
                         "precursor_mz": precursor_mz,
                         "precursor_charge": precursor_charge,
