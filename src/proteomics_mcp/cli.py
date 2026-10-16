@@ -81,7 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--sdrf-path")
     p.add_argument("--project-accession")
     p.add_argument("--timeout-seconds", type=float, default=20.0)
-    p.add_argument("--limit", type=int)
+    p.add_argument("--limit", type=int, help="number of preview rows (default 10); the summaries cover the whole table")
+    p.add_argument("--max-rows", type=int, help="read only the first rows of the table; the result then reports it")
     p = sub.add_parser("inspect-peptide-table")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
@@ -91,7 +92,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--sdrf-path")
     p.add_argument("--project-accession")
     p.add_argument("--timeout-seconds", type=float, default=20.0)
-    p.add_argument("--limit", type=int)
+    p.add_argument("--limit", type=int, help="number of preview rows (default 10); the summaries cover the whole table")
+    p.add_argument("--max-rows", type=int, help="read only the first rows of the table; the result then reports it")
     p = sub.add_parser("render-psm-table")
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
@@ -462,6 +464,7 @@ def main(argv: list[str] | None = None) -> None:
                     pride_project_accession=args.project_accession,
                     timeout_seconds=args.timeout_seconds,
                     limit=args.limit,
+                    max_rows=args.max_rows,
                 ),
                 indent=2,
             )
@@ -479,6 +482,7 @@ def main(argv: list[str] | None = None) -> None:
                     pride_project_accession=args.project_accession,
                     timeout_seconds=args.timeout_seconds,
                     limit=args.limit,
+                    max_rows=args.max_rows,
                 ),
                 indent=2,
             )
