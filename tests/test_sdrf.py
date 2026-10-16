@@ -140,3 +140,50 @@ def test_retrieve_pride_sdrf_reports_the_number_of_files_searched(monkeypatch):
         assert "among the 150 files" in str(exc)
     else:
         raise AssertionError("Expected a LookupError")
+
+
+def _write_sdrf(path: Path, header: list[str], rows: list[list[str]]) -> Path:
+    path.write_text("\n".join("\t".join(row) for row in [header, *rows]) + "\n", encoding="utf-8")
+    return path
+
+
+def test_multiplexed_sdrf_keeps_every_channel(tmp_path: Path):
+    # One row per TMT channel of the same raw file; the last row used to replace the others (#81).
+    path = _write_sdrf(
+        tmp_path / "tmt.sdrf.tsv",
+        ["source name", "assay name", "comment[data file]", "comment[label]", "characteristics[organism]",
+         "characteristics[disease]", "factor value[disease]"],
+        [
+            ["s1", "run1_126", "run1.raw", "TMT126", "Homo sapiens", "normal", "normal"],
+            ["s2", "run1_127N", "run1.raw", "TMT127N", "Homo sapiens", "cancer", "cancer"],
+            ["s3", "run2_126", "run2.raw", "TMT126", "Homo sapiens", "normal", "normal"],
+        ],
+    )
+
+    run1 = load_sdrf_summary(path)["file_metadata"]["run1.raw"]
+
+    assert run1["channel_count"] == 2
+    assert [channel["label"] for channel in run1["channels"]] == ["TMT126", "TMT127N"]
+    assert run1["label"] == "TMT126; TMT127N"
+    assert run1["source_name"] == "s1; s2"
+    assert run1["disease"] == "normal; cancer"
+    assert run1["factor_values"] == {"factor value[disease]": "normal; cancer"}
+    # shared values stay single
+    assert run1["organism"] == "Homo sapiens"
+    assert run1["data_file"] == "run1.raw"
+    assert load_sdrf_summary(path)["file_metadata"]["run2"]["label"] == "TMT126"
+
+
+def test_label_free_sdrf_is_unchanged(tmp_path: Path):
+    path = _write_sdrf(
+        tmp_path / "lfq.sdrf.tsv",
+        ["source name", "assay name", "comment[data file]", "comment[label]", "factor value[condition]"],
+        [["s1", "a1", "run1.raw", "label free sample", "treated"], ["s2", "a2", "run2.raw", "label free sample", "control"]],
+    )
+
+    summary = load_sdrf_summary(path)
+
+    assert summary["file_metadata"]["run1"]["channel_count"] == 1
+    assert summary["file_metadata"]["run1"]["factor_values"] == {"factor value[condition]": "treated"}
+    assert summary["file_metadata"]["run2.raw"]["source_name"] == "s2"
+    assert summary["data_files"] == ["run1.raw", "run2.raw"]
