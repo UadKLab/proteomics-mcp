@@ -27,6 +27,9 @@ class CandidatePSM:
     source_engine_version: str | None = None
     experiment_name: str | None = None
     spectrum_id: str | None = None
+    # 0-based position of the spectrum among the run's spectra in the source file, when the engine reports that instead
+    # of a scan number (InstaNovo on MGF input)
+    spectrum_index: int | None = None
     usi: str | None = None
     precursor_mz: float | None = None
     precursor_charge: int | None = None
@@ -137,6 +140,9 @@ class SpectrumMetricResult:
     precursor_mass_error_ppm: float | None
     precursor_mass_error_da: float | None
     matched_peaks: list[MatchedPeak]
+    precursor_isotope_error: int | None = None
+    precursor_mass_error_corrected_ppm: float | None = None
+    precursor_mass_error_corrected_da: float | None = None
     metric_profile: str = "v2"
     predictor_metadata: dict[str, Any] = field(default_factory=dict)
     annotation_settings: dict[str, Any] = field(default_factory=dict)

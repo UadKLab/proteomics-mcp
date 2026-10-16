@@ -131,6 +131,9 @@ def summarize_score_metrics_tool(score_result: dict[str, Any]) -> dict[str, Any]
             "fragment_mass_error_abs_mean_da": score_result.get("fragment_mass_error_abs_mean_da"),
             "precursor_mass_error_ppm": score_result.get("precursor_mass_error_ppm"),
             "precursor_mass_error_da": score_result.get("precursor_mass_error_da"),
+            "precursor_isotope_error": score_result.get("precursor_isotope_error"),
+            "precursor_mass_error_corrected_ppm": score_result.get("precursor_mass_error_corrected_ppm"),
+            "precursor_mass_error_corrected_da": score_result.get("precursor_mass_error_corrected_da"),
         },
         "candidate": {
             "candidate_id": candidate.get("candidate_id"),
@@ -1515,6 +1518,7 @@ def score_from_prediction_batch_tool(
                 scan_number=candidate.scan_number,
                 spectrum_id=candidate.spectrum_id,
                 experiment_name=candidate.experiment_name,
+                **_spectrum_position(candidate),
             )
             result = score_candidate_spectrum(
                 candidate=candidate,
@@ -1537,6 +1541,7 @@ def score_from_prediction_batch_tool(
                     "source_engine_version": candidate.source_engine_version,
                     "experiment_name": candidate.experiment_name,
                     "scan_number": candidate.scan_number,
+                    "spectrum_index": candidate.spectrum_index,
                     "spectrum_id": candidate.spectrum_id,
                     "usi": candidate.usi,
                     "peptidoform": candidate.peptidoform,
@@ -1573,6 +1578,9 @@ def score_from_prediction_batch_tool(
                     "fragment_mass_error_abs_mean_da": result.fragment_mass_error_abs_mean_da,
                     "precursor_mass_error_ppm": result.precursor_mass_error_ppm,
                     "precursor_mass_error_da": result.precursor_mass_error_da,
+                    "precursor_isotope_error": result.precursor_isotope_error,
+                    "precursor_mass_error_corrected_ppm": result.precursor_mass_error_corrected_ppm,
+                    "precursor_mass_error_corrected_da": result.precursor_mass_error_corrected_da,
                     "fragmentation_method": acquisition_summary.get("fragmentation_method"),
                     "isolation_target_mz": acquisition_summary.get("isolation_target_mz"),
                     "retention_time_seconds": acquisition_summary.get("retention_time_seconds"),
@@ -1662,7 +1670,7 @@ def score_from_prediction_batch_tool(
             "match_quality": ["spectral_angle", "cosine_similarity", "pearson_correlation", "xcorr", "log10_xcorr", "log2_xcorr", "hyperscore", "log2_hyperscore"],
             "predicted_match_evidence": ["matched_ion_count", "total_predicted_ions", "matched_ion_fraction", "explained_intensity_fraction"],
             "observed_annotation_evidence": ["precursor_signal_fraction", "annotated_peak_count", "ion_type_counts", "annotated_intensity_fraction"],
-            "mass_error": ["fragment_mass_error_mean_ppm", "fragment_mass_error_abs_mean_ppm", "fragment_mass_error_mean_da", "fragment_mass_error_abs_mean_da", "precursor_mass_error_ppm", "precursor_mass_error_da"],
+            "mass_error": ["fragment_mass_error_mean_ppm", "fragment_mass_error_abs_mean_ppm", "fragment_mass_error_mean_da", "fragment_mass_error_abs_mean_da", "precursor_mass_error_ppm", "precursor_mass_error_da", "precursor_isotope_error", "precursor_mass_error_corrected_ppm", "precursor_mass_error_corrected_da"],
         },
         "output_files": output_files,
     }
@@ -1907,6 +1915,11 @@ def annotate_observed_spectrum_tool(
     )
 
 
+def _spectrum_position(candidate: CandidatePSM) -> dict[str, int]:
+    """spectrum_index for load_spectrum_from_table, only when the candidate has one (InstaNovo on MGF input)."""
+    return {"spectrum_index": candidate.spectrum_index} if candidate.spectrum_index is not None else {}
+
+
 def score_spectrum_tool(
     candidate: dict[str, Any],
     observed: dict[str, Any],
@@ -2044,6 +2057,7 @@ def score_candidates_tool(
                     scan_number=candidate.scan_number,
                     spectrum_id=candidate.spectrum_id,
                     experiment_name=candidate.experiment_name,
+                    **_spectrum_position(candidate),
                 )
             else:
                 raise ValueError("Candidate has no USI and no spectra_path was supplied.")
@@ -2069,6 +2083,7 @@ def score_candidates_tool(
                     "source_engine_version": candidate.source_engine_version,
                     "experiment_name": candidate.experiment_name,
                     "scan_number": candidate.scan_number,
+                    "spectrum_index": candidate.spectrum_index,
                     "spectrum_id": candidate.spectrum_id,
                     "usi": candidate.usi,
                     "peptidoform": candidate.peptidoform,
@@ -2105,6 +2120,9 @@ def score_candidates_tool(
                     "fragment_mass_error_abs_mean_da": result.fragment_mass_error_abs_mean_da,
                     "precursor_mass_error_ppm": result.precursor_mass_error_ppm,
                     "precursor_mass_error_da": result.precursor_mass_error_da,
+                    "precursor_isotope_error": result.precursor_isotope_error,
+                    "precursor_mass_error_corrected_ppm": result.precursor_mass_error_corrected_ppm,
+                    "precursor_mass_error_corrected_da": result.precursor_mass_error_corrected_da,
                     "fragmentation_method": acquisition_summary.get("fragmentation_method"),
                     "isolation_target_mz": acquisition_summary.get("isolation_target_mz"),
                     "retention_time_seconds": acquisition_summary.get("retention_time_seconds"),
@@ -2187,6 +2205,9 @@ def score_candidates_tool(
                 "fragment_mass_error_abs_mean_da",
                 "precursor_mass_error_ppm",
                 "precursor_mass_error_da",
+                "precursor_isotope_error",
+                "precursor_mass_error_corrected_ppm",
+                "precursor_mass_error_corrected_da",
             ],
             "candidate": [
                 "confidence",
