@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import inspect
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -54,9 +56,26 @@ def test_cli_has_expected_commands():
     assert "export-to-instanovo" in help_text
 
 
-def test_server_module_imports_without_mcp_dependency():
-    # In minimal environments mcp is None; in full environments it is an MCP server instance.
-    assert mcp is None or mcp is not None
+def test_server_module_builds_an_mcp_server_when_mcp_is_installed():
+    from mcp.server import MCPServer
+
+    assert isinstance(mcp, MCPServer)
+
+
+def test_server_module_imports_without_mcp_dependency(monkeypatch):
+    # Simulate an environment without the mcp package: a None entry in sys.modules makes its import fail.
+    for name in [name for name in sys.modules if name == "mcp" or name.startswith("mcp.")]:
+        monkeypatch.setitem(sys.modules, name, None)
+    monkeypatch.setitem(sys.modules, "mcp", None)
+    # Load a separate copy, so the server module the other tests use is left as it is.
+    spec = importlib.util.spec_from_file_location("proteomics_mcp_server_without_mcp", server_module.__file__)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.MCPServer is None
+    assert module.mcp is None
+    with pytest.raises(RuntimeError, match="optional 'mcp' package"):
+        module.run()
 
 
 def test_server_exposes_typed_mcp_surface_without_options_json():
