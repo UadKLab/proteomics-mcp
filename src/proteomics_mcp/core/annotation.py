@@ -209,6 +209,11 @@ def parse_peptidoform(peptidoform: str) -> ParsedPeptidoform:
             if end == -1:
                 unsupported_modification = True
                 break
+            if text[end + 1 : end + 2] == "?":
+                # ProForma unknown-position modification, "[Phospho]?PEPSK": its site cannot be placed.
+                unsupported_modification = True
+                i = end + 2
+                continue
             token = text[i + 1 : end]
             delta = _mod_delta(token, residues[-1] if residues else None)
             if residues:
@@ -238,6 +243,10 @@ def parse_peptidoform(peptidoform: str) -> ParsedPeptidoform:
             residue_mod_names.append([])
             residue_mod_deltas.append([])
             pending_nterm = False
+        elif ch != "-":
+            # Anything else (a non-standard residue, or modification text outside brackets such as "(+42.01)") would
+            # otherwise be skipped without a trace.
+            unsupported_modification = True
         i += 1
     return ParsedPeptidoform(
         residues=residues,
@@ -250,12 +259,28 @@ def parse_peptidoform(peptidoform: str) -> ParsedPeptidoform:
     )
 
 
+def peptidoform_neutral_mass(peptidoform: str) -> float | None:
+    """Monoisotopic neutral mass of a peptidoform, including residue and terminal modifications.
+
+    Returns None rather than a partial mass when any part of the string is not understood: an unresolved
+    modification token, a letter that is not a standard residue, or modification text outside square brackets.
+    """
+    parsed = parse_peptidoform(peptidoform)
+    if not parsed.residues or parsed.unsupported_modification:
+        return None
+    unbracketed = re.sub(r"\[[^\]]*\]", "", _clean_peptidoform(peptidoform))
+    # Terminal modifications are written "[mod]-PEPTIDE" and "PEPTIDE-[mod]"; their hyphens remain once brackets are removed.
+    if re.sub(r"^-|-$", "", unbracketed) != "".join(parsed.residues):
+        return None
+    return sum(parsed.residue_masses) + parsed.nterm_delta + parsed.cterm_delta + H2O_MASS
+
+
 def residues_from_peptidoform(peptidoform: str) -> list[str]:
     """Return residue letters from a ProForma-like peptide string.
 
-    The internal annotator currently ignores modification mass shifts. Modified
-    precursor masses still use pyOpenMS through aa_sequence_from_proforma where
-    available; fragment annotation remains intentionally simple and transparent.
+    The internal annotator currently ignores modification mass shifts; fragment
+    annotation remains intentionally simple and transparent. Precursor masses
+    use peptidoform_neutral_mass, which includes modifications.
     """
     return parse_peptidoform(peptidoform).residues
 
@@ -447,7 +472,9 @@ def generate_terminal_fragments(
     for ordinal, (prefix_mass, suffix_mass) in enumerate(zip(prefix_masses, suffix_masses), start=1):
         for ion_type in allowed:
             n_term_ion = ion_type in {"a", "a+1", "b", "c", "d", "d-alt"}
-            residue = residues[ordinal - 1] if n_term_ion else residues[peptide_length - ordinal]
+            # The residue at the cleavage site: the last of an N-terminal fragment (residues[:ordinal]), the first of a
+            # C-terminal one (residues[ordinal:]). d and w ions lose part of that residue's side chain.
+            residue = residues[ordinal - 1] if n_term_ion else residues[ordinal]
             ion_ordinal = ordinal if n_term_ion else peptide_length - ordinal
             ion = _ion_neutral_mass(ion_type, prefix_mass, suffix_mass, residue=residue)
             if ion is None:

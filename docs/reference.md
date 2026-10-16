@@ -67,6 +67,18 @@ Supported adapters:
 
 Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, match spectra using raw-file stem plus scan number rather than scan number alone.
 
+Recognised modification notations include:
+
+| Source | Examples |
+|---|---|
+| InstaNovo | `M(+15.99)`, `N(+.98)`, `(+42.01)PEPTIDE`, `[UNIMOD:35]` |
+| Casanovo | `+42.011PEPM+15.995K` |
+| MaxQuant `Modified sequence` | `_(ac)PEPM(ox)K_`, `_(Acetyl (Protein N-term))PEPM(Oxidation (M))K_` |
+| FragPipe | `Assigned Modifications` such as `N-term(42.0106), 5M(15.9949)`; `Modified Peptide` with total masses (`n[43]PEPTM[147]K`) or deltas |
+| Proteome Discoverer `Modifications` | `M1(Oxidation); N-Term(Acetyl)`, `1xTMT6plex [N-Term]; 2xCarbamidomethyl [C5; C12]` |
+
+Common modifications (acetyl, carbamidomethyl, carbamyl, deamidation, phospho, oxidation, pyro-Glu, ammonia loss, amidation, methyl, dimethyl, formyl, GG, iTRAQ4plex, TMT6plex/10plex/11plex, TMTpro) resolve without network access; other names and masses are looked up in the Unimod catalogue. A modification that cannot be resolved or placed, such as an unlocalised site (`1xPhospho [S/T]`), stays in the peptidoform as an explicit token (unlocalised ones as ProForma `[UNIMOD:21]?PEPSTK`). It is flagged as an unsupported modification rather than dropped, so the peptidoform is never silently scored as unmodified. MaxQuant `Modified sequence` omits fixed modifications (#101).
+
 ### Generic Mapping
 
 Required: a peptide/peptidoform and a spectrum locator (`usi`, `spectrum_id`, or raw-file stem plus scan number). Strongly recommended: precursor m/z/charge, score semantics, and token-level evidence where available.
@@ -108,6 +120,8 @@ JSON and TOML configuration files are accepted. Explicit tool arguments override
 `score_spectrum` and `score_candidates` provide candidate-to-observed-spectrum evidence. The default tolerance is `0.05 Da`.
 
 Metrics include spectral angle, cosine similarity, Pearson correlation, XCorr/log2 XCorr, Hyperscore/log2 Hyperscore, matched ion count/fraction, explained intensity fraction, precursor signal fraction, observed annotation counts/intensity, and precursor/fragment mass error in Da and ppm.
+
+The precursor mass error (`precursor_mass_error_ppm`, `precursor_mass_error_da`) is the observed minus the theoretical monoisotopic precursor m/z. The theoretical mass includes every residue and terminal modification; when a modification cannot be resolved, the error is left empty rather than computed without it. Instruments sometimes select a 13C isotope peak as the precursor, which shows up as an error of about 1.003/z m/z. `precursor_isotope_error` (0, 1 or 2) gives the isotope peak closest to the observed m/z, and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` the error relative to that peak.
 
 Observed-spectrum annotation is implemented internally. It supports standard terminal-ion families, exotic families, immonium ions, reporter ions, precursor-related peaks, isotope variants, and optional neutral losses. Use `ion_types=by` for b/y ions, `all` for the broad set, or `exotic` for exotic terminal-ion families.
 
