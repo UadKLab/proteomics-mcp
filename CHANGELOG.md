@@ -6,6 +6,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **InstaNovo export:** `export_to_instanovo` wrote missing sequences as the strings `"None"` / `"nan"`, which InstaNovo accepts as peptide labels for training and evaluation. They are now null: InstaNovo 1.3.0 then refuses the table as annotated data instead of using fake labels. `sequences_missing` and `spectra_dropped_without_precursor` report what was not written as a labelled spectrum. Missing run names and spectrum ids also became `"None"` / `"nan"`; they now fall back per row to the source file name and `<run>:<scan>` ([#80](https://github.com/UadKLab/proteomics-mcp/issues/80)).
 - **Modification parsing:** several notations lost modifications, mostly N-terminal ones, and the peptides were scored as unmodified ([#75](https://github.com/UadKLab/proteomics-mcp/issues/75)):
   - MaxQuant: N-terminal modifications (`_(ac)PEPM(ox)K_`), and full names with nested parentheses (`(Oxidation (M))`).
   - FragPipe: `N-term(...)` / `C-term(...)` in `Assigned Modifications`. `Modified Peptide` masses are totals (`n[43]` is acetyl, not carbamyl; `M[147]` is oxidised Met), and both readings are tried. On the arabidopsis table of the manuscript supplement, 503 of 52,530 PSMs change: 406 carried carbamyl instead of acetyl, 97 had lost the acetyl. All 52,530 now match FragPipe's `Calculated Peptide Mass`.

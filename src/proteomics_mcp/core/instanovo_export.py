@@ -17,6 +17,7 @@ def export_table_to_instanovo(
 ) -> dict[str, Any]:
     frame = load_spectrum_table(input_path)
     export = _build_instanovo_frame(frame, sequence_column=sequence_column)
+    dropped = len(frame) - len(export)
     output_path = Path(output_path)
     output_format = str(output_format).strip().lower()
     if output_format == "ipc":
@@ -30,8 +31,12 @@ def export_table_to_instanovo(
         "output_path": str(output_path),
         "output_format": output_format,
         "spectra_written": int(len(export)),
+        # spectra without precursor m/z or charge, which InstaNovo needs
+        "spectra_dropped_without_precursor": int(dropped),
         "columns": export.columns.tolist(),
         "sequence_included": "sequence" in export.columns,
+        # written as null, not as a sequence: unlabelled spectra in a labelled export
+        "sequences_missing": int(export["sequence"].isna().sum()) if "sequence" in export.columns else None,
     }
 
 
@@ -42,27 +47,33 @@ def _build_instanovo_frame(frame: pd.DataFrame, *, sequence_column: str | None =
         raise ValueError(f"Input spectrum table is missing required columns for InstaNovo export: {missing}")
 
     export = pd.DataFrame(index=frame.index)
-    if "experiment_name" in frame.columns:
-        export["experiment_name"] = frame["experiment_name"].astype(str)
-    elif "source_name" in frame.columns:
-        export["experiment_name"] = frame["source_name"].astype(str)
-    elif "source_file" in frame.columns:
-        export["experiment_name"] = frame["source_file"].map(lambda value: Path(str(value)).stem if value is not None else "spectra")
-    else:
-        export["experiment_name"] = "spectra"
+    # Run name per row: the first of these that is set (#80: str() turned missing values into "None"/"nan").
+    experiment = pd.Series([None] * len(frame), index=frame.index, dtype=object)
+    for column, transform in (("experiment_name", None), ("source_name", None), ("source_file", lambda value: Path(value).stem)):
+        if column in frame.columns:
+            values = _text(frame[column])
+            if transform is not None:
+                values = values.map(lambda value: transform(value) if value is not None else None)
+            experiment = experiment.where(experiment.notna(), values)
+    export["experiment_name"] = experiment.where(experiment.notna(), "spectra")
 
     if "scan_number" in frame.columns:
         export["scan_number"] = pd.to_numeric(frame["scan_number"], errors="coerce").astype("Int64")
     else:
         export["scan_number"] = pd.Series(range(len(frame)), index=frame.index, dtype="Int64")
 
-    if "spectrum_id" in frame.columns:
-        export["spectrum_id"] = frame["spectrum_id"].astype(str)
-    else:
-        export["spectrum_id"] = [
+    generated_ids = pd.Series(
+        [
             f"{experiment}:{int(scan) if pd.notna(scan) else idx}"
             for idx, (experiment, scan) in enumerate(zip(export["experiment_name"], export["scan_number"]))
-        ]
+        ],
+        index=frame.index,
+    )
+    if "spectrum_id" in frame.columns:
+        spectrum_ids = _text(frame["spectrum_id"])
+        export["spectrum_id"] = spectrum_ids.where(spectrum_ids.notna(), generated_ids)
+    else:
+        export["spectrum_id"] = generated_ids
 
     if "rt" in frame.columns:
         export["rt"] = pd.to_numeric(frame["rt"], errors="coerce")
@@ -75,15 +86,26 @@ def _build_instanovo_frame(frame: pd.DataFrame, *, sequence_column: str | None =
     if sequence_column:
         if sequence_column not in frame.columns:
             raise ValueError(f"sequence_column not found in input table: {sequence_column}")
-        export["sequence"] = frame[sequence_column].astype(str)
+        # Missing sequences stay null; as text they became the peptide labels "None" / "nan" (#80).
+        export["sequence"] = _text(frame[sequence_column])
 
     export = export.dropna(subset=["precursor_mz", "precursor_charge"])
     export["precursor_charge"] = export["precursor_charge"].astype(int)
     export["mz_array"] = export["mz_array"].map(_coerce_float_list)
     export["intensity_array"] = export["intensity_array"].map(_coerce_float_list)
-    if "sequence" in export.columns:
-        export["sequence"] = export["sequence"].map(lambda value: value.strip()).replace("", pd.NA)
     return export.reset_index(drop=True)
+
+
+def _text(values: pd.Series) -> pd.Series:
+    """Values as stripped text, with missing (None, NaN, pd.NA) and empty values as None."""
+
+    def convert(value: Any) -> str | None:
+        if value is None or (not isinstance(value, (list, tuple)) and pd.isna(value)):
+            return None
+        text = str(value).strip()
+        return text or None
+
+    return values.map(convert).astype(object)
 
 
 def _coerce_float_list(value: Any) -> list[float]:
