@@ -157,6 +157,8 @@ Outputs are Plotly HTML with hover data, zoom, image export, light/dark support,
 
 `inspect_psm_table` and `inspect_peptide_table` normalize and inspect upstream results without rescoring the dataset. Peptide tables collapse modified forms while retaining peptidoform context, run support, charge species, and representative PSM evidence.
 
+Their summaries always cover the whole table: `limit` sets only the number of preview rows (default 10). To read just the first rows of a very large table, pass `max_rows` (CLI `--max-rows`). Every tool that reads a candidate table with a row cap (`limit` on the summary, binning, dashboard and table tools, or `max_rows`) reports it in the result as `row_limit` (`argument`, `row_limit`, `rows_analyzed`), with a warning that the results may not describe the whole table.
+
 Structured tools support field discovery, numeric/categorical summaries, binning, missingness, overlap, modification summaries, quant quality, file coverage, and dashboard bundles. `load_sdrf` and `retrieve_pride_sdrf` add optional run/sample context. In multiplexed designs (TMT, iTRAQ, SILAC), the SDRF has one row per channel of the same data file, and a PSM of that file belongs to all of them. The file's metadata therefore keeps every channel (`channels`, `channel_count`), and fields that differ between channels hold their distinct values joined with `; ` (for example label `TMT126; TMT127N`); sample summaries group such a run under its joined assay names. PRIDE retrieval recognizes `.sdrf`, SDRF-labelled TSV/TXT, and gzip-compressed variants; API failures report the project accession, request URL, and HTTP response detail.
 
 ## Batch Workflows
