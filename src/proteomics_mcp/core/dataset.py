@@ -1586,30 +1586,52 @@ def _sorted_counts(values: list[Any]) -> dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (item[0])))
 
 
-def _best_row(group: pd.DataFrame) -> pd.Series:
-    sortable = group.copy()
-    sortable["__has_confidence"] = sortable["confidence"].notna().astype(int) if "confidence" in sortable.columns else 0
-    sortable["__confidence"] = sortable["confidence"].fillna(float("-inf")) if "confidence" in sortable.columns else float("-inf")
-    sortable["__has_raw_score"] = sortable["raw_score"].notna().astype(int) if "raw_score" in sortable.columns else 0
-    sortable["__raw_score"] = sortable["raw_score"].fillna(float("-inf")) if "raw_score" in sortable.columns else float("-inf")
-    sortable["__spectral_angle"] = sortable["spectral_angle"].fillna(float("-inf")) if "spectral_angle" in sortable.columns else float("-inf")
-    sortable["__matched_ion_count"] = sortable["matched_ion_count"].fillna(float("-inf")) if "matched_ion_count" in sortable.columns else float("-inf")
-    sortable["__candidate_id"] = sortable.get("candidate_id", pd.Series([""] * len(sortable))).fillna("").astype(str)
-    ordered = sortable.sort_values(
-        by=[
-            "__has_confidence",
-            "__confidence",
-            "__has_raw_score",
-            "__raw_score",
-            "__spectral_angle",
-            "__matched_ion_count",
-            "__row_order",
-            "__candidate_id",
-        ],
+_BEST_ROW_RANK = "__best_rank"
+# Read-only default for group.get(); building a new empty Series per call cost seconds on large tables (#68).
+_NO_VALUES = pd.Series(dtype=object)
+
+
+def _with_best_rank(frame: pd.DataFrame) -> pd.DataFrame:
+    """Rank every row once by the best-PSM order, so ``_best_row`` of any subset is the subset's lowest rank (#68).
+
+    Ranking the whole frame with a stable sort gives the rows of every subset the same relative order as sorting the
+    subset itself, so the result matches a per-group sort, ties included.
+    """
+    def key(column: str, *, present: bool = False) -> pd.Series:
+        if column not in frame.columns:
+            return pd.Series(0 if present else float("-inf"), index=frame.index)
+        values = pd.to_numeric(frame[column], errors="coerce")
+        return values.notna().astype(int) if present else values.fillna(float("-inf"))
+
+    keys = pd.DataFrame(
+        {
+            "has_confidence": key("confidence", present=True),
+            "confidence": key("confidence"),
+            "has_raw_score": key("raw_score", present=True),
+            "raw_score": key("raw_score"),
+            "spectral_angle": key("spectral_angle"),
+            "matched_ion_count": key("matched_ion_count"),
+            "row_order": frame["__row_order"] if "__row_order" in frame.columns else 0,
+            "candidate_id": frame["candidate_id"].fillna("").astype(str) if "candidate_id" in frame.columns else "",
+        },
+        index=frame.index,
+    ).reset_index(drop=True)
+    order = keys.sort_values(
+        by=list(keys.columns),
         ascending=[False, False, False, False, False, False, True, True],
         kind="mergesort",
-    )
-    return ordered.iloc[0]
+    ).index.to_numpy()
+    rank = np.empty(len(order), dtype=np.int64)
+    rank[order] = np.arange(len(order))
+    ranked = frame.copy()
+    ranked[_BEST_ROW_RANK] = rank
+    return ranked
+
+
+def _best_row(group: pd.DataFrame) -> pd.Series:
+    if _BEST_ROW_RANK not in group.columns:
+        group = _with_best_rank(group)
+    return group.iloc[int(np.argmin(group[_BEST_ROW_RANK].to_numpy()))]
 
 
 def _metric_summary(group: pd.DataFrame) -> dict[str, Any]:
@@ -1662,14 +1684,16 @@ def _group_sample_metadata(group: pd.DataFrame) -> dict[str, Any]:
 
 
 def _summarize_group(group: pd.DataFrame, *, include_peptide_context: bool) -> dict[str, Any]:
+    if _BEST_ROW_RANK not in group.columns:
+        group = _with_best_rank(group)
     best = _best_row(group)
     runs = [value for value in group["run_key"].tolist() if _coerce_string(value)]
-    charges = [int(value) for value in pd.to_numeric(group.get("precursor_charge", pd.Series(dtype=float)), errors="coerce").dropna().tolist()]
-    source_engines = _sorted_counts(group.get("source_engine", pd.Series(dtype=object)).tolist())
-    fragmentation_methods = _sorted_counts(group.get("fragmentation_method", pd.Series(dtype=object)).tolist())
-    instruments = _sorted_counts(group.get("instrument_model", pd.Series(dtype=object)).tolist())
-    detector_types = _sorted_counts(group.get("detector_type", pd.Series(dtype=object)).tolist())
-    collision_energies = sorted({round(float(value), 4) for value in pd.to_numeric(group.get("collision_energy", pd.Series(dtype=float)), errors="coerce").dropna().tolist()})
+    charges = [int(value) for value in pd.to_numeric(group.get("precursor_charge", _NO_VALUES), errors="coerce").dropna().tolist()]
+    source_engines = _sorted_counts(group.get("source_engine", _NO_VALUES).tolist())
+    fragmentation_methods = _sorted_counts(group.get("fragmentation_method", _NO_VALUES).tolist())
+    instruments = _sorted_counts(group.get("instrument_model", _NO_VALUES).tolist())
+    detector_types = _sorted_counts(group.get("detector_type", _NO_VALUES).tolist())
+    collision_energies = sorted({round(float(value), 4) for value in pd.to_numeric(group.get("collision_energy", _NO_VALUES), errors="coerce").dropna().tolist()})
 
     summary = {
         "total_psm_count": int(len(group)),
@@ -1710,19 +1734,23 @@ def _summarize_group(group: pd.DataFrame, *, include_peptide_context: bool) -> d
     }
     summary.update(_metric_summary(group))
     if include_peptide_context:
-        peptidoforms = sorted(set(group["peptidoform"].tolist()))
-        modified = group[group["is_modified"]]
-        unmodified = group[~group["is_modified"]]
+        peptidoforms = group["peptidoform"].to_numpy()
+        is_modified = group["is_modified"].to_numpy(dtype=bool)
+        rank = group[_BEST_ROW_RANK].to_numpy()
+
+        def best_peptidoform(mask: np.ndarray) -> str | None:
+            return _coerce_string(peptidoforms[mask][np.argmin(rank[mask])]) if mask.any() else None
+
         summary.update(
             {
                 "distinct_peptidoform_count": int(group["peptidoform"].nunique()),
-                "peptidoforms": peptidoforms,
-                "modified_psm_count": int(group["is_modified"].sum()),
-                "unmodified_psm_count": int((~group["is_modified"]).sum()),
-                "distinct_modified_peptidoform_count": int(modified["peptidoform"].nunique()) if not modified.empty else 0,
+                "peptidoforms": sorted(set(peptidoforms.tolist())),
+                "modified_psm_count": int(is_modified.sum()),
+                "unmodified_psm_count": int((~is_modified).sum()),
+                "distinct_modified_peptidoform_count": len(set(peptidoforms[is_modified].tolist())),
                 "best_peptidoform": _coerce_string(best.get("peptidoform")),
-                "best_modified_peptidoform": _coerce_string(_best_row(modified).get("peptidoform")) if not modified.empty else None,
-                "best_unmodified_peptidoform": _coerce_string(_best_row(unmodified).get("peptidoform")) if not unmodified.empty else None,
+                "best_modified_peptidoform": best_peptidoform(is_modified),
+                "best_unmodified_peptidoform": best_peptidoform(~is_modified),
             }
         )
     return summary
@@ -1832,7 +1860,7 @@ def _summarize_charge_long(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def summarize_dataset_frame(frame: pd.DataFrame, *, sdrf_summary: dict[str, Any] | None = None) -> DatasetAggregation:
-    enriched = _enrich_with_sdrf(frame, sdrf_summary)
+    enriched = _with_best_rank(_enrich_with_sdrf(frame, sdrf_summary))
 
     peptidoform_rows: list[dict[str, Any]] = []
     for peptidoform, group in enriched.groupby("peptidoform", sort=True):
@@ -1930,7 +1958,7 @@ def summarize_dataset_path(path: str | Path, *, sdrf_summary: dict[str, Any] | N
 
 
 def summarize_candidate_inspection_frame(frame: pd.DataFrame, *, sdrf_summary: dict[str, Any] | None = None) -> CandidateInspection:
-    enriched = _enrich_with_sdrf(frame, sdrf_summary)
+    enriched = _with_best_rank(_enrich_with_sdrf(frame, sdrf_summary))
     peptide_rows: list[dict[str, Any]] = []
     for sequence, group in enriched.groupby("stripped_sequence", sort=True):
         row = {"stripped_sequence": sequence}

@@ -1166,6 +1166,67 @@ def test_dataset_summary_with_a_multiplexed_sdrf(tmp_path):
     assert by_sample.loc["runB_126", "label"] == "TMT126"
 
 
+def _best_row_by_sorting_each_group(group: pd.DataFrame) -> pd.Series:
+    """The per-group sort that _best_row used before #68, kept as the reference."""
+    sortable = group.copy()
+    keys = {
+        "__has_confidence": sortable["confidence"].notna().astype(int),
+        "__confidence": sortable["confidence"].fillna(float("-inf")),
+        "__has_raw_score": sortable["raw_score"].notna().astype(int),
+        "__raw_score": sortable["raw_score"].fillna(float("-inf")),
+        "__spectral_angle": sortable["spectral_angle"].fillna(float("-inf")),
+        "__matched_ion_count": sortable["matched_ion_count"].fillna(float("-inf")),
+        "__candidate_id_key": sortable["candidate_id"].fillna("").astype(str),
+    }
+    for name, values in keys.items():
+        sortable[name] = values
+    ordered = sortable.sort_values(
+        by=[*list(keys)[:6], "__row_order", "__candidate_id_key"],
+        ascending=[False, False, False, False, False, False, True, True],
+        kind="mergesort",
+    )
+    return ordered.iloc[0]
+
+
+def test_best_rows_match_a_per_group_sort_with_ties_and_missing_scores():
+    import numpy as np
+
+    from proteomics_mcp.core.dataset import _best_row, _summarize_group, _with_best_rank
+
+    rng = np.random.default_rng(68)
+    size = 600
+    frame = pd.DataFrame(
+        {
+            "candidate_id": rng.choice(["a", "b", "c", None], size=size),
+            "peptidoform": rng.choice(["PEPTIDE", "PEPM[UNIMOD:35]TIDE", "PEPTIDEK", "PEPTIDEK[UNIMOD:21]"], size=size),
+            "confidence": rng.choice([np.nan, 0.5, 0.9], size=size),
+            "raw_score": rng.choice([np.nan, 1.0, 2.0], size=size),
+            "spectral_angle": rng.choice([np.nan, 0.3, 0.6], size=size),
+            "matched_ion_count": rng.choice([np.nan, 4.0, 7.0], size=size),
+            "experiment_name": "run",
+            "group": rng.integers(0, 40, size=size),
+        }
+    )
+    frame["__row_order"] = rng.permutation(size)  # row order need not follow the index
+    frame["stripped_sequence"] = frame["peptidoform"].str.replace(r"\[[^\]]*\]", "", regex=True)
+    frame["is_modified"] = frame["peptidoform"].str.contains("[", regex=False)
+    frame["run_key"] = "run"
+    ranked = _with_best_rank(frame)
+
+    for _, group in ranked.groupby("group"):
+        for subset in (group, group[group["is_modified"]], group[~group["is_modified"]]):
+            if subset.empty:
+                continue
+            expected = _best_row_by_sorting_each_group(subset)
+            assert _best_row(subset).name == expected.name
+            assert _best_row(subset.drop(columns="__best_rank")).name == expected.name
+        summary = _summarize_group(group, include_peptide_context=True)
+        modified, unmodified = group[group["is_modified"]], group[~group["is_modified"]]
+        assert summary["best_peptidoform"] == _best_row_by_sorting_each_group(group)["peptidoform"]
+        assert summary["best_modified_peptidoform"] == (_best_row_by_sorting_each_group(modified)["peptidoform"] if not modified.empty else None)
+        assert summary["best_unmodified_peptidoform"] == (_best_row_by_sorting_each_group(unmodified)["peptidoform"] if not unmodified.empty else None)
+
+
 SCRIPT_BREAKOUT = "</script><script>alert(1)</script>"
 IMG_ONERROR = '<img src=x onerror="alert(2)">'
 
