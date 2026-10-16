@@ -6,6 +6,8 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **InstaNovo export:** `export_to_instanovo` wrote missing sequences as the strings `"None"` / `"nan"`, which InstaNovo accepts as peptide labels for training and evaluation. They are now null: InstaNovo 1.3.0 then refuses the table as annotated data instead of using fake labels. `sequences_missing` and `spectra_dropped_without_precursor` report what was not written as a labelled spectrum, and the new `drop_unlabelled` option (CLI `--drop-unlabelled`) leaves out spectra without a sequence, for a labelled training or evaluation set. Missing run names and spectrum ids also became `"None"` / `"nan"`; they now fall back per row to the source file name and `<run>:<scan>` ([#80](https://github.com/UadKLab/proteomics-mcp/issues/80)).
+- **Multiplexed SDRF:** for TMT, iTRAQ and SILAC designs (one SDRF row per channel of the same data file), the file's metadata kept only the last channel, so labels, samples, diseases and factor values of the other channels were lost. Every channel is now kept (`channels`, `channel_count`), and fields that differ between channels hold their distinct values joined with `; `, e.g. label `TMT126; TMT127N`. On PXD006430 (TMT10), 72 files × 10 channels: all 720 rows are now represented; before, 72 ([#81](https://github.com/UadKLab/proteomics-mcp/issues/81)).
 - **Spectrum lookup never silently returns another spectrum** ([#76](https://github.com/UadKLab/proteomics-mcp/issues/76)):
   - A run name that matches no run of a multi-run spectrum table is an error; before, the first spectrum with that scan number from any run was returned.
   - A scan number or spectrum id that matches several different spectra is an error, instead of returning the first; identical copies from MGF charge-state enumeration are still accepted.
@@ -30,11 +32,13 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
   - **InstaNovo+ refined files:** `final_prediction` is used. Where refinement produced nothing, the transformer prediction is used instead of dropping the row (39% of rows in 1.1.0-alpha refined files).
   - **Confidence:** a log-probability just above 0 (e.g. 1.9e-08) gave a confidence of 1.9e-08 instead of 1.
   - **Beam files:** `next_beam` is read in every layout, when the beams rank alternatives to the reported prediction. Token log-probabilities of 1.0.x/1.1.x beam files are aligned to the sequence: they carry a trailing extra value, and 1.1.x stores them in reverse order.
+- **MaxQuant fixed modifications:** `Modified sequence` lists only variable modifications, so every cysteine of a carbamidomethylated sample was predicted and scored unmodified. Fixed modifications are now read from the run's `parameters.txt` or `mqpar.xml`, or given with `fixed_modifications` / `--fixed-modifications`. In the manuscript supplement, 5,966 of 22,782 ProteomeTools PSMs contain cysteine, including the Figure 3B PSM `AQNSCPICQK` (now `AQNSC[UNIMOD:4]PIC[UNIMOD:4]QK`). Without a source, candidates carry a warning ([#101](https://github.com/UadKLab/proteomics-mcp/issues/101)).
 
 ### Added
 
 - Built-in masses for amidation, dimethyl, GG, iTRAQ4plex, ammonia loss, TMT6plex/10plex/11plex and TMTpro, so they resolve without downloading the Unimod catalogue.
 - **Isotope-corrected precursor error:** `precursor_isotope_error` (0, 1 or 2) and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` report the error relative to the 13C isotope peak closest to the observed m/z. Before, a precursor selected on its second isotope peak showed an error of hundreds of ppm ([#73](https://github.com/UadKLab/proteomics-mcp/issues/73)).
+- **Per-candidate `warnings`:** problems found while reading a row that may make its peptidoform or scores wrong. MaxQuant candidates are checked against MaxQuant's `Mass` column; a difference above 0.01 Da is reported there ([#101](https://github.com/UadKLab/proteomics-mcp/issues/101)).
 
 ## [0.1.10] - 2026-10-14
 
