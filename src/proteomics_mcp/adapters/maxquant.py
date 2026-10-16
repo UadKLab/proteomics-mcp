@@ -11,9 +11,13 @@ import pandas as pd
 
 from proteomics_mcp.adapters.instanovo import _as_float, _as_int, normalize_peptidoform_to_instanovo_style
 from proteomics_mcp.adapters.modifications import build_peptidoform, matching_parenthesis
+from proteomics_mcp.core.annotation import peptidoform_neutral_mass
 from proteomics_mcp.models.schemas import CandidatePSM
 
 logger = logging.getLogger("proteomics_mcp")
+
+# MaxQuant writes "Mass" with four decimals; a missing or wrong modification is off by far more (e.g. 57.02 Da).
+MASS_TOLERANCE_DA = 0.01
 
 NO_FIXED_MODIFICATIONS_WARNING = (
     "MaxQuant fixed modifications unknown: no parameters.txt or mqpar.xml next to the msms table and no "
@@ -181,6 +185,20 @@ def _peptidoform_and_warnings(
     return normalize_peptidoform_to_instanovo_style(fallback), []
 
 
+def _mass_check_warning(peptidoform: str, reported_mass: float | None) -> str | None:
+    """Compare the peptidoform's monoisotopic mass with MaxQuant's "Mass" column, an independent reference."""
+    if reported_mass is None:
+        return None
+    computed = peptidoform_neutral_mass(peptidoform)
+    if computed is None:
+        return f"Mass of {peptidoform} cannot be computed to compare with MaxQuant's Mass ({reported_mass:.4f} Da)."
+    difference = computed - reported_mass
+    if abs(difference) > MASS_TOLERANCE_DA:
+        return (f"Mass of {peptidoform} is {computed:.4f} Da but MaxQuant reports {reported_mass:.4f} Da ({difference:+.4f} Da): "
+                "a modification is missing or wrong.")
+    return None
+
+
 def load_maxquant_psms(
     path: str | Path, *, limit: int | None = None, fixed_modifications: str | list[str] | None = None
 ) -> list[CandidatePSM]:
@@ -189,6 +207,9 @@ def load_maxquant_psms(
     fixed_modifications: MaxQuant names, e.g. "Carbamidomethyl (C)" (a list, or ";"-separated); "" means none. When not
     given, they are read from the parameters.txt or mqpar.xml next to the table. If neither is available, every
     candidate carries a warning instead of a silently guessed default.
+
+    Each peptidoform's mass is checked against MaxQuant's "Mass" column (when present); a difference above
+    MASS_TOLERANCE_DA adds a warning to that candidate.
     """
     frame = pd.read_csv(path, sep="\t", nrows=limit)
     required = {"Raw file", "Scan number", "Modified sequence", "Charge", "m/z"}
@@ -210,10 +231,15 @@ def load_maxquant_psms(
             logger.info("%s: fixed modifications from %s: %s", path, parameters_path.name, ", ".join(fixed) or "none")
 
     candidates: list[CandidatePSM] = []
+    mass_mismatches = 0
     for row_idx, row in frame.iterrows():
         peptidoform, row_warnings = _peptidoform_and_warnings(row.get("Modified sequence"), row.get("Sequence"), fixed)
         if not peptidoform:
             continue
+        mass_warning = _mass_check_warning(peptidoform, _as_float(row.get("Mass")))
+        if mass_warning:
+            row_warnings.append(mass_warning)
+            mass_mismatches += 1
 
         experiment_name = _clean_text(row.get("Raw file"))
         scan_number = _as_int(row.get("Scan number"))
@@ -246,4 +272,7 @@ def load_maxquant_psms(
                 warnings=[*table_warnings, *row_warnings],
             )
         )
+    if mass_mismatches:
+        logger.warning("%s: %d of %d peptidoforms differ from MaxQuant's Mass by more than %.2f Da",
+                       path, mass_mismatches, len(candidates), MASS_TOLERANCE_DA)
     return candidates

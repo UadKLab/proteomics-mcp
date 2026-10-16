@@ -7,10 +7,13 @@ column, checked against pyteomics residue masses plus the Unimod carbamidomethyl
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from pyteomics import mass
 
 from proteomics_mcp.adapters.maxquant import (
+    MASS_TOLERANCE_DA,
     NO_FIXED_MODIFICATIONS_WARNING,
     find_maxquant_parameters,
     load_maxquant_psms,
@@ -127,3 +130,41 @@ def test_terminal_and_protein_terminal_fixed_modifications(tmp_path):
     assert tmt.peptidoform == "[UNIMOD:737]-PEPTIDEK[UNIMOD:737]"
     assert protein.peptidoform == "PEPTIDEK"
     assert any("protein termini" in warning for warning in protein.warnings)
+
+
+def _mass_warnings(candidate):
+    return [warning for warning in candidate.warnings if "MaxQuant reports" in warning]
+
+
+def test_peptidoform_masses_agree_with_maxquant_when_fixed_modifications_are_applied(tmp_path):
+    path = _write_msms(tmp_path)
+    _write_parameters(tmp_path)
+
+    candidates = load_maxquant_psms(path)
+
+    assert all(_mass_warnings(c) == [] for c in candidates)
+
+
+def test_missing_fixed_modifications_are_caught_by_the_mass_check(tmp_path):
+    """Without the parameters file, each cysteine-containing PSM is off by 57.021 Da per cysteine."""
+    path = _write_msms(tmp_path)
+
+    by_scan = {c.scan_number: c for c in load_maxquant_psms(path)}
+
+    assert _mass_warnings(by_scan[38257]) == []  # no cysteine
+    for scan, cysteines in ((6637, 2), (5597, 1), (21967, 1)):
+        [warning] = _mass_warnings(by_scan[scan])
+        difference = float(re.search(r"\(([+-]\d+\.\d+) Da\)", warning).group(1))
+        assert difference == pytest.approx(-cysteines * CARBAMIDOMETHYL, abs=1e-3), warning  # Mass has 4 decimals
+
+
+def test_mass_check_tolerance_and_tables_without_mass(tmp_path):
+    columns = [column for column in COLUMNS if column != "Mass"]
+    rows = [[value for column, value in zip(COLUMNS, row) if column != "Mass"] for row in ROWS]
+    path = tmp_path / "msms.txt"
+    path.write_text("\n".join("\t".join(row) for row in [columns, *rows]) + "\n", encoding="utf-8")
+
+    candidates = load_maxquant_psms(path, fixed_modifications="")
+
+    assert MASS_TOLERANCE_DA == 0.01
+    assert all(_mass_warnings(c) == [] for c in candidates)  # nothing to compare with
