@@ -156,13 +156,17 @@ def scored_fragment_indices(fragments: list[PredictedFragment], metric_profile: 
     """Indices of the predicted fragments that are scored.
 
     Predictors give every possible ion an intensity, and ions predicted to be absent get a tiny positive one (Prosit
-    down to ~1e-8, MS2PIP 2**x - 0.001). Under v2, fragments below min_predicted_intensity times the most intense one are
-    left out (#83): they would count as predicted ions, and could be matched to noise peaks. legacy_v1 scores them all.
+    down to ~1e-8, MS2PIP 2**x - 0.001) or 0. Under v2, fragments without a finite positive intensity, and those below
+    min_predicted_intensity times the most intense one, are left out (#83): they would count as predicted ions, and
+    could be matched to noise peaks. legacy_v1 scores every fragment, as 0.1.10 did, for every predictor.
     """
-    if metric_profile == "legacy_v1" or not fragments or min_predicted_intensity <= 0:
+    if metric_profile == "legacy_v1":
         return list(range(len(fragments)))
-    threshold = min_predicted_intensity * max(fragment.intensity for fragment in fragments)
-    return [index for index, fragment in enumerate(fragments) if fragment.intensity >= threshold]
+    with_signal = [index for index, fragment in enumerate(fragments) if math.isfinite(fragment.intensity) and fragment.intensity > 0]
+    if not with_signal or min_predicted_intensity <= 0:
+        return with_signal
+    threshold = min_predicted_intensity * max(fragments[index].intensity for index in with_signal)
+    return [index for index in with_signal if fragments[index].intensity >= threshold]
 
 
 def precursor_mass_errors(peptidoform: str, charge: int | None, observed_precursor_mz: float | None) -> tuple[float | None, float | None]:

@@ -58,10 +58,11 @@ matches, spectral_angle and cosine_similarity are 0.0 and pearson_correlation is
 Matching is one to one: each observed peak explains at most one predicted ion, assigned closest first, so a peak shared
 by isobaric ions (e.g. b3/y2) counts once and explained_intensity_fraction is at most 1.
 
-Predicted ions below min_predicted_intensity (default 0.001) of the most intense predicted ion are not scored: predictors
-give ions they expect to be absent a tiny intensity, and those would count in total_predicted_ions and could be matched
-to noise. matched_ion_fraction is therefore relative to the ions predicted above that level. Set
-min_predicted_intensity = 0 to score every predicted ion.
+Predicted-ion cut-off: a predicted ion is scored only if its intensity is positive and at least min_predicted_intensity
+(default 0.001) times the most intense predicted ion. Predictors give ions they expect to be absent a tiny intensity or
+0, and those would count in total_predicted_ions and could be matched to noise. total_predicted_ions,
+matched_ion_count and matched_ion_fraction therefore refer to the ions above the cut-off. Set
+min_predicted_intensity = 0 to score every ion with a positive intensity; legacy_v1 applies no cut-off.
 
 Select a profile with metric_profile in a JSON or TOML config file passed as config_path (CLI: --config).""",
     "method://candidate_schema_v1": "Canonical candidate schema normalizes upstream engines into peptide/peptidoform, scan/spectrum identifiers, raw score, optional 0-1 confidence, and token-confidence summaries. Supported adapters include instanovo, casanovo, maxquant, fragpipe, proteome_discoverer, and generic mapped tables.",
