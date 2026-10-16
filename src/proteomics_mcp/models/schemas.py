@@ -27,6 +27,9 @@ class CandidatePSM:
     source_engine_version: str | None = None
     experiment_name: str | None = None
     spectrum_id: str | None = None
+    # 0-based position of the spectrum among the run's spectra in the source file, when the engine reports that instead
+    # of a scan number (InstaNovo on MGF input)
+    spectrum_index: int | None = None
     usi: str | None = None
     precursor_mz: float | None = None
     precursor_charge: int | None = None

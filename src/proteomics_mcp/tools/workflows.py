@@ -1518,6 +1518,7 @@ def score_from_prediction_batch_tool(
                 scan_number=candidate.scan_number,
                 spectrum_id=candidate.spectrum_id,
                 experiment_name=candidate.experiment_name,
+                **_spectrum_position(candidate),
             )
             result = score_candidate_spectrum(
                 candidate=candidate,
@@ -1540,6 +1541,7 @@ def score_from_prediction_batch_tool(
                     "source_engine_version": candidate.source_engine_version,
                     "experiment_name": candidate.experiment_name,
                     "scan_number": candidate.scan_number,
+                    "spectrum_index": candidate.spectrum_index,
                     "spectrum_id": candidate.spectrum_id,
                     "usi": candidate.usi,
                     "peptidoform": candidate.peptidoform,
@@ -1913,6 +1915,11 @@ def annotate_observed_spectrum_tool(
     )
 
 
+def _spectrum_position(candidate: CandidatePSM) -> dict[str, int]:
+    """spectrum_index for load_spectrum_from_table, only when the candidate has one (InstaNovo on MGF input)."""
+    return {"spectrum_index": candidate.spectrum_index} if candidate.spectrum_index is not None else {}
+
+
 def score_spectrum_tool(
     candidate: dict[str, Any],
     observed: dict[str, Any],
@@ -2050,6 +2057,7 @@ def score_candidates_tool(
                     scan_number=candidate.scan_number,
                     spectrum_id=candidate.spectrum_id,
                     experiment_name=candidate.experiment_name,
+                    **_spectrum_position(candidate),
                 )
             else:
                 raise ValueError("Candidate has no USI and no spectra_path was supplied.")
@@ -2075,6 +2083,7 @@ def score_candidates_tool(
                     "source_engine_version": candidate.source_engine_version,
                     "experiment_name": candidate.experiment_name,
                     "scan_number": candidate.scan_number,
+                    "spectrum_index": candidate.spectrum_index,
                     "spectrum_id": candidate.spectrum_id,
                     "usi": candidate.usi,
                     "peptidoform": candidate.peptidoform,
