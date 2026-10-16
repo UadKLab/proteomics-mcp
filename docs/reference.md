@@ -138,7 +138,7 @@ Outputs are Plotly HTML with hover data, zoom, image export, light/dark support,
 
 `inspect_psm_table` and `inspect_peptide_table` normalize and inspect upstream results without rescoring the dataset. Peptide tables collapse modified forms while retaining peptidoform context, run support, charge species, and representative PSM evidence.
 
-Structured tools support field discovery, numeric/categorical summaries, binning, missingness, overlap, modification summaries, quant quality, file coverage, and dashboard bundles. `load_sdrf` and `retrieve_pride_sdrf` add optional run/sample context. PRIDE retrieval recognizes `.sdrf`, SDRF-labelled TSV/TXT, and gzip-compressed variants; API failures report the project accession, request URL, and HTTP response detail.
+Structured tools support field discovery, numeric/categorical summaries, binning, missingness, overlap, modification summaries, quant quality, file coverage, and dashboard bundles. `load_sdrf` and `retrieve_pride_sdrf` add optional run/sample context. In multiplexed designs (TMT, iTRAQ, SILAC), the SDRF has one row per channel of the same data file, and a PSM of that file belongs to all of them. The file's metadata therefore keeps every channel (`channels`, `channel_count`), and fields that differ between channels hold their distinct values joined with `; ` (for example label `TMT126; TMT127N`); sample summaries group such a run under its joined assay names. PRIDE retrieval recognizes `.sdrf`, SDRF-labelled TSV/TXT, and gzip-compressed variants; API failures report the project accession, request URL, and HTTP response detail.
 
 ## Batch Workflows
 

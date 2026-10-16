@@ -6,6 +6,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **Multiplexed SDRF:** for TMT, iTRAQ and SILAC designs (one SDRF row per channel of the same data file), the file's metadata kept only the last channel, so labels, samples, diseases and factor values of the other channels were lost. Every channel is now kept (`channels`, `channel_count`), and fields that differ between channels hold their distinct values joined with `; `, e.g. label `TMT126; TMT127N`. On PXD006430 (TMT10), 72 files × 10 channels: all 720 rows are now represented; before, 72 ([#81](https://github.com/UadKLab/proteomics-mcp/issues/81)).
 - **Modification parsing:** several notations lost modifications, mostly N-terminal ones, and the peptides were scored as unmodified ([#75](https://github.com/UadKLab/proteomics-mcp/issues/75)):
   - MaxQuant: N-terminal modifications (`_(ac)PEPM(ox)K_`), and full names with nested parentheses (`(Oxidation (M))`).
   - FragPipe: `N-term(...)` / `C-term(...)` in `Assigned Modifications`. `Modified Peptide` masses are totals (`n[43]` is acetyl, not carbamyl; `M[147]` is oxidised Met), and both readings are tried. On the arabidopsis table of the manuscript supplement, 503 of 52,530 PSMs change: 406 carried carbamyl instead of acetyl, 97 had lost the acetyl. All 52,530 now match FragPipe's `Calculated Peptide Mass`.

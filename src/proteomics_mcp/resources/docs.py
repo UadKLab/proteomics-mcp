@@ -117,6 +117,9 @@ The returned summary includes:
 - data-file columns and factor columns
 - assay, organism, label, and instrument summaries
 - file_metadata keyed by raw filename, basename, and filename stem for multi-run joins and metadata enrichment
+- multiplexed runs (TMT, iTRAQ, SILAC; one SDRF row per channel): file_metadata keeps every channel in "channels"
+  (channel_count); fields that differ between channels hold their distinct values joined with "; ", e.g. label
+  "TMT126; TMT127N", because a PSM of such a run belongs to all its channels
 
 This is intentionally optional. Users can score spectra without SDRF, but when SDRF exists it can provide sample and acquisition context through MCP-accessible metadata.""",
     "method://visualization_modes_v1": """Visualization modes:
