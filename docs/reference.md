@@ -48,7 +48,10 @@ For HPC use, either run upstream inference/search on the cluster and inspect mou
 
 Supported adapters:
 
-- `instanovo`: legacy `preds`/`log_probs`, beam outputs, and current `instanovo_*`/`diffusion_*` variants.
+- `instanovo`: prediction CSVs of InstaNovo 1.0–1.2: transformer greedy and beam search (`preds`/`log_probs`, `predictions`/`log_probabilities`, `predictions`/`log_probs`), InstaNovo+ with and without refinement (`final_prediction`, `diffusion_predictions`, falling back to `transformer_predictions` where refinement produced nothing), verbose prediction columns, and combined runs. Notes:
+  - For MGF input (and mzML input in InstaNovo 1.0), InstaNovo's `scan_number` column holds the 0-based position of the spectrum in the file. The adapter recognises this (the column contains 0) and stores it as `spectrum_index`, which spectrum lookup uses by position within the run, instead of as a scan number. Convert the same MGF or mzML file with `mgf_to_feather` / `mzml_to_feather`.
+  - Confidence is the exponent of the sequence log-probability.
+  - Token log-probabilities of legacy beam-search files are aligned to the sequence.
 - `casanovo`: Casanovo prediction CSVs.
 - `maxquant`: `msms.txt` exports.
 - `fragpipe`: PSM tables including run/scan parsing from spectrum fields.

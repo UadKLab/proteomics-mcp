@@ -4,6 +4,15 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Fixed
+
+- **InstaNovo prediction CSVs:** every output format of InstaNovo 1.0.0, 1.1.0, 1.1.3 and 1.2.2 in Zenodo [10.5281/zenodo.20756892](https://doi.org/10.5281/zenodo.20756892) (32 files) is now read correctly:
+  - **Positions, not scan numbers:** for MGF input, and mzML input in 1.0.0, InstaNovo's `scan_number` is the spectrum's 0-based position in the file. It was used as a scan number, so spectrum lookup returned the wrong spectrum for 88% of rows and none for 12%. It is now stored as `spectrum_index`, and `load_spectrum_from_table` / scoring look spectra up by position within the run.
+  - **1.1.0 transformer files** (`predictions` with `log_probabilities`) failed with "Could not detect an InstaNovo prediction schema".
+  - **InstaNovo+ refined files:** `final_prediction` is used. Where refinement produced nothing, the transformer prediction is used instead of dropping the row (39% of rows in 1.1.0-alpha refined files).
+  - **Confidence:** a log-probability just above 0 (e.g. 1.9e-08) gave a confidence of 1.9e-08 instead of 1.
+  - **Beam files:** `next_beam` is read in every layout, when the beams rank alternatives to the reported prediction. Token log-probabilities of 1.0.x/1.1.x beam files are aligned to the sequence: they carry a trailing extra value, and 1.1.x stores them in reverse order.
+
 ## [0.1.10] - 2026-10-14
 
 Fixes from the end-to-end check of the published package on the manuscript's public data ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30)). This is the version cited in the manuscript. How scores, annotations and metrics are computed is unchanged.
