@@ -112,11 +112,12 @@ def _require_ms2pip(tool, report, item: str) -> None:
 
 
 @pytest.mark.parametrize("name", ALL_PAYLOADS, ids=[n.replace("/", ":")[:48] for n in ALL_PAYLOADS])
-def test_live_ms2pip_reproduces_stored_metrics(tool, report, name):
+def test_live_ms2pip_reproduces_stored_metrics(tool, report, legacy_metrics, name):
     payload = _load(name)
     _require_ms2pip(tool, report, "live re-scoring")
     is_error, result = tool("score_spectrum", {"candidate": payload["metrics"]["candidate"], "observed": payload["observed"],
-                                               "predictor_backend": "ms2pip", "predictor_model": "HCD", **_settings(payload)})
+                                               "predictor_backend": "ms2pip", "predictor_model": "HCD",
+                                               "config_path": str(legacy_metrics), **_settings(payload)})
     assert not is_error, result
     stored = payload["metrics"]
     deltas = _deltas(result, stored)
@@ -133,7 +134,7 @@ def test_live_ms2pip_reproduces_stored_metrics(tool, report, name):
 
 
 @pytest.mark.parametrize("source", ["stored", "live"])
-def test_figure2_legend_values(tool, report, source):
+def test_figure2_legend_values(tool, report, legacy_metrics, source):
     """Every number in the Figure 2 legend, from the stored payload and from a live MS2PIP prediction."""
     payload = _load(FIGURE2)
     if source == "stored":
@@ -141,7 +142,8 @@ def test_figure2_legend_values(tool, report, source):
     else:
         _require_ms2pip(tool, report, "Figure 2 live")
         is_error, metrics = tool("score_spectrum", {"candidate": payload["metrics"]["candidate"], "observed": payload["observed"],
-                                                    "predictor_backend": "ms2pip", "predictor_model": "HCD", **_settings(payload)})
+                                                    "predictor_backend": "ms2pip", "predictor_model": "HCD",
+                                                    "config_path": str(legacy_metrics), **_settings(payload)})
         assert not is_error, metrics
     mismatches = {m: (_printed(metrics[m], spec), spec[0]) for m, spec in FIGURE2_LEGEND.items()
                   if _printed(metrics[m], spec) != spec[0]}
@@ -244,7 +246,7 @@ def _read_csv(path: str) -> list[dict]:
         return list(csv.DictReader(handle))
 
 
-def test_prediction_and_scoring_batch(tool, report, hela_batch_inputs):
+def test_prediction_and_scoring_batch(tool, report, hela_batch_inputs, legacy_metrics):
     inputs = hela_batch_inputs
     backend = _backend()
     prefix = inputs["root"] / "run1" / "hela"
@@ -260,7 +262,8 @@ def test_prediction_and_scoring_batch(tool, report, hela_batch_inputs):
     failures = _read_csv(json.loads(Path(manifest).read_text())["output_files"]["failures_csv"])
 
     settings = _settings(inputs["payloads"][0])
-    score_args = {"manifest_path": manifest, "spectra_path": str(inputs["spectra"]), **{k: v for k, v in settings.items()}}
+    score_args = {"manifest_path": manifest, "spectra_path": str(inputs["spectra"]), "config_path": str(legacy_metrics),
+                  **{k: v for k, v in settings.items()}}
     is_error, scored = tool("score_from_prediction_batch", {**score_args, "output_prefix": str(inputs["root"] / "run1" / "scored")})
     assert not is_error, scored
     scored_manifest = scored["output_files"]["manifest_json"]

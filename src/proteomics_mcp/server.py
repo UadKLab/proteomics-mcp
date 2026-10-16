@@ -786,9 +786,21 @@ if MCPServer is not None:
         return bruker_d_to_feather_tool(d_path, _resolve(output_path))
 
     @mcp.tool()
-    def export_to_instanovo(input_path: str, output_path: str, output_format: str = "ipc", sequence_column: str | None = None) -> dict[str, Any]:
-        """Export a normalized spectrum table into an InstaNovo-ready IPC or Parquet layout."""
-        return export_to_instanovo_tool(input_path, _resolve(output_path), output_format=output_format, sequence_column=sequence_column)
+    def export_to_instanovo(
+        input_path: str,
+        output_path: str,
+        output_format: str = "ipc",
+        sequence_column: str | None = None,
+        drop_unlabelled: bool = False,
+    ) -> dict[str, Any]:
+        """Export a normalized spectrum table into an InstaNovo-ready IPC or Parquet layout.
+
+        With sequence_column, spectra without a sequence are written with a null sequence (InstaNovo then refuses the
+        table as annotated data); set drop_unlabelled=true to leave them out for a labelled training or evaluation set.
+        """
+        return export_to_instanovo_tool(
+            input_path, _resolve(output_path), output_format=output_format, sequence_column=sequence_column, drop_unlabelled=drop_unlabelled
+        )
 
     @mcp.tool()
     def annotate_observed_spectrum(
@@ -1086,6 +1098,10 @@ if MCPServer is not None:
             validate_only=validate_only,
             status_path=_resolve(status_path),
         )
+
+    @mcp.resource("method://metric_profile_v2")
+    def metric_profile_v2() -> str:
+        return SCHEMAS["method://metric_profile_v2"]
 
     @mcp.resource("method://metric_profile_legacy_v1")
     def metric_profile_legacy_v1() -> str:

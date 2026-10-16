@@ -1144,6 +1144,28 @@ def test_new_summary_tools_on_candidate_table(tmp_path):
     assert coverage["files"]["runA"]["overview"]["total_psm_count"] == 2
 
 
+def test_dataset_summary_with_a_multiplexed_sdrf(tmp_path):
+    # A multiplexed run's PSMs belong to all of its channels; the sample metadata lists them all (#81).
+    scored_path = tmp_path / "scores.csv"
+    _scored_frame().to_csv(scored_path, index=False)
+    sdrf_path = tmp_path / "tmt.sdrf.tsv"
+    sdrf_path.write_text(
+        "assay name\tcomment[data file]\tsource name\tcomment[label]\n"
+        "runA_126\trunA.raw\tsampleA1\tTMT126\n"
+        "runA_127N\trunA.raw\tsampleA2\tTMT127N\n"
+        "runB_126\trunB.raw\tsampleB1\tTMT126\n",
+        encoding="utf-8",
+    )
+
+    summary = summarize_dataset_tool(scored_path=str(scored_path), output_prefix=str(tmp_path / "dataset"), sdrf_path=str(sdrf_path))
+    samples = pd.read_csv(summary["output_files"]["sample_summary_csv"])
+
+    by_sample = samples.set_index("sample_key")
+    assert by_sample.loc["runA_126; runA_127N", "label"] == "TMT126; TMT127N"
+    assert by_sample.loc["runA_126; runA_127N", "total_psm_count"] == 2
+    assert by_sample.loc["runB_126", "label"] == "TMT126"
+
+
 def _best_row_by_sorting_each_group(group: pd.DataFrame) -> pd.Series:
     """The per-group sort that _best_row used before #68, kept as the reference."""
     sortable = group.copy()

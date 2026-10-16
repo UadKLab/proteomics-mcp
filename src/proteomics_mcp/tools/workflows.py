@@ -1536,6 +1536,7 @@ def score_from_prediction_batch_tool(
                 tolerance=config.tolerance,
                 tolerance_unit=config.tolerance_unit,
                 metric_profile=config.metric_profile,
+                min_predicted_intensity=config.min_predicted_intensity,
                 annotation_ion_types=config.annotation_ion_types,
                 annotation_max_isotope=config.annotation_max_isotope,
                 annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -1891,12 +1892,14 @@ def export_to_instanovo_tool(
     *,
     output_format: str = "ipc",
     sequence_column: str | None = None,
+    drop_unlabelled: bool = False,
 ) -> dict[str, Any]:
     return export_table_to_instanovo(
         input_path,
         output_path,
         output_format=output_format,
         sequence_column=sequence_column,
+        drop_unlabelled=drop_unlabelled,
     )
 
 
@@ -1984,6 +1987,7 @@ def score_spectrum_tool(
         tolerance=config.tolerance,
         tolerance_unit=config.tolerance_unit,
         metric_profile=config.metric_profile,
+        min_predicted_intensity=config.min_predicted_intensity,
         annotation_ion_types=config.annotation_ion_types,
         annotation_max_isotope=config.annotation_max_isotope,
         annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -2079,6 +2083,7 @@ def score_candidates_tool(
                 tolerance=config.tolerance,
                 tolerance_unit=config.tolerance_unit,
                 metric_profile=config.metric_profile,
+                min_predicted_intensity=config.min_predicted_intensity,
                 annotation_ion_types=config.annotation_ion_types,
                 annotation_max_isotope=config.annotation_max_isotope,
                 annotation_max_ion_charge=config.annotation_max_ion_charge,
