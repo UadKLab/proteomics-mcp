@@ -71,6 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--path", required=True)
     p.add_argument("--adapter", default="instanovo")
     p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
+    p.add_argument("--fixed-modifications", help='MaxQuant fixed modifications for --adapter maxquant, e.g. "Carbamidomethyl (C)"')
     p.add_argument("--limit", type=int)
     p = sub.add_parser("inspect-psm-table")
     p.add_argument("--path", required=True)
@@ -446,7 +447,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "load-candidates":
-        print(json.dumps(load_candidates_tool(args.path, args.adapter, column_mapping_path=args.column_mapping_path, limit=args.limit), indent=2))
+        print(json.dumps(load_candidates_tool(args.path, args.adapter, column_mapping_path=args.column_mapping_path,
+                                              fixed_modifications=args.fixed_modifications, limit=args.limit), indent=2))
     elif args.command == "inspect-psm-table":
         print(
             json.dumps(

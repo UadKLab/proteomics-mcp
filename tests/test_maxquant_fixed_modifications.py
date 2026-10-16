@@ -168,3 +168,31 @@ def test_mass_check_tolerance_and_tables_without_mass(tmp_path):
 
     assert MASS_TOLERANCE_DA == 0.01
     assert all(_mass_warnings(c) == [] for c in candidates)  # nothing to compare with
+
+
+def test_load_candidates_passes_fixed_modifications_over_mcp_and_cli(tmp_path, capsys):
+    import asyncio
+    import json
+
+    from mcp import Client
+
+    from proteomics_mcp.cli import main
+    from proteomics_mcp.server import mcp
+
+    path = _write_msms(tmp_path)
+
+    async def call(arguments):
+        async with Client(mcp) as client:
+            return await client.call_tool("load_candidates", arguments)
+
+    result = asyncio.run(call({"path": str(path), "adapter": "maxquant", "fixed_modifications": "Carbamidomethyl (C)"}))
+    assert not result.is_error, result.content
+    rows = result.structured_content["result"]
+    assert {row["scan_number"]: row["peptidoform"] for row in rows} == EXPECTED
+    assert all(row["warnings"] == [] for row in rows)
+
+    main(["load-candidates", "--path", str(path), "--adapter", "maxquant", "--fixed-modifications", "Carbamidomethyl (C)"])
+    assert json.loads(capsys.readouterr().out) == rows
+
+    error = asyncio.run(call({"path": str(path), "adapter": "fragpipe", "fixed_modifications": "Carbamidomethyl (C)"}))
+    assert error.is_error and "applies only to adapter='maxquant'" in error.content[0].text
