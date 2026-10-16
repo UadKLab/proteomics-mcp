@@ -6,7 +6,18 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **Modification parsing:** several notations lost modifications, mostly N-terminal ones, and the peptides were scored as unmodified ([#75](https://github.com/UadKLab/proteomics-mcp/issues/75)):
+  - MaxQuant: N-terminal modifications (`_(ac)PEPM(ox)K_`), and full names with nested parentheses (`(Oxidation (M))`).
+  - FragPipe: `N-term(...)` / `C-term(...)` in `Assigned Modifications`. `Modified Peptide` masses are totals (`n[43]` is acetyl, not carbamyl; `M[147]` is oxidised Met), and both readings are tried. On the arabidopsis table of the manuscript supplement, 503 of 52,530 PSMs change: 406 carried carbamyl instead of acetyl, 97 had lost the acetyl. All 52,530 now match FragPipe's `Calculated Peptide Mass`.
+  - InstaNovo and Casanovo: masses like `+.98`, parenthesised N- and C-terminal tokens (`(+42.01)PEPTIDE`) and unbracketed masses (`+42.011PEPM+15.995K`).
+  - Proteome Discoverer: the `1xTMT6plex [N-Term]; 2xCarbamidomethyl [C5; C12]` notation, sites checked against the residue, and Met-loss no longer subtracted twice.
+  - `summarize_prediction_accuracy` strips modifications in every notation.
+- **Unplaceable modifications are flagged, not dropped:** a modification that cannot be resolved or placed stays in the peptidoform as an explicit token, and `parse_peptidoform` flags any text it cannot place as an unsupported modification ([#75](https://github.com/UadKLab/proteomics-mcp/issues/75)).
 - **w-ion masses:** C-terminal fragments (x, y, z, w) took the residue at the wrong end of the peptide as their cleavage-site residue. So w and w-alt ions lost the side chain of the wrong residue, and the `residue` reported for x/y/z/w fragments was wrong in every peptide longer than two residues. Observed-spectrum annotation with `ion_types=all` or `exotic` changes: 20 of the 25 reference payloads get different w-ion assignments, annotated peak counts and annotated intensity fractions. Scores are not affected ([#79](https://github.com/UadKLab/proteomics-mcp/issues/79)).
+
+### Added
+
+- Built-in masses for amidation, dimethyl, GG, iTRAQ4plex, ammonia loss, TMT6plex/10plex/11plex and TMTpro, so they resolve without downloading the Unimod catalogue.
 
 ## [0.1.10] - 2026-10-14
 

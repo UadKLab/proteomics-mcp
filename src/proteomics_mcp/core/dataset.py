@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from proteomics_mcp.adapters.modifications import bracket_modification_tokens
 from proteomics_mcp.adapters.table_io import read_candidate_table
 from proteomics_mcp.core.annotation import parse_peptidoform
 from proteomics_mcp.models.schemas import CandidatePSM, model_dump
@@ -1101,14 +1102,11 @@ def summarize_modifications(frame: pd.DataFrame, *, group_field: str = "run_key"
     return _json_safe(summary)
 
 
-_UNIMOD_TAG_RE = re.compile(r"\[UNIMOD:\d+\]|\[\+?-?\d+(?:\.\d+)?\]")
-_NTERM_MOD_RE = re.compile(r"^(?:\[UNIMOD:\d+\]|\[\+?-?\d+(?:\.\d+)?\])-")
-
-
 def _strip_modifications(sequence: str | None) -> str:
+    """Residue letters of a peptidoform in any supported notation ("PEPN(+.98)TIDE", "_PEPM(ox)K_", "+42.011PEPTIDE")."""
     if not isinstance(sequence, str):
         return ""
-    return _UNIMOD_TAG_RE.sub("", _NTERM_MOD_RE.sub("", sequence))
+    return "".join(ch for ch in re.sub(r"\[[^\]]*\]", "", bracket_modification_tokens(sequence)) if "A" <= ch <= "Z")
 
 
 def summarize_prediction_accuracy(
