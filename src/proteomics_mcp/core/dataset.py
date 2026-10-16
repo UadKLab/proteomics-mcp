@@ -15,6 +15,8 @@ import pandas as pd
 
 from proteomics_mcp.adapters.modifications import bracket_modification_tokens
 from proteomics_mcp.adapters.table_io import read_candidate_table
+from proteomics_mcp.core.html_safety import script_json, to_script_json
+from proteomics_mcp.core.html_safety import text as escape_text
 from proteomics_mcp.core.annotation import parse_peptidoform
 from proteomics_mcp.models.schemas import CandidatePSM, model_dump
 
@@ -2027,8 +2029,8 @@ def render_table_browse_html(frame: pd.DataFrame, title: str, output_path: str |
     for column in serializable.columns:
         serializable[column] = serializable[column].map(lambda value: _serialize_browse_table_cell(str(column), value))
     table_html = _browse_table_html(serializable)
-    csv_payload = json.dumps(serializable.to_csv(index=False))
-    csv_filename_json = json.dumps(csv_filename or f"{title.lower().replace(' ', '_')}.csv")
+    csv_payload = to_script_json(serializable.to_csv(index=False))
+    csv_filename_json = to_script_json(csv_filename or f"{title.lower().replace(' ', '_')}.csv")
     column_options = "".join(
         f'''<label class="column-option"><input type="checkbox" data-column-visible="{index}" checked /> <span>{html_lib.escape(str(column))}</span><input type="checkbox" data-column-pinned="{index}" aria-label="Pin {html_lib.escape(str(column))}" /><span class="pin-label">Pin</span></label>'''
         for index, column in enumerate(serializable.columns)
@@ -2037,7 +2039,7 @@ def render_table_browse_html(frame: pd.DataFrame, title: str, output_path: str |
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>{title}</title>
+  <title>{escape_text(title)}</title>
   <style>
     :root {{
       color-scheme: light;
@@ -2212,7 +2214,7 @@ def render_table_browse_html(frame: pd.DataFrame, title: str, output_path: str |
 </head>
 <body data-theme="auto">
   <div class="page">
-    <h1>{title}</h1>
+    <h1>{escape_text(title)}</h1>
     <p class="meta">{len(serializable)} rows, {len(serializable.columns)} columns</p>
     <div class="toolbar" aria-label="Theme">
       <button type="button" onclick="downloadCsv()">Download CSV</button>
@@ -2321,7 +2323,7 @@ def render_table_browse_html(frame: pd.DataFrame, title: str, output_path: str |
 
 def _summary_value_html(value: Any) -> str:
     if isinstance(value, dict):
-        items = "".join(f"<tr><th>{key}</th><td>{_summary_value_html(val)}</td></tr>" for key, val in value.items())
+        items = "".join(f"<tr><th>{escape_text(key)}</th><td>{_summary_value_html(val)}</td></tr>" for key, val in value.items())
         return f"<table class=\"summary-table\">{items}</table>"
     if isinstance(value, list):
         if value and all(isinstance(item, dict) for item in value):
@@ -2329,26 +2331,26 @@ def _summary_value_html(value: Any) -> str:
             serializable = frame.copy()
             for column in serializable.columns:
                 serializable[column] = serializable[column].map(_serialize_cell)
-            return serializable.to_html(index=False, border=0, classes="summary-grid", escape=False)
+            return serializable.to_html(index=False, border=0, classes="summary-grid")
         items = "".join(f"<li>{_summary_value_html(item)}</li>" for item in value)
         return f"<ul>{items}</ul>"
     if value is None:
         return "<span class=\"muted\">NA</span>"
     if isinstance(value, float):
         return f"{value:.6g}"
-    return str(value)
+    return escape_text(value)
 
 
 def render_summary_html(summary: dict[str, Any], title: str, output_path: str | Path | None = None) -> str:
     sections = "".join(
-        f"<section><h2>{key}</h2>{_summary_value_html(value)}</section>"
+        f"<section><h2>{escape_text(key)}</h2>{_summary_value_html(value)}</section>"
         for key, value in summary.items()
     )
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>{title}</title>
+  <title>{escape_text(title)}</title>
   <style>
     body {{
       margin: 0;
@@ -2404,7 +2406,7 @@ def render_summary_html(summary: dict[str, Any], title: str, output_path: str | 
 </head>
 <body>
   <div class="page">
-    <h1>{title}</h1>
+    <h1>{escape_text(title)}</h1>
     {sections}
   </div>
 </body>
@@ -2850,7 +2852,7 @@ def render_dashboard_bundle_html(summary: dict[str, Any], title: str, output_pat
         ("Runs", overview.get("distinct_run_count")),
     ]
     tile_html = "".join(
-        f"<div class='tile'><div class='label'>{label}</div><div class='value'>{_fmt_count(value) if isinstance(value, int) or (isinstance(value, float) and value.is_integer()) else (value if value is not None else 'NA')}</div></div>"
+        f"<div class='tile'><div class='label'>{escape_text(label)}</div><div class='value'>{escape_text(_fmt_count(value) if isinstance(value, int) or (isinstance(value, float) and value.is_integer()) else (value if value is not None else 'NA'))}</div></div>"
         for label, value in tiles
     )
 
@@ -2858,7 +2860,7 @@ def render_dashboard_bundle_html(summary: dict[str, Any], title: str, output_pat
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>{title}</title>
+  <title>{escape_text(title)}</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     :root {{
@@ -2995,7 +2997,7 @@ def render_dashboard_bundle_html(summary: dict[str, Any], title: str, output_pat
 </head>
 <body>
   <div class="page">
-    <h1>{title}</h1>
+    <h1>{escape_text(title)}</h1>
     <div class="toolbar">
       <span class="toolbar-label">Theme</span>
       <button type="button" data-theme-button="light">Light</button>
@@ -3139,7 +3141,7 @@ def render_prediction_accuracy_html(summary: dict[str, Any], title: str, output_
         ("Skipped (missing)", _fmt_count(overview.get("skipped_missing_pred_or_target"))),
     ]
     tile_html = "".join(
-        f"<div class='tile'><div class='label'>{label}</div><div class='value'>{value}</div></div>"
+        f"<div class='tile'><div class='label'>{escape_text(label)}</div><div class='value'>{escape_text(value)}</div></div>"
         for label, value in tiles
     )
 
@@ -3310,7 +3312,7 @@ def render_prediction_accuracy_html(summary: dict[str, Any], title: str, output_
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>{title}</title>
+  <title>{escape_text(title)}</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f8fb; color: #172033; }}
@@ -3328,7 +3330,7 @@ def render_prediction_accuracy_html(summary: dict[str, Any], title: str, output_
 </head>
 <body>
   <div class="page">
-    <h1>{title}</h1>
+    <h1>{escape_text(title)}</h1>
     <div class="tiles">{tile_html}</div>
     <div class="plot-grid">{plot_html}</div>
   </div>
@@ -3392,7 +3394,7 @@ def write_dataset_outputs(aggregation: DatasetAggregation, output_prefix: str | 
 
 
 def _plotly_div(fig: Any, div_id: str) -> str:
-    fig_json = fig.to_json()
+    fig_json = script_json(fig.to_json())
     return f"""
 <div id="{div_id}" class="plot"></div>
 <script>
