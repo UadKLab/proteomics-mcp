@@ -67,6 +67,11 @@ Supported adapters:
 
 Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, match spectra using raw-file stem plus scan number rather than scan number alone.
 
+Spectrum lookup (`load_spectrum_from_table`, and the scoring tools) never silently substitutes another spectrum:
+- A run name that matches none of the runs in a multi-run spectrum table is an error. In a single-run table, a different name (for example a renamed file) still refers to that run.
+- A scan number or spectrum id that matches several *different* spectra, such as the same scan in several runs when no run name is given, is an error. Identical copies, as written by MGF charge-state enumeration, are not.
+- Scan numbers are read only from identifiers that state one: `scan=` in native IDs and USIs, Thermo-style MGF titles (`<run>.<scan>.<scan>.<charge>`, also `.dta`), `index=`, `<run>:<scan>`, or a plain number. SCIEX (`sample=… cycle=… experiment=…`) and Bruker (`merged=… frame=…`) native IDs have no single scan number. Their spectra are found by spectrum id instead of by an unrelated number from the identifier.
+
 Recognised modification notations include:
 
 | Source | Examples |
@@ -88,7 +93,7 @@ Required: a peptide/peptidoform and a spectrum locator (`usi`, `spectrum_id`, or
 - IPC/Feather: normalized local spectrum tables.
 - mzML: `mzml-to-feather`, backed by pyOpenMS.
 - MGF: `mgf-to-feather`, backed by pyteomics.
-- Bruker `.d`: `bruker-d-to-feather`, preferring AlphaTims with an embedded-MGF fallback.
+- Bruker `.d`: `bruker-d-to-feather`, preferring AlphaTims with an embedded-MGF fallback. For ddaPASEF, `scan_number` is the precursor `Id`, the identifier of each MS2 spectrum (also in `precursor_id` and `spectrum_id`, `<run>:precursor:<Id>`). `mobility` is the reduced ion mobility 1/K0 (V·s/cm²), and `scan_index` is the precursor's mean position on the TIMS scan axis. Precursors without an assigned charge are kept, with an empty `precursor_charge`.
 - USI: `retrieve-usi-spectrum` through a configured provider.
 - InstaNovo export: `export-to-instanovo` writes a normalized IPC or Parquet inference table. With `sequence_column`, spectra without a sequence get a null `sequence` (reported as `sequences_missing`): InstaNovo refuses such a table as annotated data. For a labelled training or evaluation set, pass `drop_unlabelled` (CLI `--drop-unlabelled`) to leave those spectra out (`spectra_dropped_unlabelled`); otherwise load the table as unannotated. Spectra without precursor m/z or charge are left out (`spectra_dropped_without_precursor`).
 
