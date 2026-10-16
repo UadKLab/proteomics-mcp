@@ -152,3 +152,45 @@ def test_spectrum_index_looks_up_by_position_within_the_run(tmp_path):
         load_spectrum_from_table(table, spectrum_index=0, experiment_name="typo")
     with pytest.raises(LookupError, match="outside"):
         load_spectrum_from_table(table, spectrum_index=2, experiment_name="runA")
+
+
+def test_spectrum_index_matches_mgf_order_after_conversion(tmp_path):
+    # spectrum_index relies on mgf_to_feather keeping spectra in file order. The scans are deliberately not sorted,
+    # so a table ordered by scan number would return the wrong spectra.
+    from proteomics_mcp.core.spectrum_loader import mgf_to_feather
+
+    run = "SF_test_run"
+    spectra = [(1727, 450.25, 4), (1501, 893.91, 2), (1738, 610.80, 3)]
+    mgf = tmp_path / f"{run}.mgf"
+    mgf.write_text(
+        "".join(
+            f"BEGIN IONS\nTITLE={run}.{scan}.{scan}.{charge}\nPEPMASS={mz}\nCHARGE={charge}+\nSCANS={scan}\n100.0 10.0\n{200.0 + i} 20.0\nEND IONS\n"
+            for i, (scan, mz, charge) in enumerate(spectra)
+        ),
+        encoding="utf-8",
+    )
+    table = tmp_path / "spectra.feather"
+    mgf_to_feather(mgf, table)
+
+    for position, (scan, mz, charge) in enumerate(spectra):
+        observed = load_spectrum_from_table(table, spectrum_index=position, experiment_name=run)
+        assert (observed.precursor_mz, observed.precursor_charge, observed.scan_number) == (mz, charge, scan)
+
+    # The same through the InstaNovo adapter: MGF-based output writes positions 0, 1, 2 as scan_number.
+    predictions = tmp_path / "predictions.csv"
+    pd.DataFrame(
+        {
+            "scan_number": [0, 1, 2],
+            "precursor_mz": [mz for _, mz, _ in spectra],
+            "precursor_charge": [charge for _, _, charge in spectra],
+            "experiment_name": [run] * 3,
+            "spectrum_id": [f"{run}:{position}" for position in range(3)],
+            "preds": ["PEPTIDEK", "LESLIEK", "AAAAK"],
+            "log_probs": [-0.1, -0.2, -0.3],
+        }
+    ).to_csv(predictions, index=False)
+    for candidate in load_instanovo_predictions(predictions):
+        observed = load_spectrum_from_table(
+            table, spectrum_index=candidate.spectrum_index, scan_number=candidate.scan_number, experiment_name=candidate.experiment_name
+        )
+        assert observed.precursor_mz == candidate.precursor_mz
