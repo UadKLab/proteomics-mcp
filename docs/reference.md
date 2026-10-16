@@ -48,9 +48,12 @@ For HPC use, either run upstream inference/search on the cluster and inspect mou
 
 Supported adapters:
 
-- `instanovo`: legacy `preds`/`log_probs`, beam outputs, and current `instanovo_*`/`diffusion_*` variants.
+- `instanovo`: prediction CSVs of InstaNovo 1.0–1.2: transformer greedy and beam search (`preds`/`log_probs`, `predictions`/`log_probabilities`, `predictions`/`log_probs`), InstaNovo+ with and without refinement (`final_prediction`, `diffusion_predictions`, falling back to `transformer_predictions` where refinement produced nothing), verbose prediction columns, and combined runs. Notes:
+  - For MGF input (and mzML input in InstaNovo 1.0), InstaNovo's `scan_number` column holds the 0-based position of the spectrum in the file. The adapter recognises this (the column contains 0) and stores it as `spectrum_index`, which spectrum lookup uses by position within the run, instead of as a scan number. Convert the same MGF or mzML file with `mgf_to_feather` / `mzml_to_feather`.
+  - Confidence is the exponent of the sequence log-probability.
+  - Token log-probabilities of legacy beam-search files are aligned to the sequence.
 - `casanovo`: Casanovo prediction CSVs.
-- `maxquant`: `msms.txt` exports.
+- `maxquant`: `msms.txt` exports. MaxQuant's `Modified sequence` lists only variable modifications, so fixed ones (typically `Carbamidomethyl (C)`) are read from the `parameters.txt` or `mqpar.xml` next to the table, including a prefixed copy such as `maxquant_parameters.txt` for `maxquant_msms.txt`. To set them explicitly, pass `fixed_modifications` (MCP `load_candidates`) or `--fixed-modifications` (CLI `load-candidates`) in MaxQuant notation, `;`-separated (`""` for none). They are added to every matching residue or terminus without a variable modification; protein-terminal ones cannot be placed from `msms.txt` and give a warning. If neither source is available, peptidoforms are left as they are and every candidate carries a warning in `warnings`. Each peptidoform's mass is also checked against MaxQuant's `Mass` column, and a difference above 0.01 Da adds a warning to that candidate.
 - `fragpipe`: PSM tables including run/scan parsing from spectrum fields.
 - `proteome_discoverer`: PSM exports, including `.xlsx`.
 - `generic`: CSV, TSV, or XLSX using explicit column mappings. Pass a JSON mapping file with `--column-mapping` (CLI) or `column_mapping_path` (MCP), on any command or tool that takes an adapter:
@@ -74,7 +77,7 @@ Recognised modification notations include:
 | FragPipe | `Assigned Modifications` such as `N-term(42.0106), 5M(15.9949)`; `Modified Peptide` with total masses (`n[43]PEPTM[147]K`) or deltas |
 | Proteome Discoverer `Modifications` | `M1(Oxidation); N-Term(Acetyl)`, `1xTMT6plex [N-Term]; 2xCarbamidomethyl [C5; C12]` |
 
-Common modifications (acetyl, carbamidomethyl, carbamyl, deamidation, phospho, oxidation, pyro-Glu, ammonia loss, amidation, methyl, dimethyl, formyl, GG, iTRAQ4plex, TMT6plex/10plex/11plex, TMTpro) resolve without network access; other names and masses are looked up in the Unimod catalogue. A modification that cannot be resolved or placed, such as an unlocalised site (`1xPhospho [S/T]`), stays in the peptidoform as an explicit token (unlocalised ones as ProForma `[UNIMOD:21]?PEPSTK`). It is flagged as an unsupported modification rather than dropped, so the peptidoform is never silently scored as unmodified. MaxQuant `Modified sequence` omits fixed modifications (#101).
+Common modifications (acetyl, carbamidomethyl, carbamyl, deamidation, phospho, oxidation, pyro-Glu, ammonia loss, amidation, methyl, dimethyl, formyl, GG, iTRAQ4plex, TMT6plex/10plex/11plex, TMTpro) resolve without network access; other names and masses are looked up in the Unimod catalogue. A modification that cannot be resolved or placed, such as an unlocalised site (`1xPhospho [S/T]`), stays in the peptidoform as an explicit token (unlocalised ones as ProForma `[UNIMOD:21]?PEPSTK`). It is flagged as an unsupported modification rather than dropped, so the peptidoform is never silently scored as unmodified. MaxQuant fixed modifications come from the run's parameters (see `maxquant` above).
 
 ### Generic Mapping
 

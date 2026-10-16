@@ -197,9 +197,18 @@ def load_column_mapping(column_mapping_path: str) -> dict[str, Any]:
     return mapping
 
 
-def _load_candidate_models(path: str, adapter: str, *, column_mapping_path: str | None = None, **kwargs: Any) -> list[CandidatePSM]:
+def _load_candidate_models(
+    path: str,
+    adapter: str,
+    *,
+    column_mapping_path: str | None = None,
+    fixed_modifications: str | list[str] | None = None,
+    **kwargs: Any,
+) -> list[CandidatePSM]:
     if column_mapping_path and adapter != "generic":
         raise ValueError(f"column_mapping_path applies only to adapter='generic', not '{adapter}'.")
+    if fixed_modifications is not None and adapter != "maxquant":
+        raise ValueError(f"fixed_modifications applies only to adapter='maxquant', not '{adapter}'.")
     if adapter == "generic":
         mapping = load_column_mapping(column_mapping_path) if column_mapping_path else {}
         kwargs = {**mapping, **{key: value for key, value in kwargs.items() if value is not None}}
@@ -219,7 +228,7 @@ def _load_candidate_models(path: str, adapter: str, *, column_mapping_path: str 
     if adapter == "fragpipe":
         return load_fragpipe_psms(path, limit=kwargs.get("limit"))
     if adapter == "maxquant":
-        return load_maxquant_psms(path, limit=kwargs.get("limit"))
+        return load_maxquant_psms(path, limit=kwargs.get("limit"), fixed_modifications=fixed_modifications)
     if adapter == "proteome_discoverer":
         return load_proteome_discoverer_psms(path, limit=kwargs.get("limit"), sheet_name=kwargs.get("sheet_name", 0))
     if adapter == "generic":
@@ -1518,6 +1527,7 @@ def score_from_prediction_batch_tool(
                 scan_number=candidate.scan_number,
                 spectrum_id=candidate.spectrum_id,
                 experiment_name=candidate.experiment_name,
+                **_spectrum_position(candidate),
             )
             result = score_candidate_spectrum(
                 candidate=candidate,
@@ -1540,6 +1550,7 @@ def score_from_prediction_batch_tool(
                     "source_engine_version": candidate.source_engine_version,
                     "experiment_name": candidate.experiment_name,
                     "scan_number": candidate.scan_number,
+                    "spectrum_index": candidate.spectrum_index,
                     "spectrum_id": candidate.spectrum_id,
                     "usi": candidate.usi,
                     "peptidoform": candidate.peptidoform,
@@ -1915,6 +1926,11 @@ def annotate_observed_spectrum_tool(
     )
 
 
+def _spectrum_position(candidate: CandidatePSM) -> dict[str, int]:
+    """spectrum_index for load_spectrum_from_table, only when the candidate has one (InstaNovo on MGF input)."""
+    return {"spectrum_index": candidate.spectrum_index} if candidate.spectrum_index is not None else {}
+
+
 def score_spectrum_tool(
     candidate: dict[str, Any],
     observed: dict[str, Any],
@@ -2052,6 +2068,7 @@ def score_candidates_tool(
                     scan_number=candidate.scan_number,
                     spectrum_id=candidate.spectrum_id,
                     experiment_name=candidate.experiment_name,
+                    **_spectrum_position(candidate),
                 )
             else:
                 raise ValueError("Candidate has no USI and no spectra_path was supplied.")
@@ -2077,6 +2094,7 @@ def score_candidates_tool(
                     "source_engine_version": candidate.source_engine_version,
                     "experiment_name": candidate.experiment_name,
                     "scan_number": candidate.scan_number,
+                    "spectrum_index": candidate.spectrum_index,
                     "spectrum_id": candidate.spectrum_id,
                     "usi": candidate.usi,
                     "peptidoform": candidate.peptidoform,

@@ -27,6 +27,9 @@ class CandidatePSM:
     source_engine_version: str | None = None
     experiment_name: str | None = None
     spectrum_id: str | None = None
+    # 0-based position of the spectrum among the run's spectra in the source file, when the engine reports that instead
+    # of a scan number (InstaNovo on MGF input)
+    spectrum_index: int | None = None
     usi: str | None = None
     precursor_mz: float | None = None
     precursor_charge: int | None = None
@@ -46,6 +49,9 @@ class CandidatePSM:
     token_confidence_min_token: str | None = None
     confidence_type: str | None = None
     source_columns: dict[str, Any] = field(default_factory=dict)
+    # Problems found while reading this row that may make the peptidoform or its scores wrong, e.g. MaxQuant fixed
+    # modifications that could not be applied (#101)
+    warnings: list[str] = field(default_factory=list)
 
     def model_dump(self) -> dict[str, Any]:
         return model_dump(self)

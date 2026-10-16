@@ -1,0 +1,5 @@
+scan_number,precursor_mz,precursor_charge,experiment_name,spectrum_id,diffusion_predictions_tokenised,diffusion_predictions,diffusion_log_probabilities,precursor_mass_match
+0,419.314971923828,2,SF_200217_U2OS_TiO2_HCD_OT_rep1,SF_200217_U2OS_TiO2_HCD_OT_rep1:0,"['I', 'L', 'L', 'I', 'V', 'L', 'P', 'R']",ILLIVLPR,-0.7353663444519043,False
+1,473.985656738281,4,SF_200217_U2OS_TiO2_HCD_OT_rep1,SF_200217_U2OS_TiO2_HCD_OT_rep1:1,"['H', 'Y', 'E', 'C[UNIMOD:4]', 'P', 'Q', 'C[UNIMOD:4]', 'G', 'K', 'T', 'F', 'S', 'V', 'L', 'A', 'K']",HYEC[UNIMOD:4]PQC[UNIMOD:4]GKTFSVLAK,-1.070168137550354,False
+2,631.644775390625,3,SF_200217_U2OS_TiO2_HCD_OT_rep1,SF_200217_U2OS_TiO2_HCD_OT_rep1:2,"['V', 'T', 'N', 'F', 'I', 'H', 'P', 'E', 'G', 'E', 'M[UNIMOD:35]', 'S', 'V', 'D', 'K', 'K']",VTNFIHPEGEM[UNIMOD:35]SVDKK,-1.4862630367279053,False
+300,419.878234863281,3,SF_200217_U2OS_TiO2_HCD_OT_rep1,SF_200217_U2OS_TiO2_HCD_OT_rep1:300,"['R', 'R', 'P', 'S[UNIMOD:21]', 'P', 'Q', 'P', 'S', 'P', 'R']",RRPS[UNIMOD:21]PQPSPR,3.4261873338437e-09,True
