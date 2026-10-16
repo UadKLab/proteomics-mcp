@@ -1891,12 +1891,14 @@ def export_to_instanovo_tool(
     *,
     output_format: str = "ipc",
     sequence_column: str | None = None,
+    drop_unlabelled: bool = False,
 ) -> dict[str, Any]:
     return export_table_to_instanovo(
         input_path,
         output_path,
         output_format=output_format,
         sequence_column=sequence_column,
+        drop_unlabelled=drop_unlabelled,
     )
 
 

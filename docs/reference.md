@@ -90,7 +90,7 @@ Required: a peptide/peptidoform and a spectrum locator (`usi`, `spectrum_id`, or
 - MGF: `mgf-to-feather`, backed by pyteomics.
 - Bruker `.d`: `bruker-d-to-feather`, preferring AlphaTims with an embedded-MGF fallback.
 - USI: `retrieve-usi-spectrum` through a configured provider.
-- InstaNovo export: `export-to-instanovo` writes a normalized IPC or Parquet inference table.
+- InstaNovo export: `export-to-instanovo` writes a normalized IPC or Parquet inference table. With `sequence_column`, spectra without a sequence get a null `sequence` (reported as `sequences_missing`): InstaNovo refuses such a table as annotated data. For a labelled training or evaluation set, pass `drop_unlabelled` (CLI `--drop-unlabelled`) to leave those spectra out (`spectra_dropped_unlabelled`); otherwise load the table as unannotated. Spectra without precursor m/z or charge are left out (`spectra_dropped_without_precursor`).
 
 USI spectra come from the provider's own processing of the raw file, so they can differ from a local mzML or MGF conversion of the same scan. For the 25 reference PSMs in `examples/` (PXD044934, PXD014877, PXD010595), PRIDE returned the same peaks as the local conversions for 2 PSMs. For the other 23 it returned 1–33 fewer peaks; the missing peaks were the only difference, and every remaining peak had the same m/z and intensity. Scores computed from a USI spectrum can therefore differ from scores computed from a local file. Record which source each result used.
 
