@@ -43,3 +43,16 @@ def test_pyproject_authors_match_citation():
 
     assert cited, "CITATION.cff lists no authors"
     assert [author["name"] for author in project["authors"]] == cited
+
+
+def test_readme_links_work_on_pypi():
+    # The README is also the PyPI project description, where relative links break (#98).
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    targets = re.findall(r"\]\(([^)\s]+)\)|(?:href|src)=\"([^\"]+)\"", readme)
+    links = [markdown or html for markdown, html in targets]
+    assert links
+    assert [link for link in links if not link.startswith("https://")] == []
+    # The documentation pages are linked on the documentation site, not as Markdown on GitHub.
+    assert [link for link in links if "/blob/main/docs/" in link] == []
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert project["urls"]["Documentation"] == "https://uadklab.github.io/proteomics-mcp/"
