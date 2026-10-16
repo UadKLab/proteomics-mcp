@@ -70,7 +70,7 @@
     }
   },
   "tools": [
-    { "name": "load_candidates", "description": "Load candidate/PSM tables from InstaNovo, FragPipe, Proteome Discoverer, or generic mapped tables." },
+    { "name": "load_candidates", "description": "Load candidate/PSM tables from InstaNovo, Casanovo, MaxQuant, FragPipe, Proteome Discoverer, or generic mapped tables." },
     { "name": "inspect_psm_table", "description": "Inspect a normalized PSM table." },
     { "name": "inspect_peptide_table", "description": "Inspect a collapsed peptide table." },
     { "name": "render_psm_table", "description": "Render a PSM table as HTML." },
