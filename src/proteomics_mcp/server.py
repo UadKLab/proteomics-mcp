@@ -227,8 +227,13 @@ if MCPServer is not None:
         pride_project_accession: str | None = None,
         timeout_seconds: float = 20.0,
         limit: int | None = None,
+        max_rows: int | None = None,
     ) -> dict[str, Any]:
-        """Inspect a normalized PSM table with dataset, confidence, run, and preview summaries."""
+        """Inspect a normalized PSM table with dataset, confidence, run, and preview summaries.
+
+        The summaries always cover the whole table; limit sets the number of preview rows (default 10). max_rows reads
+        only the first rows of a very large table, and the result then reports it (row_limit, warnings).
+        """
         return inspect_psm_table_tool(
             path=path,
             adapter=adapter,
@@ -238,6 +243,7 @@ if MCPServer is not None:
             pride_project_accession=pride_project_accession,
             timeout_seconds=timeout_seconds,
             limit=limit,
+            max_rows=max_rows,
         )
 
     @mcp.tool()
@@ -251,8 +257,13 @@ if MCPServer is not None:
         pride_project_accession: str | None = None,
         timeout_seconds: float = 20.0,
         limit: int | None = None,
+        max_rows: int | None = None,
     ) -> dict[str, Any]:
-        """Inspect the collapsed peptide table or return one peptide summary row by stripped sequence."""
+        """Inspect the collapsed peptide table or return one peptide summary row by stripped sequence.
+
+        The summaries always cover the whole table; limit sets the number of preview rows (default 10). max_rows reads
+        only the first rows of a very large table, and the result then reports it (row_limit, warnings).
+        """
         return inspect_peptide_table_tool(
             path=path,
             adapter=adapter,
@@ -263,6 +274,7 @@ if MCPServer is not None:
             pride_project_accession=pride_project_accession,
             timeout_seconds=timeout_seconds,
             limit=limit,
+            max_rows=max_rows,
         )
 
     @mcp.tool()

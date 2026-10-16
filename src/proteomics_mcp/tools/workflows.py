@@ -79,7 +79,19 @@ import pyarrow.feather as pyarrow_feather
 logger = logging.getLogger("proteomics_mcp")
 
 
-def _preview_records(frame: pd.DataFrame, limit: int = 10) -> list[dict[str, Any]]:
+DEFAULT_PREVIEW_ROWS = 10
+
+
+def _preview_size(limit: int | None) -> int:
+    """Preview rows of the inspect tools: limit, or DEFAULT_PREVIEW_ROWS."""
+    if limit is None:
+        return DEFAULT_PREVIEW_ROWS
+    if limit < 0:
+        raise ValueError(f"limit must be 0 or more, got {limit}.")
+    return int(limit)
+
+
+def _preview_records(frame: pd.DataFrame, limit: int = DEFAULT_PREVIEW_ROWS) -> list[dict[str, Any]]:
     if frame.empty:
         return []
     return json.loads(frame.head(limit).to_json(orient="records"))
@@ -378,10 +390,14 @@ def _load_candidate_frame(
     *,
     limit: int | None = None,
     scored_path: str | None = None,
+    limit_argument: str = "limit",
     **adapter_options: Any,
 ) -> pd.DataFrame:
+    """Candidate rows as a frame; limit reads only the first rows of the table, which the tool result then reports."""
     candidates = _load_candidate_models(path, adapter, limit=limit, **adapter_options)
     frame = candidate_models_to_frame(candidates)
+    if limit is not None:
+        _ROW_LIMIT.set({"argument": limit_argument, "row_limit": int(limit), "rows_analyzed": int(len(frame))})
     if scored_path:
         frame, summary = join_scored_enrichment(frame, load_scored_psm_table(scored_path))
         _SCORED_JOIN.set({"scored_path": scored_path, **summary})
@@ -391,23 +407,34 @@ def _load_candidate_frame(
     return frame
 
 
-# The join summary of the scored table loaded during the current tool call (see _reports_scored_join).
+# The join summary of the scored table loaded during the current tool call (see _reports_table_loading).
 _SCORED_JOIN: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("scored_join", default=None)
+# The row cap applied while loading the candidate table during the current tool call (see _reports_table_loading).
+_ROW_LIMIT: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("row_limit", default=None)
 
 
-def _reports_scored_join(func: Any) -> Any:
-    """Add how scored_path joined the candidates ("scored_join") to the tool result, with warnings if nothing matched
-    or if rows were left unmatched as ambiguous."""
+def _reports_table_loading(func: Any) -> Any:
+    """Add to the tool result how its candidate table was loaded.
+
+    - scored_join: how scored_path joined the candidates, with warnings if nothing matched or rows were ambiguous.
+    - row_limit: when a row cap was set, the rows analysed, with a warning that the results may not cover the whole
+      table (#82). Without a cap, every row is analysed and nothing is added.
+    """
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        token = _SCORED_JOIN.set(None)
+        join_token = _SCORED_JOIN.set(None)
+        limit_token = _ROW_LIMIT.set(None)
         try:
             result = func(*args, **kwargs)
             summary = _SCORED_JOIN.get()
+            row_limit = _ROW_LIMIT.get()
         finally:
-            _SCORED_JOIN.reset(token)
-        if summary is not None and isinstance(result, dict):
+            _SCORED_JOIN.reset(join_token)
+            _ROW_LIMIT.reset(limit_token)
+        if not isinstance(result, dict):
+            return result
+        if summary is not None:
             result["scored_join"] = summary
             if summary["scored_rows"] and summary["unmatched_scored_rows"] == summary["scored_rows"]:
                 result.setdefault("warnings", []).append(
@@ -421,6 +448,13 @@ def _reports_scored_join(func: Any) -> Any:
                     "peptidoform matches several candidate rows, another scored row, or a candidate already scored by "
                     "candidate_id; no match was guessed."
                 )
+        if row_limit is not None:
+            result["row_limit"] = row_limit
+            result.setdefault("warnings", []).append(
+                f"{row_limit['argument']}={row_limit['row_limit']}: only the first {row_limit['row_limit']} rows of the input table "
+                f"were read ({row_limit['rows_analyzed']} candidate rows analysed), so the results may not describe the whole table. "
+                f"Omit {row_limit['argument']} to analyse every row."
+            )
         return result
 
     return wrapper
@@ -542,7 +576,7 @@ def enrich_frame_with_spectra_metadata(
     }
 
 
-@_reports_scored_join
+@_reports_table_loading
 def inspect_psm_table_tool(
     *,
     path: str,
@@ -552,13 +586,19 @@ def inspect_psm_table_tool(
     pride_project_accession: str | None = None,
     timeout_seconds: float = 20.0,
     limit: int | None = None,
+    max_rows: int | None = None,
     **adapter_options: Any,
 ) -> dict[str, Any]:
+    """Summarise the whole table; limit sets the number of preview rows (default 10).
+
+    max_rows reads only the first rows of the table, e.g. for a quick look at a very large one; the result then says so.
+    """
     sdrf_summary = _resolve_sdrf_summary(sdrf_path=sdrf_path, pride_project_accession=pride_project_accession, timeout_seconds=timeout_seconds)
     inspection = summarize_candidate_inspection_frame(
-        _load_candidate_frame(path, adapter, limit=limit, scored_path=scored_path, **adapter_options),
+        _load_candidate_frame(path, adapter, limit=max_rows, scored_path=scored_path, limit_argument="max_rows", **adapter_options),
         sdrf_summary=sdrf_summary,
     )
+    preview_rows = _preview_size(limit)
     return {
         "dataset_metadata": inspection.dataset_summary["dataset_metadata"],
         "confidence_summary": inspection.dataset_summary["confidence_summary"],
@@ -566,12 +606,12 @@ def inspect_psm_table_tool(
         "sequence_summary": inspection.dataset_summary["sequence_summary"],
         "run_summary": inspection.dataset_summary["run_summary"],
         "sdrf_summary": inspection.dataset_summary["sdrf_summary"],
-        "psm_preview": _preview_records(inspection_psm_table(inspection)),
-        "peptide_preview": _preview_records(inspection_peptide_table(inspection)),
+        "psm_preview": _preview_records(inspection_psm_table(inspection), preview_rows),
+        "peptide_preview": _preview_records(inspection_peptide_table(inspection), preview_rows),
     }
 
 
-@_reports_scored_join
+@_reports_table_loading
 def inspect_peptide_table_tool(
     *,
     path: str,
@@ -582,11 +622,16 @@ def inspect_peptide_table_tool(
     pride_project_accession: str | None = None,
     timeout_seconds: float = 20.0,
     limit: int | None = None,
+    max_rows: int | None = None,
     **adapter_options: Any,
 ) -> dict[str, Any]:
+    """Summarise the whole table, or return one peptide's row; limit sets the number of preview rows (default 10).
+
+    max_rows reads only the first rows of the table; the result then says so.
+    """
     sdrf_summary = _resolve_sdrf_summary(sdrf_path=sdrf_path, pride_project_accession=pride_project_accession, timeout_seconds=timeout_seconds)
     inspection = summarize_candidate_inspection_frame(
-        _load_candidate_frame(path, adapter, limit=limit, scored_path=scored_path, **adapter_options),
+        _load_candidate_frame(path, adapter, limit=max_rows, scored_path=scored_path, limit_argument="max_rows", **adapter_options),
         sdrf_summary=sdrf_summary,
     )
     if peptide is not None:
@@ -598,11 +643,11 @@ def inspect_peptide_table_tool(
     return {
         "dataset_metadata": inspection.dataset_summary["dataset_metadata"],
         "scoring_summary": inspection.dataset_summary["scoring_summary"],
-        "peptide_preview": _preview_records(inspection_peptide_table(inspection)),
+        "peptide_preview": _preview_records(inspection_peptide_table(inspection), _preview_size(limit)),
     }
 
 
-@_reports_scored_join
+@_reports_table_loading
 def list_distribution_fields_tool(
     *,
     path: str,
@@ -615,7 +660,7 @@ def list_distribution_fields_tool(
     return distribution_field_catalog(frame)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_numeric_field_tool(
     *,
     path: str,
@@ -632,7 +677,7 @@ def summarize_numeric_field_tool(
     return summarize_numeric_distribution(frame, field=field, group_by=group_by, percentiles=percentiles, weight_field=weight_field)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def bin_numeric_field_tool(
     *,
     path: str,
@@ -659,7 +704,7 @@ def bin_numeric_field_tool(
     )
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_categorical_field_tool(
     *,
     path: str,
@@ -675,7 +720,7 @@ def summarize_categorical_field_tool(
     return summarize_categorical_distribution(frame, field=field, group_by=group_by, top_n=top_n)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_missing_values_tool(
     *,
     path: str,
@@ -689,7 +734,7 @@ def summarize_missing_values_tool(
     return summarize_missing_values(frame, fields=fields)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_cv_by_category_tool(
     *,
     path: str,
@@ -705,7 +750,7 @@ def summarize_cv_by_category_tool(
     return summarize_cv_by_category(frame, value_field=value_field, category_field=category_field, top_n=top_n)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def bin_2d_numeric_fields_tool(
     *,
     path: str,
@@ -734,7 +779,7 @@ def bin_2d_numeric_fields_tool(
     )
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_dashboard_tool(
     *,
     path: str,
@@ -759,7 +804,7 @@ def summarize_dashboard_tool(
     )
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_overlap_tool(
     *,
     path: str,
@@ -774,7 +819,7 @@ def summarize_overlap_tool(
     return summarize_overlap(frame, entity=entity, group_field=group_field)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_modifications_tool(
     *,
     path: str,
@@ -788,7 +833,7 @@ def summarize_modifications_tool(
     return summarize_modifications(frame, group_field=group_field)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_prediction_accuracy_tool(
     *,
     path: str,
@@ -820,7 +865,7 @@ def render_prediction_accuracy_html_tool(
     return {"format": "html", "output_path": str(output_path), "title": title}
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_quant_quality_tool(
     *,
     path: str,
@@ -837,7 +882,7 @@ def summarize_quant_quality_tool(
     return summarize_quant_quality(frame, quant_field=quant_field, entity=entity, group_field=group_field, min_groups_for_cv=min_groups_for_cv)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def summarize_file_coverage_tool(
     *,
     path: str,
@@ -872,7 +917,7 @@ def render_dashboard_html_tool(summary: dict[str, Any], output_path: str, title:
     return {"format": "html", "output_path": str(output_path), "title": title}
 
 
-@_reports_scored_join
+@_reports_table_loading
 def build_id_dashboard_tool(
     *,
     path: str,
@@ -1764,7 +1809,7 @@ def inspect_scored_batch_status_tool(manifest_path: str) -> dict[str, Any]:
     }
 
 
-@_reports_scored_join
+@_reports_table_loading
 def render_psm_table_tool(
     *,
     path: str,
@@ -1785,7 +1830,7 @@ def render_psm_table_tool(
     return render_psm_table_html(inspection, output_path)
 
 
-@_reports_scored_join
+@_reports_table_loading
 def render_peptide_table_tool(
     *,
     path: str,
