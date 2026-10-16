@@ -48,7 +48,10 @@ For HPC use, either run upstream inference/search on the cluster and inspect mou
 
 Supported adapters:
 
-- `instanovo`: legacy `preds`/`log_probs`, beam outputs, and current `instanovo_*`/`diffusion_*` variants.
+- `instanovo`: prediction CSVs of InstaNovo 1.0–1.2: transformer greedy and beam search (`preds`/`log_probs`, `predictions`/`log_probabilities`, `predictions`/`log_probs`), InstaNovo+ with and without refinement (`final_prediction`, `diffusion_predictions`, falling back to `transformer_predictions` where refinement produced nothing), verbose prediction columns, and combined runs. Notes:
+  - For MGF input (and mzML input in InstaNovo 1.0), InstaNovo's `scan_number` column holds the 0-based position of the spectrum in the file. The adapter recognises this (the column contains 0) and stores it as `spectrum_index`, which spectrum lookup uses by position within the run, instead of as a scan number. Convert the same MGF or mzML file with `mgf_to_feather` / `mzml_to_feather`.
+  - Confidence is the exponent of the sequence log-probability.
+  - Token log-probabilities of legacy beam-search files are aligned to the sequence.
 - `casanovo`: Casanovo prediction CSVs.
 - `maxquant`: `msms.txt` exports.
 - `fragpipe`: PSM tables including run/scan parsing from spectrum fields.
@@ -63,6 +66,18 @@ Supported adapters:
   `peptide_column` is required. The other keys are `scan_column`, `spectrum_id_column`, `usi_column`, `charge_column`, `precursor_mz_column`, `score_column`, `next_beam_column`, `next_beam_margin_column`, `next_score_column`, `next_score_margin_column`, `token_log_probabilities_column`, `score_type` (`confidence_0_1`, `posterior_error_probability`, `evalue`, `score_unscaled` or `unknown`, the default) and `source_engine` (default `generic`). The mapping is rejected for the named adapters.
 
 Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, match spectra using raw-file stem plus scan number rather than scan number alone.
+
+Recognised modification notations include:
+
+| Source | Examples |
+|---|---|
+| InstaNovo | `M(+15.99)`, `N(+.98)`, `(+42.01)PEPTIDE`, `[UNIMOD:35]` |
+| Casanovo | `+42.011PEPM+15.995K` |
+| MaxQuant `Modified sequence` | `_(ac)PEPM(ox)K_`, `_(Acetyl (Protein N-term))PEPM(Oxidation (M))K_` |
+| FragPipe | `Assigned Modifications` such as `N-term(42.0106), 5M(15.9949)`; `Modified Peptide` with total masses (`n[43]PEPTM[147]K`) or deltas |
+| Proteome Discoverer `Modifications` | `M1(Oxidation); N-Term(Acetyl)`, `1xTMT6plex [N-Term]; 2xCarbamidomethyl [C5; C12]` |
+
+Common modifications (acetyl, carbamidomethyl, carbamyl, deamidation, phospho, oxidation, pyro-Glu, ammonia loss, amidation, methyl, dimethyl, formyl, GG, iTRAQ4plex, TMT6plex/10plex/11plex, TMTpro) resolve without network access; other names and masses are looked up in the Unimod catalogue. A modification that cannot be resolved or placed, such as an unlocalised site (`1xPhospho [S/T]`), stays in the peptidoform as an explicit token (unlocalised ones as ProForma `[UNIMOD:21]?PEPSTK`). It is flagged as an unsupported modification rather than dropped, so the peptidoform is never silently scored as unmodified. MaxQuant `Modified sequence` omits fixed modifications (#101).
 
 ### Generic Mapping
 
@@ -106,7 +121,15 @@ JSON and TOML configuration files are accepted. Explicit tool arguments override
 
 Metrics include spectral angle, cosine similarity, Pearson correlation, XCorr/log2 XCorr, Hyperscore/log2 Hyperscore, matched ion count/fraction, explained intensity fraction, precursor signal fraction, observed annotation counts/intensity, and precursor/fragment mass error in Da and ppm.
 
-Spectral angle, cosine similarity and Pearson correlation compare the observed and predicted intensities of every predicted ion, with zero observed intensity where no peak matched (metric profile `v2`, the default). Unexplained predicted signal therefore lowers the score; when nothing matches, spectral angle and cosine are 0. Metric profile `legacy_v1` compares matched ions only, as in 0.1.10 and earlier, where a candidate that matches a single peak scores 1.0. Select it with `metric_profile = "legacy_v1"` in a configuration file to reproduce earlier scores.
+**Spectral angle, cosine and Pearson (metric profile `v2`, the default).** For a candidate with predicted fragment ions *i* = 1…*n*, let *p*ᵢ be the predicted intensity and *o*ᵢ the intensity of the observed peak matched to ion *i*, or 0 where no peak matched. Then:
+
+- cosine = Σ *o*ᵢ*p*ᵢ / (‖*o*‖ ‖*p*‖)
+- spectral angle (SA) = 1 − 2·arccos(cosine)/π, the normalised spectral contrast angle of Prosit (Gessulat et al., *Nat. Methods* 2019)
+- Pearson = the correlation between *o* and *p* over the same *n* ions, on raw (linear) intensities including the zeros. This is not MS2PIP's correlation of log-transformed intensities.
+
+The vectors span the predicted ions only: observed peaks that match no predicted ion are not counted. Unexplained predicted signal therefore lowers the score. When no predicted ion matches, SA = cosine = 0 and Pearson is null. Metric profile `legacy_v1` compares matched ions only, as in 0.1.10 and earlier, where a candidate that matches a single peak scores 1.0. Select it with `metric_profile = "legacy_v1"` in a configuration file to reproduce earlier scores.
+
+The precursor mass error (`precursor_mass_error_ppm`, `precursor_mass_error_da`) is the observed minus the theoretical monoisotopic precursor m/z. The theoretical mass includes every residue and terminal modification; when a modification cannot be resolved, the error is left empty rather than computed without it. Instruments sometimes select a 13C isotope peak as the precursor, which shows up as an error of about 1.003/z m/z. `precursor_isotope_error` (0, 1 or 2) gives the isotope peak closest to the observed m/z, and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` the error relative to that peak.
 
 **One-to-one matching applies only under `v2`.** Predicted ions are matched to observed peaks one to one: candidate pairs within tolerance are assigned closest first, so a peak shared by isobaric ions (for example b3 and y2) explains only one of them, and the other takes its next-closest free peak if there is one. Matched-ion counts, explained intensity (at most 1) and the hyperscore count each peak once. `legacy_v1` deliberately keeps the matching of 0.1.10, so 0.1.10 results still reproduce: every predicted ion takes its nearest peak, even one another ion also takes.
 

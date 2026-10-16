@@ -1,0 +1,5 @@
+scan_number,precursor_mz,precursor_charge,experiment_name,spectrum_id,diffusion_predictions_tokenised,diffusion_predictions,diffusion_log_probabilities
+0,419.314971923828,2,SF_200217_U2OS_TiO2_HCD_OT_rep1,SF_200217_U2OS_TiO2_HCD_OT_rep1:0,"['E', 'N', 'D', 'A', 'E', 'Y', 'D', 'Q', 'T', 'T', 'M[UNIMOD:35]', 'T', 'G', 'Y', 'D', 'V', 'V', 'V', 'N', 'S', 'S', 'L', 'Q', 'R']",ENDAEYDQTTM[UNIMOD:35]TGYDVVVNSSLQR,-0.009400038048624992
+1,473.985656738281,4,SF_200217_U2OS_TiO2_HCD_OT_rep1,SF_200217_U2OS_TiO2_HCD_OT_rep1:1,"['N', 'P', 'R', 'A', 'S', 'G', 'G', 'M', 'D', 'G', 'R', 'D', 'G', 'H', 'F', 'K', 'A', 'K']",NPRASGGMDGRDGHFKAK,-0.019194673746824265
+2,631.644775390625,3,SF_200217_U2OS_TiO2_HCD_OT_rep1,SF_200217_U2OS_TiO2_HCD_OT_rep1:2,"['H', 'F', 'D', 'K', 'I', 'L', 'V', 'H', 'M', 'E', 'E', 'M', 'D', 'Q', 'K']",HFDKILVHMEEMDQK,-0.004567917436361313
+1519,706.613830566406,3,SF_200217_U2OS_TiO2_HCD_OT_rep1,SF_200217_U2OS_TiO2_HCD_OT_rep1:1519,"['E', 'V', 'S[UNIMOD:21]', 'D', 'D', 'E', 'A', 'E', 'E', 'K', 'E', 'D', 'K', 'E', 'E', 'E', 'K']",EVS[UNIMOD:21]DDEAEEKEDKEEEK,1.8890244035674186e-08

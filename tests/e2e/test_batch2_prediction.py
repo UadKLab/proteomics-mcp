@@ -50,6 +50,10 @@ FIGURE2_LEGEND = {
 # Fragment mass errors are measured against the predicted fragment m/z. MS2PIP 4.2.0 moved those by ~4.6e-5 Da (b1 of E:
 # 130.04982 -> 130.04987, the theoretical value), so live values match the legend only with the 4.1.2 of the figures (#23).
 PREDICTED_MZ_DEPENDENT = ("fragment_mass_error_abs_mean_ppm", "fragment_mass_error_abs_mean_da")
+# Since #73 the theoretical precursor mass comes from exact residue masses instead of pyOpenMS, which moves the error by
+# about +0.006 ppm: -3.0555 -> -3.0495, printed -3.050 instead of -3.055. Packages with #73 report precursor_isotope_error.
+PRECURSOR_MASS_DEPENDENT = ("precursor_mass_error_ppm",)
+PRECURSOR_MASS_ATOL_PPM = 0.01
 
 LIBOMP_HINT = "brew install libomp"
 
@@ -146,13 +150,18 @@ def test_figure2_legend_values(tool, report, legacy_metrics, source):
     version_dependent = {}
     if source == "live" and Version(version("ms2pip")) != Version("4.1.2"):
         version_dependent = {m: mismatches.pop(m) for m in PREDICTED_MZ_DEPENDENT if m in mismatches}
+    if source == "live" and "precursor_isotope_error" in metrics:
+        for m in PRECURSOR_MASS_DEPENDENT:
+            if m in mismatches:
+                assert abs(metrics[m] - FIGURE2_LEGEND[m][0]) <= PRECURSOR_MASS_ATOL_PPM, (m, metrics[m])
+                version_dependent[m] = mismatches.pop(m)
     candidate = payload["metrics"]["candidate"]
     if round(candidate["confidence"] * 100, 1) != 100.0:
         mismatches["confidence"] = (candidate["confidence"], 100.0)
     if f"{candidate['raw_score']:.2e}" != "-2.80e-04":
         mismatches["raw_score"] = (candidate["raw_score"], -2.80e-4)
-    report("figures", f"Figure 2 legend values ({source})", "fail" if mismatches else "differs (#23)" if version_dependent else "pass",
-           {"mismatches": mismatches, "ms2pip": version("ms2pip"), "ms2pip_version_dependent": version_dependent})
+    report("figures", f"Figure 2 legend values ({source})", "fail" if mismatches else "differs (#23, #73)" if version_dependent else "pass",
+           {"mismatches": mismatches, "ms2pip": version("ms2pip"), "version_dependent": version_dependent})
     assert not mismatches, mismatches
 
 

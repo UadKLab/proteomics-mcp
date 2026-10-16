@@ -7,11 +7,13 @@ import numpy as np
 
 from proteomics_mcp.config import DEFAULT_METRIC_PROFILE, DEFAULT_MIN_PREDICTED_INTENSITY, METRIC_PROFILES
 from proteomics_mcp.core.acquisition import acquisition_metadata_summary, precursor_target_mz
-from proteomics_mcp.core.annotation import aa_sequence_from_proforma, annotate_observed_ions
+from proteomics_mcp.core.annotation import PROTON_MASS, annotate_observed_ions, peptidoform_neutral_mass
 from proteomics_mcp.core.metrics import cosine_similarity, hyperscore, mean, pearson_correlation, spectral_angle, xcorr_like
 from proteomics_mcp.models.schemas import CandidatePSM, MatchedPeak, ObservedSpectrum, PredictedFragment, PredictedSpectrum, SpectrumMetricResult
 
 NEUTRON_MASS = 1.00335484
+# Isotope peaks the instrument may have selected as precursor instead of the monoisotopic one (MSFragger's default).
+PRECURSOR_ISOTOPE_ERRORS = (0, 1, 2)
 
 
 def ppm_error(observed_mz: float, predicted_mz: float) -> float:
@@ -169,18 +171,48 @@ def scored_fragment_indices(fragments: list[PredictedFragment], metric_profile: 
     return [index for index in with_signal if fragments[index].intensity >= threshold]
 
 
+def theoretical_precursor_mz(peptidoform: str, charge: int | None) -> float | None:
+    """Monoisotopic m/z of the peptidoform at this charge, or None if its mass cannot be computed."""
+    if charge is None or charge <= 0:
+        return None
+    mass = peptidoform_neutral_mass(peptidoform)
+    if mass is None:
+        return None
+    return (mass + int(charge) * PROTON_MASS) / int(charge)
+
+
 def precursor_mass_errors(peptidoform: str, charge: int | None, observed_precursor_mz: float | None) -> tuple[float | None, float | None]:
-    if charge is None or charge <= 0 or observed_precursor_mz is None or not math.isfinite(observed_precursor_mz):
+    """Observed minus theoretical monoisotopic precursor m/z, in ppm and in m/z units."""
+    if observed_precursor_mz is None or not math.isfinite(observed_precursor_mz):
         return None, None
-    seq = aa_sequence_from_proforma(peptidoform)
-    if seq is None:
-        return None, None
-    theoretical_mz = float(seq.getMZ(int(charge)))
-    if theoretical_mz == 0:
+    theoretical_mz = theoretical_precursor_mz(peptidoform, charge)
+    if theoretical_mz is None:
         return None, None
     error_da = observed_precursor_mz - theoretical_mz
     error_ppm = error_da / theoretical_mz * 1e6
     return error_ppm, error_da
+
+
+def precursor_isotope_corrected_errors(
+    peptidoform: str,
+    charge: int | None,
+    observed_precursor_mz: float | None,
+    isotope_errors: tuple[int, ...] = PRECURSOR_ISOTOPE_ERRORS,
+) -> tuple[int | None, float | None, float | None]:
+    """Precursor error against the isotope peak closest to the observed m/z.
+
+    Returns (isotope_error, error_ppm, error_da). isotope_error is the number of 13C atoms by which the selected
+    precursor peak exceeds the monoisotopic one; the errors are relative to that peak.
+    """
+    if observed_precursor_mz is None or not math.isfinite(observed_precursor_mz):
+        return None, None, None
+    theoretical_mz = theoretical_precursor_mz(peptidoform, charge)
+    if theoretical_mz is None:
+        return None, None, None
+    candidates = [(isotope, theoretical_mz + isotope * NEUTRON_MASS / int(charge)) for isotope in isotope_errors]
+    isotope, isotope_mz = min(candidates, key=lambda item: abs(observed_precursor_mz - item[1]))
+    error_da = observed_precursor_mz - isotope_mz
+    return isotope, error_da / isotope_mz * 1e6, error_da
 
 
 def score_candidate_spectrum(
@@ -221,6 +253,9 @@ def score_candidate_spectrum(
     charge = candidate.precursor_charge or observed.precursor_charge or predicted.precursor_charge
     observed_precursor_mz = candidate.precursor_mz or precursor_target_mz(observed)
     precursor_error_ppm, precursor_error_da = precursor_mass_errors(candidate.peptidoform, charge, observed_precursor_mz)
+    isotope_error, corrected_error_ppm, corrected_error_da = precursor_isotope_corrected_errors(
+        candidate.peptidoform, charge, observed_precursor_mz
+    )
     hyperscore_value = hyperscore(len(matches), matched_observed, matched_predicted)
     log2_hyperscore = math.log2(hyperscore_value) if hyperscore_value is not None and hyperscore_value > 0 else None
     annotation_summary: dict[str, object] = {"engine": "internal_predicted_fragment_matcher", "matched_predicted_fragment_count": len(matches)}
@@ -260,6 +295,9 @@ def score_candidate_spectrum(
         fragment_mass_error_abs_mean_da=mean(abs(v) for v in da_errors),
         precursor_mass_error_ppm=precursor_error_ppm,
         precursor_mass_error_da=precursor_error_da,
+        precursor_isotope_error=isotope_error,
+        precursor_mass_error_corrected_ppm=corrected_error_ppm,
+        precursor_mass_error_corrected_da=corrected_error_da,
         # predicted_index refers to predicted.fragments, which the renderers draw, not to the scored subset
         matched_peaks=[dataclasses.replace(match, predicted_index=scored[match.predicted_index]) for match in matches],
         metric_profile=metric_profile,
