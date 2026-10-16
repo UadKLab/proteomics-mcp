@@ -13,6 +13,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
   - Proteome Discoverer: the `1xTMT6plex [N-Term]; 2xCarbamidomethyl [C5; C12]` notation, sites checked against the residue, and Met-loss no longer subtracted twice.
   - `summarize_prediction_accuracy` strips modifications in every notation.
 - **Unplaceable modifications are flagged, not dropped:** a modification that cannot be resolved or placed stays in the peptidoform as an explicit token, and `parse_peptidoform` flags any text it cannot place as an unsupported modification ([#75](https://github.com/UadKLab/proteomics-mcp/issues/75)).
+- **w-ion masses:** C-terminal fragments (x, y, z, w) took the residue at the wrong end of the peptide as their cleavage-site residue. So w and w-alt ions lost the side chain of the wrong residue, and the `residue` reported for x/y/z/w fragments was wrong in every peptide longer than two residues. Observed-spectrum annotation with `ion_types=all` or `exotic` changes: 20 of the 25 reference payloads get different w-ion assignments, annotated peak counts and annotated intensity fractions. Scores are not affected ([#79](https://github.com/UadKLab/proteomics-mcp/issues/79)).
 
 ### Added
 
