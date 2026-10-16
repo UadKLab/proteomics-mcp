@@ -209,6 +209,11 @@ def parse_peptidoform(peptidoform: str) -> ParsedPeptidoform:
             if end == -1:
                 unsupported_modification = True
                 break
+            if text[end + 1 : end + 2] == "?":
+                # ProForma unknown-position modification, "[Phospho]?PEPSK": its site cannot be placed.
+                unsupported_modification = True
+                i = end + 2
+                continue
             token = text[i + 1 : end]
             delta = _mod_delta(token, residues[-1] if residues else None)
             if residues:
@@ -238,6 +243,10 @@ def parse_peptidoform(peptidoform: str) -> ParsedPeptidoform:
             residue_mod_names.append([])
             residue_mod_deltas.append([])
             pending_nterm = False
+        elif ch != "-":
+            # Anything else (a non-standard residue, or modification text outside brackets such as "(+42.01)") would
+            # otherwise be skipped without a trace.
+            unsupported_modification = True
         i += 1
     return ParsedPeptidoform(
         residues=residues,
