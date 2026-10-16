@@ -133,15 +133,27 @@ def load_spectrum_from_table(
     scan_number: int | None = None,
     spectrum_id: str | None = None,
     experiment_name: str | None = None,
+    spectrum_index: int | None = None,
 ) -> ObservedSpectrum:
+    """Look up one spectrum by scan number, else by 0-based position within its run, else by spectrum id."""
     frame = load_spectrum_table(path)
     candidates = frame
+    run_matched = False
     if experiment_name is not None and "source_file" in frame.columns:
         source_stems = frame["source_file"].map(_source_stem)
         filtered = frame[source_stems == str(experiment_name)]
         if not filtered.empty:
             candidates = filtered
-    if scan_number is not None:
+            run_matched = True
+    if scan_number is None and spectrum_index is not None:
+        # A position is only meaningful within one run, in the order of the source file.
+        runs = frame["source_file"].map(_source_stem).nunique() if "source_file" in frame.columns else 1
+        if not run_matched and runs > 1:
+            raise LookupError(f"Spectrum index {spectrum_index} needs a run name that matches one of the {runs} runs in the table.")
+        if not 0 <= int(spectrum_index) < len(candidates):
+            raise LookupError(f"Spectrum index {spectrum_index} is outside the run's {len(candidates)} spectra.")
+        candidates = candidates.iloc[[int(spectrum_index)]]
+    elif scan_number is not None:
         if "scan_number" in candidates.columns:
             candidates = candidates[candidates["scan_number"].astype(int) == int(scan_number)]
         elif "scan" in candidates.columns:

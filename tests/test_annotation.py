@@ -58,6 +58,33 @@ def test_terminal_and_exotic_ions_match_reference_table():
                 assert abs(c_terminal[label]["mz"] - float(value)) < 1e-5
 
 
+def test_side_chain_ions_use_the_cleavage_site_residue_in_longer_peptides():
+    # With two residues, the first and last residue of a C-terminal fragment coincide; use longer fragments (#79).
+    table = Path(__file__).parent / "fixtures" / "residue_ion_reference.csv"
+    rows = {row["residue"]: row for row in csv.DictReader(table.read_text(encoding="utf-8").splitlines())}
+    glycine = float(rows["G"]["residue_mass"])
+
+    for residue, row in rows.items():
+        # N-terminal fragment G-G-X of GGXG: d3 loses part of X's side chain.
+        n_terminal = {f["annotation"]: f for f in generate_terminal_fragments(f"GG{residue}G", ion_types="all", max_ion_charge=1)}
+        # C-terminal fragment X-G-G of GXGG: w3 loses part of X's side chain.
+        c_terminal = {f["annotation"]: f for f in generate_terminal_fragments(f"G{residue}GG", ion_types="all", max_ion_charge=1)}
+        for label, column, fragments in (
+            ("d3+", "d_primary_mz_1plus", n_terminal),
+            ("d-alt3+", "d_alt_mz_1plus", n_terminal),
+            ("w3+", "w_primary_mz_1plus", c_terminal),
+            ("w-alt3+", "w_alt_mz_1plus", c_terminal),
+        ):
+            if row[column]:
+                assert abs(fragments[label]["mz"] - (float(row[column]) + 2 * glycine)) < 1e-5, (residue, label)
+
+
+def test_c_terminal_fragments_report_their_first_residue():
+    fragments = generate_terminal_fragments("GPLAK", ion_types="y", max_ion_charge=1)
+
+    assert {f["annotation"]: f["residue"] for f in fragments} == {"y4+": "P", "y3+": "L", "y2+": "A", "y1+": "K"}
+
+
 def test_exotic_annotations_contribute_to_observed_signal():
     d_fragment = next(fragment for fragment in generate_terminal_fragments("IG", ion_types="exotic", max_ion_charge=1) if fragment["annotation"] == "d1+")
     observed = ObservedSpectrum(mz=[d_fragment["mz"], 900.0], intensity=[25.0, 75.0], precursor_charge=2)
