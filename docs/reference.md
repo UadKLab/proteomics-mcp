@@ -121,7 +121,13 @@ JSON and TOML configuration files are accepted. Explicit tool arguments override
 
 Metrics include spectral angle, cosine similarity, Pearson correlation, XCorr/log2 XCorr, Hyperscore/log2 Hyperscore, matched ion count/fraction, explained intensity fraction, precursor signal fraction, observed annotation counts/intensity, and precursor/fragment mass error in Da and ppm.
 
-Spectral angle, cosine similarity and Pearson correlation compare the observed and predicted intensities of every predicted ion, with zero observed intensity where no peak matched (metric profile `v2`, the default). Unexplained predicted signal therefore lowers the score; when nothing matches, spectral angle and cosine are 0. Metric profile `legacy_v1` compares matched ions only, as in 0.1.10 and earlier, where a candidate that matches a single peak scores 1.0. Select it with `metric_profile = "legacy_v1"` in a configuration file to reproduce earlier scores.
+**Spectral angle, cosine and Pearson (metric profile `v2`, the default).** For a candidate with predicted fragment ions *i* = 1…*n*, let *p*ᵢ be the predicted intensity and *o*ᵢ the intensity of the observed peak matched to ion *i*, or 0 where no peak matched. Then:
+
+- cosine = Σ *o*ᵢ*p*ᵢ / (‖*o*‖ ‖*p*‖)
+- spectral angle (SA) = 1 − 2·arccos(cosine)/π, the normalised spectral contrast angle of Prosit (Gessulat et al., *Nat. Methods* 2019)
+- Pearson = the correlation between *o* and *p* over the same *n* ions, on raw (linear) intensities including the zeros. This is not MS2PIP's correlation of log-transformed intensities.
+
+The vectors span the predicted ions only: observed peaks that match no predicted ion are not counted. Unexplained predicted signal therefore lowers the score. When no predicted ion matches, SA = cosine = 0 and Pearson is null. Metric profile `legacy_v1` compares matched ions only, as in 0.1.10 and earlier, where a candidate that matches a single peak scores 1.0. Select it with `metric_profile = "legacy_v1"` in a configuration file to reproduce earlier scores.
 
 The precursor mass error (`precursor_mass_error_ppm`, `precursor_mass_error_da`) is the observed minus the theoretical monoisotopic precursor m/z. The theoretical mass includes every residue and terminal modification; when a modification cannot be resolved, the error is left empty rather than computed without it. Instruments sometimes select a 13C isotope peak as the precursor, which shows up as an error of about 1.003/z m/z. `precursor_isotope_error` (0, 1 or 2) gives the isotope peak closest to the observed m/z, and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` the error relative to that peak.
 
