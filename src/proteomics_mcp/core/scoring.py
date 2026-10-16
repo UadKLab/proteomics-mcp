@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import dataclasses
 import math
 
 import numpy as np
 
-from proteomics_mcp.config import DEFAULT_METRIC_PROFILE, METRIC_PROFILES
+from proteomics_mcp.config import DEFAULT_METRIC_PROFILE, DEFAULT_MIN_PREDICTED_INTENSITY, METRIC_PROFILES
 from proteomics_mcp.core.acquisition import acquisition_metadata_summary, precursor_target_mz
 from proteomics_mcp.core.annotation import PROTON_MASS, annotate_observed_ions, peptidoform_neutral_mass
 from proteomics_mcp.core.metrics import cosine_similarity, hyperscore, mean, pearson_correlation, spectral_angle, xcorr_like
@@ -153,6 +154,23 @@ def _similarity_metrics(
     return angle, cosine, pearson
 
 
+def scored_fragment_indices(fragments: list[PredictedFragment], metric_profile: str, min_predicted_intensity: float) -> list[int]:
+    """Indices of the predicted fragments that are scored.
+
+    Predictors give every possible ion an intensity, and ions predicted to be absent get a tiny positive one (Prosit
+    down to ~1e-8, MS2PIP 2**x - 0.001) or 0. Under v2, fragments without a finite positive intensity, and those below
+    min_predicted_intensity times the most intense one, are left out (#83): they would count as predicted ions, and
+    could be matched to noise peaks. legacy_v1 scores every fragment, as 0.1.10 did, for every predictor.
+    """
+    if metric_profile == "legacy_v1":
+        return list(range(len(fragments)))
+    with_signal = [index for index, fragment in enumerate(fragments) if math.isfinite(fragment.intensity) and fragment.intensity > 0]
+    if not with_signal or min_predicted_intensity <= 0:
+        return with_signal
+    threshold = min_predicted_intensity * max(fragments[index].intensity for index in with_signal)
+    return [index for index in with_signal if fragments[index].intensity >= threshold]
+
+
 def theoretical_precursor_mz(peptidoform: str, charge: int | None) -> float | None:
     """Monoisotopic m/z of the peptidoform at this charge, or None if its mass cannot be computed."""
     if charge is None or charge <= 0:
@@ -205,20 +223,23 @@ def score_candidate_spectrum(
     tolerance: float = 0.05,
     tolerance_unit: str = "Da",
     metric_profile: str = DEFAULT_METRIC_PROFILE,
+    min_predicted_intensity: float = DEFAULT_MIN_PREDICTED_INTENSITY,
     annotation_ion_types: str = "by",
     annotation_max_isotope: int = 1,
     annotation_max_ion_charge: int | None = None,
     annotation_neutral_losses: bool = False,
     use_observed_annotation: bool = True,
 ) -> SpectrumMetricResult:
+    scored = scored_fragment_indices(predicted.fragments, metric_profile, min_predicted_intensity)
+    fragments = [predicted.fragments[index] for index in scored]
     matches = match_predicted_to_observed(
-        observed, predicted.fragments, tolerance=tolerance, tolerance_unit=tolerance_unit, one_to_one=metric_profile != "legacy_v1"
+        observed, fragments, tolerance=tolerance, tolerance_unit=tolerance_unit, one_to_one=metric_profile != "legacy_v1"
     )
-    angle, cosine, pearson = _similarity_metrics(matches, predicted.fragments, metric_profile)
+    angle, cosine, pearson = _similarity_metrics(matches, fragments, metric_profile)
     matched_observed = [m.observed_intensity for m in matches]
     matched_predicted = [m.predicted_intensity for m in matches]
-    predicted_mz = [f.mz for f in predicted.fragments]
-    predicted_int = [f.intensity for f in predicted.fragments]
+    predicted_mz = [f.mz for f in fragments]
+    predicted_int = [f.intensity for f in fragments]
     xcorr = xcorr_like(observed.mz, observed.intensity, predicted_mz, predicted_int)
     log10_xcorr = math.log10(xcorr) if xcorr is not None and xcorr > 0 else None
     log2_xcorr = math.log2(xcorr) if xcorr is not None and xcorr > 0 else None
@@ -228,7 +249,7 @@ def score_candidate_spectrum(
     explained = (matched_intensity + isotope_intensity) / total_intensity if total_intensity > 0 else None
     ppm_errors = [ppm_error(m.observed_mz, m.predicted_mz) for m in matches if m.predicted_mz != 0]
     da_errors = [m.observed_mz - m.predicted_mz for m in matches]
-    total_predicted = len(predicted.fragments)
+    total_predicted = len(fragments)
     charge = candidate.precursor_charge or observed.precursor_charge or predicted.precursor_charge
     observed_precursor_mz = candidate.precursor_mz or precursor_target_mz(observed)
     precursor_error_ppm, precursor_error_da = precursor_mass_errors(candidate.peptidoform, charge, observed_precursor_mz)
@@ -277,12 +298,14 @@ def score_candidate_spectrum(
         precursor_isotope_error=isotope_error,
         precursor_mass_error_corrected_ppm=corrected_error_ppm,
         precursor_mass_error_corrected_da=corrected_error_da,
-        matched_peaks=matches,
+        # predicted_index refers to predicted.fragments, which the renderers draw, not to the scored subset
+        matched_peaks=[dataclasses.replace(match, predicted_index=scored[match.predicted_index]) for match in matches],
         metric_profile=metric_profile,
         predictor_metadata={"predictor_name": predicted.predictor_name, "predictor_version": predicted.predictor_version, "model": predicted.model},
         annotation_settings={
             "tolerance": tolerance,
             "tolerance_unit": tolerance_unit,
+            "min_predicted_intensity": 0.0 if metric_profile == "legacy_v1" else min_predicted_intensity,
             "annotation_ion_types": annotation_ion_types,
             "annotation_max_isotope": annotation_max_isotope,
             "annotation_max_ion_charge": annotation_max_ion_charge,

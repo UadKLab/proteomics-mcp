@@ -138,6 +138,10 @@ The precursor mass error (`precursor_mass_error_ppm`, `precursor_mass_error_da`)
 
 **One-to-one matching applies only under `v2`.** Predicted ions are matched to observed peaks one to one: candidate pairs within tolerance are assigned closest first, so a peak shared by isobaric ions (for example b3 and y2) explains only one of them, and the other takes its next-closest free peak if there is one. Matched-ion counts, explained intensity (at most 1) and the hyperscore count each peak once. `legacy_v1` deliberately keeps the matching of 0.1.10, so 0.1.10 results still reproduce: every predicted ion takes its nearest peak, even one another ion also takes.
 
+**Predicted-ion cut-off (definition change in 0.2.0).** Predictors give every possible ion an intensity, and ions they expect to be absent get a tiny one (Prosit down to about 1e-8 of the base peak; for MS2PIP, `2^x − 0.001`) or 0. About a third of the predicted ions of a typical peptide fall below 0.1% of the base peak. Under `v2`, a predicted ion is scored only if its intensity is positive and at least `min_predicted_intensity` (default `0.001`) times the most intense predicted ion. The other ions do not count in `total_predicted_ions` and cannot be matched to noise peaks. `total_predicted_ions`, `matched_ion_count` and `matched_ion_fraction` therefore refer to the ions predicted above the cut-off. For example, the Figure 2 PSM (`EFHLNESGDPSSK`) has 22 of 24 predicted ions matched without the cut-off and 18 of 18 with it.
+
+Some ions below the cut-off do appear in the observed spectrum at low intensity. Set `min_predicted_intensity = 0` to score every ion with a positive intensity. `legacy_v1` applies no cut-off and scores every predicted ion, reproducing 0.1.10 for MS2PIP and Koina predictions. Rendered spectra still draw every predicted fragment.
+
 Observed-spectrum annotation is implemented internally. It supports standard terminal-ion families, exotic families, immonium ions, reporter ions, precursor-related peaks, isotope variants, and optional neutral losses. Use `ion_types=by` for b/y ions, `all` for the broad set, or `exotic` for exotic terminal-ion families.
 
 ## Rendering

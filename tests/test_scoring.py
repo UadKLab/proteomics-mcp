@@ -327,3 +327,124 @@ def test_one_to_one_matching_keeps_nearest_peaks_without_competition():
     nearest = match_predicted_to_observed(observed, fragments, tolerance=0.05, one_to_one=False)
 
     assert [(m.annotation, m.observed_index) for m in one_to_one] == [(m.annotation, m.observed_index) for m in nearest]
+
+
+def _with_near_absent_ion() -> PredictedSpectrum:
+    # y2 is predicted to be absent (1e-5 of the base peak), as predictors report for most possible ions.
+    return PredictedSpectrum(
+        peptidoform="PEPTIDEK",
+        precursor_charge=2,
+        predictor_name="mock",
+        fragments=[
+            PredictedFragment(mz=200.0, intensity=1.0, annotation="y1+", ion_type="y", ordinal=1),
+            PredictedFragment(mz=300.0, intensity=1e-5, annotation="y2+", ion_type="y", ordinal=2),
+            PredictedFragment(mz=400.0, intensity=0.5, annotation="y3+", ion_type="y", ordinal=3),
+        ],
+    )
+
+
+def test_near_absent_predicted_ions_are_not_scored():
+    # The noise peak at 300.0 would otherwise count as a matched ion and as explained intensity (#83).
+    observed = ObservedSpectrum(mz=[200.0, 300.0, 400.0], intensity=[100.0, 40.0, 50.0])
+
+    result = _score(observed, _with_near_absent_ion(), "v2")
+
+    assert result.total_predicted_ions == 2
+    assert result.matched_ion_count == 2
+    assert result.explained_intensity_fraction == pytest.approx(150.0 / 190.0)
+    # matched peaks still index the full predicted spectrum, which renderers draw
+    assert sorted(m.predicted_index for m in result.matched_peaks) == [0, 2]
+    assert result.annotation_settings["min_predicted_intensity"] == 0.001
+
+
+def test_legacy_v1_scores_every_predicted_ion():
+    observed = ObservedSpectrum(mz=[200.0, 300.0, 400.0], intensity=[100.0, 40.0, 50.0])
+
+    result = _score(observed, _with_near_absent_ion(), "legacy_v1")
+
+    assert result.total_predicted_ions == 3
+    assert result.matched_ion_count == 3
+    assert result.explained_intensity_fraction == pytest.approx(1.0)
+
+
+def test_min_predicted_intensity_zero_scores_every_ion():
+    observed = ObservedSpectrum(mz=[200.0, 300.0, 400.0], intensity=[100.0, 40.0, 50.0])
+    candidate = CandidatePSM(candidate_id="c1", source_engine="test", peptidoform="PEPTIDEK", precursor_charge=2)
+
+    result = score_candidate_spectrum(
+        candidate=candidate, observed=observed, predicted=_with_near_absent_ion(), min_predicted_intensity=0.0, use_observed_annotation=False
+    )
+
+    assert result.total_predicted_ions == 3
+
+
+@pytest.mark.parametrize("value", [-0.1, 1.0, 2.0])
+def test_min_predicted_intensity_must_be_a_fraction(value):
+    with pytest.raises(ValueError, match="min_predicted_intensity"):
+        load_config(overrides={"min_predicted_intensity": value})
+
+
+@pytest.mark.parametrize("intensity", [0.0, -0.01, float("nan")])
+def test_v2_never_scores_fragments_without_predicted_signal(intensity):
+    observed = ObservedSpectrum(mz=[200.0, 300.0, 400.0], intensity=[100.0, 40.0, 50.0])
+    predicted = _with_near_absent_ion()
+    predicted.fragments[1].intensity = intensity
+    candidate = CandidatePSM(candidate_id="c1", source_engine="test", peptidoform="PEPTIDEK", precursor_charge=2)
+
+    result = score_candidate_spectrum(
+        candidate=candidate, observed=observed, predicted=predicted, min_predicted_intensity=0.0, use_observed_annotation=False
+    )
+
+    assert result.total_predicted_ions == 2
+
+
+def test_legacy_v1_scores_zero_intensity_koina_fragments_as_0_1_10(monkeypatch, tmp_path):
+    # The Koina parser keeps zero-intensity fragments, as 0.1.10 did, so legacy_v1 reproduces 0.1.10 for Koina too.
+    import json
+
+    from proteomics_mcp.predictors import koina
+
+    class _Response:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def read(self):
+            return json.dumps(self._payload).encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    def fake_urlopen(req, timeout):
+        if req.data is None:
+            return _Response(
+                {
+                    "name": "Prosit_2020_intensity_HCD",
+                    "inputs": [
+                        {"name": "peptide_sequences", "datatype": "BYTES", "shape": [-1, -1]},
+                        {"name": "precursor_charges", "datatype": "INT32", "shape": [-1, 1]},
+                        {"name": "collision_energies", "datatype": "FP32", "shape": [-1, 1]},
+                    ],
+                }
+            )
+        return _Response(
+            {
+                "model_version": "1",
+                "outputs": [
+                    {"name": "mz", "shape": [1, 3], "data": [200.0, 300.0, 400.0]},
+                    {"name": "intensities", "shape": [1, 3], "data": [1.0, 0.0, 0.5]},
+                    {"name": "annotation", "shape": [1, 3], "data": ["y1+1", "y2+1", "y3+1"]},
+                ],
+            }
+        )
+
+    monkeypatch.setattr(koina, "_urlopen", fake_urlopen)
+    koina._describe_koina_model_cached.cache_clear()
+    predicted = koina.predict_fragments_koina("PEPTIDEK", 2, model="Prosit_2020_intensity_HCD", cache_dir=str(tmp_path))
+    observed = ObservedSpectrum(mz=[200.0, 300.0, 400.0], intensity=[100.0, 40.0, 50.0])
+
+    assert [fragment.intensity for fragment in predicted.fragments] == [1.0, 0.0, 0.5]
+    assert _score(observed, predicted, "legacy_v1").total_predicted_ions == 3
+    assert _score(observed, predicted, "v2").total_predicted_ions == 2
