@@ -328,6 +328,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output-path", required=True)
     p.add_argument("--format", default="ipc", choices=["ipc", "parquet"])
     p.add_argument("--sequence-column")
+    p.add_argument("--drop-unlabelled", action="store_true", help="leave out spectra without a sequence (needs --sequence-column)")
     p = sub.add_parser("annotate-observed-spectrum")
     p.add_argument("--spectrum-json", required=True)
     p.add_argument("--peptidoform", required=True)
@@ -843,6 +844,7 @@ def main(argv: list[str] | None = None) -> None:
                     args.output_path,
                     output_format=args.format,
                     sequence_column=args.sequence_column,
+                    drop_unlabelled=args.drop_unlabelled,
                 ),
                 indent=2,
             )

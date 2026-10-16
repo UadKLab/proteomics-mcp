@@ -14,10 +14,23 @@ def export_table_to_instanovo(
     *,
     output_format: str = "ipc",
     sequence_column: str | None = None,
+    drop_unlabelled: bool = False,
 ) -> dict[str, Any]:
+    """Write a spectrum table in InstaNovo's input layout.
+
+    With sequence_column, spectra without a sequence get a null sequence; InstaNovo refuses such a table as annotated
+    data. drop_unlabelled leaves those spectra out, for a labelled training or evaluation set.
+    """
+    if drop_unlabelled and not sequence_column:
+        raise ValueError("drop_unlabelled needs sequence_column: without sequences, every spectrum is unlabelled.")
     frame = load_spectrum_table(input_path)
     export = _build_instanovo_frame(frame, sequence_column=sequence_column)
     dropped = len(frame) - len(export)
+    dropped_unlabelled = 0
+    if drop_unlabelled:
+        labelled = export["sequence"].notna()
+        dropped_unlabelled = int((~labelled).sum())
+        export = export[labelled].reset_index(drop=True)
     output_path = Path(output_path)
     output_format = str(output_format).strip().lower()
     if output_format == "ipc":
@@ -33,6 +46,7 @@ def export_table_to_instanovo(
         "spectra_written": int(len(export)),
         # spectra without precursor m/z or charge, which InstaNovo needs
         "spectra_dropped_without_precursor": int(dropped),
+        "spectra_dropped_unlabelled": dropped_unlabelled,
         "columns": export.columns.tolist(),
         "sequence_included": "sequence" in export.columns,
         # written as null, not as a sequence: unlabelled spectra in a labelled export
