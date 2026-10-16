@@ -203,14 +203,19 @@ if MCPServer is not None:
         path: str,
         adapter: str = "instanovo",
         column_mapping_path: str | None = None,
+        fixed_modifications: str | None = None,
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """Normalize an upstream candidate or identification table into the canonical PSM schema.
 
         For adapter="generic", column_mapping_path is a JSON file mapping the table's columns,
         e.g. {"peptide_column": "Sequence", "scan_column": "Scan"}; see method://generic_mapping_v1.
+        For adapter="maxquant", fixed_modifications lists MaxQuant's fixed modifications, e.g. "Carbamidomethyl (C)"
+        (";"-separated; "" for none). Without it they are read from the parameters.txt or mqpar.xml next to msms.txt;
+        if neither exists, each candidate carries a warning.
         """
-        return load_candidates_tool(path, adapter, column_mapping_path=column_mapping_path, limit=limit)
+        return load_candidates_tool(path, adapter, column_mapping_path=column_mapping_path,
+                                    fixed_modifications=fixed_modifications, limit=limit)
 
     @mcp.tool()
     def inspect_psm_table(

@@ -53,7 +53,7 @@ Supported adapters:
   - Confidence is the exponent of the sequence log-probability.
   - Token log-probabilities of legacy beam-search files are aligned to the sequence.
 - `casanovo`: Casanovo prediction CSVs.
-- `maxquant`: `msms.txt` exports.
+- `maxquant`: `msms.txt` exports. MaxQuant's `Modified sequence` lists only variable modifications, so fixed ones (typically `Carbamidomethyl (C)`) are read from the `parameters.txt` or `mqpar.xml` next to the table, including a prefixed copy such as `maxquant_parameters.txt` for `maxquant_msms.txt`. To set them explicitly, pass `fixed_modifications` (MCP `load_candidates`) or `--fixed-modifications` (CLI `load-candidates`) in MaxQuant notation, `;`-separated (`""` for none). They are added to every matching residue or terminus without a variable modification; protein-terminal ones cannot be placed from `msms.txt` and give a warning. If neither source is available, peptidoforms are left as they are and every candidate carries a warning in `warnings`. Each peptidoform's mass is also checked against MaxQuant's `Mass` column, and a difference above 0.01 Da adds a warning to that candidate.
 - `fragpipe`: PSM tables including run/scan parsing from spectrum fields.
 - `proteome_discoverer`: PSM exports, including `.xlsx`.
 - `generic`: CSV, TSV, or XLSX using explicit column mappings. Pass a JSON mapping file with `--column-mapping` (CLI) or `column_mapping_path` (MCP), on any command or tool that takes an adapter:
@@ -77,7 +77,7 @@ Recognised modification notations include:
 | FragPipe | `Assigned Modifications` such as `N-term(42.0106), 5M(15.9949)`; `Modified Peptide` with total masses (`n[43]PEPTM[147]K`) or deltas |
 | Proteome Discoverer `Modifications` | `M1(Oxidation); N-Term(Acetyl)`, `1xTMT6plex [N-Term]; 2xCarbamidomethyl [C5; C12]` |
 
-Common modifications (acetyl, carbamidomethyl, carbamyl, deamidation, phospho, oxidation, pyro-Glu, ammonia loss, amidation, methyl, dimethyl, formyl, GG, iTRAQ4plex, TMT6plex/10plex/11plex, TMTpro) resolve without network access; other names and masses are looked up in the Unimod catalogue. A modification that cannot be resolved or placed, such as an unlocalised site (`1xPhospho [S/T]`), stays in the peptidoform as an explicit token (unlocalised ones as ProForma `[UNIMOD:21]?PEPSTK`). It is flagged as an unsupported modification rather than dropped, so the peptidoform is never silently scored as unmodified. MaxQuant `Modified sequence` omits fixed modifications (#101).
+Common modifications (acetyl, carbamidomethyl, carbamyl, deamidation, phospho, oxidation, pyro-Glu, ammonia loss, amidation, methyl, dimethyl, formyl, GG, iTRAQ4plex, TMT6plex/10plex/11plex, TMTpro) resolve without network access; other names and masses are looked up in the Unimod catalogue. A modification that cannot be resolved or placed, such as an unlocalised site (`1xPhospho [S/T]`), stays in the peptidoform as an explicit token (unlocalised ones as ProForma `[UNIMOD:21]?PEPSTK`). It is flagged as an unsupported modification rather than dropped, so the peptidoform is never silently scored as unmodified. MaxQuant fixed modifications come from the run's parameters (see `maxquant` above).
 
 ### Generic Mapping
 
