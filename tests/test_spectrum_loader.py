@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
-
 import pytest
 
 from proteomics_mcp.core import spectrum_loader
@@ -150,3 +150,134 @@ def test_usi_spectrum_scores_with_precursor_signal_fraction(monkeypatch):
     result = score_spectrum_tool(payload["metrics"]["candidate"], observed, payload["predicted"])
 
     assert result["precursor_signal_fraction"] == pytest.approx(payload["metrics"]["precursor_signal_fraction"], abs=1e-3)
+
+
+@pytest.mark.parametrize(
+    ("identifier", "expected"),
+    [
+        ("controllerType=0 controllerNumber=1 scan=42", 42),
+        ("mzspec:PXD044934:run:scan:11648", 11648),
+        ("Run 7, scans: 1234", 1234),
+        ("QE-HF-01.5000.5000.2", 5000),
+        ("demo.42.42.2.dta", 42),
+        ("SF_run:1501", 1501),
+        ("1501", 1501),
+        ("1501-1503", 1501),
+        ("index=17", 17),
+        # no single scan number: SCIEX and Bruker native IDs (#76)
+        ("sample=1 period=1 cycle=812 experiment=3", None),
+        ("merged=102 frame=5 scanStart=300 scanEnd=500", None),
+        (float("nan"), None),
+    ],
+)
+def test_parse_scan_number(identifier, expected):
+    assert spectrum_loader.parse_scan_number(identifier) == expected
+
+
+def _spectra_table(path, rows):
+    defaults = {"precursor_mz": 500.0, "precursor_charge": 2, "mz_array": [100.0], "intensity_array": [1.0]}
+    pd.DataFrame([{**defaults, **row} for row in rows]).to_feather(path)
+    return path
+
+
+def test_unknown_run_in_a_multi_run_table_is_an_error(tmp_path):
+    table = _spectra_table(
+        tmp_path / "s.feather",
+        [{"source_file": "a.mzML", "scan_number": 5, "spectrum_id": "x"}, {"source_file": "b.mzML", "scan_number": 5, "spectrum_id": "y"}],
+    )
+
+    with pytest.raises(LookupError, match="run name"):
+        load_spectrum_from_table(table, scan_number=5, experiment_name="typo_run")
+
+
+def test_a_single_run_table_answers_for_a_differently_named_run(tmp_path):
+    table = _spectra_table(tmp_path / "s.feather", [{"source_file": "renamed.mzML", "scan_number": 5, "spectrum_id": "x"}])
+
+    assert load_spectrum_from_table(table, scan_number=5, experiment_name="original_name").scan_number == 5
+
+
+def test_scan_matching_different_spectra_is_an_error(tmp_path):
+    table = _spectra_table(
+        tmp_path / "s.feather",
+        [
+            {"source_file": "a.mzML", "scan_number": 5, "spectrum_id": "x", "mz_array": [100.0]},
+            {"source_file": "b.mzML", "scan_number": 5, "spectrum_id": "y", "mz_array": [200.0]},
+        ],
+    )
+
+    with pytest.raises(LookupError, match="2 different spectra match scan 5"):
+        load_spectrum_from_table(table, scan_number=5)
+
+
+def test_identical_copies_of_a_spectrum_are_not_ambiguous(tmp_path):
+    # MGF charge-state enumeration: the same spectrum written once per candidate charge.
+    table = _spectra_table(
+        tmp_path / "s.feather",
+        [
+            {"source_file": "a.mgf", "scan_number": 5, "spectrum_id": "a.5.5.2", "precursor_charge": 2},
+            {"source_file": "a.mgf", "scan_number": 5, "spectrum_id": "a.5.5.3", "precursor_charge": 3},
+        ],
+    )
+
+    assert load_spectrum_from_table(table, scan_number=5).mz == [100.0]
+
+
+def test_spectrum_without_charge_loads(tmp_path):
+    # Missing values read from Feather are NaN, which crashed int() (#76).
+    table = _spectra_table(
+        tmp_path / "s.feather",
+        [{"source_file": "a.mgf", "scan_number": 5, "spectrum_id": "x", "precursor_charge": None, "rt": None}],
+    )
+
+    observed = load_spectrum_from_table(table, scan_number=5)
+
+    assert observed.precursor_charge is None
+    assert observed.rt_seconds is None
+
+
+class _FakeTimsTOF:
+    """The AlphaTims tables bruker_d_to_feather reads, for three ddaPASEF precursors."""
+
+    def __init__(self, path):
+        self.frames = pd.DataFrame({"Id": [1, 2, 3], "Time": [10.0, 10.1, 10.2]})
+        # ScanNumber is the mean TIMS scan position; 162.9 and 162.4 both truncate to 162.
+        self.precursors = pd.DataFrame(
+            {
+                "Id": [1, 2, 3],
+                "MonoisotopicMz": [500.0, 600.0, 700.0],
+                "Charge": [2, np.nan, 3],
+                "ScanNumber": [162.9, 162.4, 300.5],
+                "Parent": [1, 1, 1],
+            }
+        )
+        self.fragment_frames = pd.DataFrame(
+            {"Frame": [2, 2, 3], "Precursor": [1, 2, 3], "IsolationMz": [500.0, 600.0, 700.0], "IsolationWidth": [2.0] * 3,
+             "CollisionEnergy": [30.0, 30.0, 35.0]}
+        )
+        self.mz_values = np.array([100.0, 200.0, 300.0, 400.0])
+        self.mobility_values = np.linspace(1.6, 0.6, 1000)  # 1/K0 falls along the scan axis
+
+    def index_precursors(self):
+        indptr = np.array([0, 0, 2, 4, 6])
+        return indptr, np.array([0, 1, 1, 2, 2, 3]), np.array([10.0, 20.0, 30.0, 40.0, 50.0, 60.0])
+
+
+def test_bruker_precursors_get_unique_scan_numbers_and_inverse_mobility(monkeypatch, tmp_path):
+    alphatims_bruker = pytest.importorskip("alphatims.bruker")
+    monkeypatch.setattr(alphatims_bruker, "TimsTOF", _FakeTimsTOF)
+    d_path = tmp_path / "run.d"
+    d_path.mkdir()
+    output = tmp_path / "run.feather"
+
+    spectrum_loader.bruker_d_to_feather(d_path, output)
+    table = pd.read_feather(output)
+
+    # The precursor Id, not the truncated scan position, identifies each MS2 spectrum (#95).
+    assert table["scan_number"].tolist() == [1, 2, 3]
+    assert table["scan_index"].tolist() == [162.9, 162.4, 300.5]
+    expected = np.interp([162.9, 162.4, 300.5], np.arange(1000), np.linspace(1.6, 0.6, 1000))
+    assert np.allclose(table["mobility"], expected)
+    assert table["mobility"].between(0.6, 1.6).all()
+    uncharged = load_spectrum_from_table(output, scan_number=2)
+    assert uncharged.precursor_mz == 600.0
+    assert uncharged.precursor_charge is None

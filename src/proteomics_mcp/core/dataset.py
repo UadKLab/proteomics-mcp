@@ -460,7 +460,8 @@ def distribution_field_catalog(frame: pd.DataFrame) -> dict[str, Any]:
     categorical_fields: list[str] = []
 
     for column in frame.columns:
-        if column.startswith("__") or column == "source_columns":
+        # warnings holds per-row messages (lists of text), not a field to plot
+        if column.startswith("__") or column in {"source_columns", "warnings"}:
             continue
         numeric = pd.to_numeric(frame[column], errors="coerce")
         if numeric.notna().any():
