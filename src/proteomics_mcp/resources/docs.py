@@ -53,7 +53,9 @@ relative to that peak.
 The profile preserves the sidecar-style formulas where practical while normalizing all outputs into SpectrumMetricResult.""",
     "method://candidate_schema_v1": "Canonical candidate schema normalizes upstream engines into peptide/peptidoform, scan/spectrum identifiers, raw score, optional 0-1 confidence, and token-confidence summaries. Supported adapters include instanovo, casanovo, maxquant, fragpipe, proteome_discoverer, and generic mapped tables.",
     "schema://candidate_psm_v1": """CandidatePSM fields:
-candidate_id, source_engine, source_engine_version, experiment_name, scan_number, spectrum_id, usi, peptidoform, precursor_mz, precursor_charge, rank, raw_score, raw_score_name, next_beam, next_beam_margin, confidence, token_log_probabilities, token_log_probability_mean, token_log_probability_min, token_confidences, token_confidence_mean, token_confidence_min, token_confidence_min_position, token_confidence_min_token, source_columns.
+candidate_id, source_engine, source_engine_version, experiment_name, scan_number, spectrum_id, usi, peptidoform, precursor_mz, precursor_charge, rank, raw_score, raw_score_name, next_beam, next_beam_margin, confidence, token_log_probabilities, token_log_probability_mean, token_log_probability_min, token_confidences, token_confidence_mean, token_confidence_min, token_confidence_min_position, token_confidence_min_token, source_columns, warnings.
+
+`warnings` lists problems found while reading the row that may make its peptidoform or scores wrong, e.g. MaxQuant fixed modifications that could not be applied.
 
 For InstaNovo beam outputs, `next_beam` is the beam-1 confidence on a 0-1 scale and `next_beam_margin` is `confidence - next_beam`. Search-engine score deltas remain in source_columns rather than being presented as beams.""",
     "schema://observed_spectrum_v1": """ObservedSpectrum fields:
