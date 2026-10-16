@@ -183,3 +183,11 @@ def cli():
 @pytest.fixture(scope="session")
 def report():
     return record
+
+
+@pytest.fixture(scope="session")
+def legacy_metrics(tmp_path_factory) -> Path:
+    """Config that selects metric profile legacy_v1, under which the reference payloads and the figures were scored (#72)."""
+    path = tmp_path_factory.mktemp("config") / "legacy_metrics.json"
+    path.write_text(json.dumps({"metric_profile": "legacy_v1"}))
+    return path

@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 
+from proteomics_mcp.config import DEFAULT_METRIC_PROFILE, METRIC_PROFILES
 from proteomics_mcp.core.acquisition import acquisition_metadata_summary, precursor_target_mz
 from proteomics_mcp.core.annotation import PROTON_MASS, annotate_observed_ions, peptidoform_neutral_mass
 from proteomics_mcp.core.metrics import cosine_similarity, hyperscore, mean, pearson_correlation, spectral_angle, xcorr_like
@@ -114,6 +115,35 @@ def _isotope_intensity(observed: ObservedSpectrum, matches: list[MatchedPeak], t
     return extra
 
 
+def similarity_vectors(
+    matches: list[MatchedPeak], fragments: list[PredictedFragment], metric_profile: str = DEFAULT_METRIC_PROFILE
+) -> tuple[list[float], list[float]]:
+    """Return the (observed, predicted) intensity vectors that spectral angle, cosine and Pearson compare.
+
+    legacy_v1 uses the matched predicted ions only, so a candidate matching a single peak scores 1.0 (#72).
+    v2 uses every predicted ion, with zero observed intensity where no peak matched.
+    """
+    if metric_profile == "legacy_v1":
+        return [m.observed_intensity for m in matches], [m.predicted_intensity for m in matches]
+    if metric_profile == "v2":
+        observed = [0.0] * len(fragments)
+        for match in matches:
+            observed[match.predicted_index] = match.observed_intensity
+        return observed, [f.intensity for f in fragments]
+    raise ValueError(f"Unknown metric_profile {metric_profile!r}; expected one of {', '.join(METRIC_PROFILES)}.")
+
+
+def _similarity_metrics(
+    matches: list[MatchedPeak], fragments: list[PredictedFragment], metric_profile: str
+) -> tuple[float | None, float | None, float | None]:
+    observed, predicted = similarity_vectors(matches, fragments, metric_profile)
+    angle, cosine, pearson = spectral_angle(observed, predicted), cosine_similarity(observed, predicted), pearson_correlation(observed, predicted)
+    if metric_profile == "v2" and not matches and any(value > 0 for value in predicted):
+        # Nothing matched: the observed vector is all zeros, so the spectra share no signal.
+        angle, cosine = 0.0, 0.0
+    return angle, cosine, pearson
+
+
 def theoretical_precursor_mz(peptidoform: str, charge: int | None) -> float | None:
     """Monoisotopic m/z of the peptidoform at this charge, or None if its mass cannot be computed."""
     if charge is None or charge <= 0:
@@ -165,7 +195,7 @@ def score_candidate_spectrum(
     predicted: PredictedSpectrum,
     tolerance: float = 0.05,
     tolerance_unit: str = "Da",
-    metric_profile: str = "legacy_v1",
+    metric_profile: str = DEFAULT_METRIC_PROFILE,
     annotation_ion_types: str = "by",
     annotation_max_isotope: int = 1,
     annotation_max_ion_charge: int | None = None,
@@ -173,6 +203,7 @@ def score_candidate_spectrum(
     use_observed_annotation: bool = True,
 ) -> SpectrumMetricResult:
     matches = match_predicted_to_observed(observed, predicted.fragments, tolerance=tolerance, tolerance_unit=tolerance_unit)
+    angle, cosine, pearson = _similarity_metrics(matches, predicted.fragments, metric_profile)
     matched_observed = [m.observed_intensity for m in matches]
     matched_predicted = [m.predicted_intensity for m in matches]
     predicted_mz = [f.mz for f in predicted.fragments]
@@ -213,9 +244,9 @@ def score_candidate_spectrum(
             annotation_summary.update({"engine": "proteomics_mcp_terminal_ion_annotator", "annotation_error": str(exc)})
     return SpectrumMetricResult(
         candidate=candidate,
-        spectral_angle=spectral_angle(matched_observed, matched_predicted),
-        cosine_similarity=cosine_similarity(matched_observed, matched_predicted),
-        pearson_correlation=pearson_correlation(matched_observed, matched_predicted),
+        spectral_angle=angle,
+        cosine_similarity=cosine,
+        pearson_correlation=pearson,
         xcorr=xcorr,
         log10_xcorr=log10_xcorr,
         log2_xcorr=log2_xcorr,

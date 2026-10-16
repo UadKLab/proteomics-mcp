@@ -45,11 +45,12 @@ def _settings(payload: dict) -> dict:
 
 
 @pytest.mark.parametrize("name", PAYLOADS, ids=IDS)
-def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, name):
+def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, legacy_metrics, name):
     """Scoring engine only: the stored observed spectrum and stored prediction must reproduce the stored metrics."""
     payload = _load(name)
     is_error, result = tool("score_spectrum", {"candidate": payload["metrics"]["candidate"], "observed": payload["observed"],
-                                               "predicted": payload["predicted"], **_settings(payload)})
+                                               "predicted": payload["predicted"], "config_path": str(legacy_metrics),
+                                               **_settings(payload)})
     assert not is_error, result
     deltas = {m: abs(result[m] - payload["metrics"][m]) for m in METRICS if payload["metrics"].get(m) is not None}
 
@@ -61,7 +62,8 @@ def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, name):
     s = _settings(payload)
     args = ["score-spectrum", "--candidate-json", str(files["candidate"]), "--spectrum-json", str(files["spectrum"]),
             "--predicted-json", str(files["predicted"]), "--tolerance", str(s["tolerance"]), "--tolerance-unit", s["tolerance_unit"],
-            "--annotation-ion-types", s["annotation_ion_types"], "--annotation-max-isotope", str(s["annotation_max_isotope"])]
+            "--annotation-ion-types", s["annotation_ion_types"], "--annotation-max-isotope", str(s["annotation_max_isotope"]),
+            "--config", str(legacy_metrics)]
     if s["annotation_neutral_losses"]:
         args.append("--annotation-neutral-losses")
     completed = cli(*args)
@@ -167,3 +169,32 @@ def test_render_spectra_batch_reads_gzip_json_lines(tool, report, tmp_path):
     report("spectra", "render_spectra_batch from .jsonl.gz", "pass" if not is_error else "fail (#45)", {"result": str(result)[:300]})
     assert not is_error, result
     assert (result["items_requested"], result["valid_items"]) == (len(PAYLOADS), len(PAYLOADS))
+
+
+def test_default_profile_scores_a_single_matched_peak_below_one(tool, report):
+    """The default metric profile end to end (#72): keep only the observed peak matched to the strongest predicted ion.
+
+    Under v2 the spectral angle is 1 - 2*arccos(p_max / ||p||)/pi; under legacy_v1 it would be 1.0.
+    """
+    import math
+
+    payload = _load(next(name for name in PAYLOADS if "scan_11648" in name))  # the Figure 2 PSM
+    stored = payload["metrics"]
+    fragments = payload["predicted"]["fragments"]
+    strongest = max(range(len(fragments)), key=lambda index: fragments[index]["intensity"])
+    match = next((m for m in stored["matched_peaks"] if m["predicted_index"] == strongest), None)
+    assert match is not None, "the strongest predicted ion of the reference payload is matched"
+    observed = {**payload["observed"], "mz": [match["observed_mz"]], "intensity": [match["observed_intensity"]]}
+
+    is_error, result = tool("score_spectrum", {"candidate": stored["candidate"], "observed": observed, "predicted": payload["predicted"],
+                                               **_settings(payload)})
+    assert not is_error, result
+    if result.get("metric_profile") != "v2":
+        pytest.skip(f"installed package defaults to metric profile {result.get('metric_profile')!r}")
+    norm = math.sqrt(sum(f["intensity"] ** 2 for f in fragments))
+    expected = 1 - 2 * math.acos(fragments[strongest]["intensity"] / norm) / math.pi
+    report("spectra", "default profile: one matched peak (#72)", "pass" if abs(result["spectral_angle"] - expected) < 1e-9 else "fail",
+           {"spectral_angle": result["spectral_angle"], "expected": expected, "matched_ion_count": result["matched_ion_count"]})
+    assert result["matched_ion_count"] == 1
+    assert result["spectral_angle"] == pytest.approx(expected, abs=1e-9)
+    assert result["spectral_angle"] < 0.9

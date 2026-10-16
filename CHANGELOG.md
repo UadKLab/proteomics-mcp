@@ -4,6 +4,10 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Changed
+
+- **Spectral angle, cosine and Pearson** compare every predicted ion, with zero observed intensity for ions that matched no peak (metric profile `v2`, now the default). Before, only matched ions were compared, so a wrong candidate that matched a single peak scored 1.0, and on real data wrong candidates scored higher than correct ones. Scores change for every PSM with unmatched predicted ions. Set `metric_profile = "legacy_v1"` in a configuration file to reproduce scores from 0.1.10 and earlier, including the manuscript figures ([#72](https://github.com/UadKLab/proteomics-mcp/issues/72)).
+
 ### Fixed
 
 - **InstaNovo export:** `export_to_instanovo` wrote missing sequences as the strings `"None"` / `"nan"`, which InstaNovo accepts as peptide labels for training and evaluation. They are now null: InstaNovo 1.3.0 then refuses the table as annotated data instead of using fake labels. `sequences_missing` and `spectra_dropped_without_precursor` report what was not written as a labelled spectrum, and the new `drop_unlabelled` option (CLI `--drop-unlabelled`) leaves out spectra without a sequence, for a labelled training or evaluation set. Missing run names and spectrum ids also became `"None"` / `"nan"`; they now fall back per row to the source file name and `<run>:<scan>` ([#80](https://github.com/UadKLab/proteomics-mcp/issues/80)).

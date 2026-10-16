@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import math
+
+import numpy as np
 import pytest
 
 from proteomics_mcp.adapters import modifications
+from proteomics_mcp.config import load_config
 from proteomics_mcp.core.acquisition import acquisition_metadata_summary
 from proteomics_mcp.core.scoring import (
     match_predicted_to_observed,
@@ -38,7 +42,7 @@ def test_score_candidate_spectrum_returns_broad_metrics():
 
     result = score_candidate_spectrum(candidate=candidate, observed=observed, predicted=predicted)
 
-    assert result.metric_profile == "legacy_v1"
+    assert result.metric_profile == "v2"
     assert result.matched_ion_count == 2
     assert result.total_predicted_ions == 2
     assert result.matched_ion_fraction == 1.0
@@ -192,3 +196,83 @@ def test_acquisition_does_not_treat_instrument_model_as_detector_type():
 
     assert summary["instrument_model"] == "Orbitrap Fusion Lumos"
     assert summary["detector_type"] is None
+
+
+def _ten_y_ions() -> PredictedSpectrum:
+    fragments = [
+        PredictedFragment(mz=100.0 + 100.0 * i, intensity=1.0, annotation=f"y{i}+", ion_type="y", ordinal=i) for i in range(1, 11)
+    ]
+    return PredictedSpectrum(peptidoform="PEPTIDEK", precursor_charge=2, predictor_name="mock", fragments=fragments)
+
+
+def _score(observed: ObservedSpectrum, predicted: PredictedSpectrum, metric_profile: str):
+    candidate = CandidatePSM(candidate_id="c1", source_engine="test", peptidoform="PEPTIDEK", precursor_charge=2)
+    return score_candidate_spectrum(
+        candidate=candidate, observed=observed, predicted=predicted, metric_profile=metric_profile, use_observed_annotation=False
+    )
+
+
+def test_similarity_counts_unmatched_predicted_ions_as_zero():
+    # One of ten equally intense predicted ions matches a peak (#72).
+    observed = ObservedSpectrum(mz=[200.0], intensity=[50.0])
+
+    result = _score(observed, _ten_y_ions(), "v2")
+
+    assert result.matched_ion_count == 1
+    assert result.cosine_similarity == pytest.approx(1 / math.sqrt(10))
+    assert result.spectral_angle == pytest.approx(1 - 2 * math.acos(1 / math.sqrt(10)) / math.pi)
+    assert result.spectral_angle < 0.25
+
+
+def test_pearson_includes_unmatched_predicted_ions():
+    predicted = _ten_y_ions()
+    for i, fragment in enumerate(predicted.fragments, start=1):
+        fragment.intensity = float(i)
+    observed = ObservedSpectrum(mz=[1000.0, 1100.0], intensity=[40.0, 50.0])
+
+    result = _score(observed, predicted, "v2")
+
+    expected = np.corrcoef([0.0] * 8 + [40.0, 50.0], [float(i) for i in range(1, 11)])[0, 1]
+    assert result.pearson_correlation == pytest.approx(expected)
+    assert _score(observed, predicted, "legacy_v1").pearson_correlation == pytest.approx(1.0)
+
+
+def test_legacy_v1_profile_compares_matched_ions_only():
+    observed = ObservedSpectrum(mz=[200.0], intensity=[50.0])
+
+    result = _score(observed, _ten_y_ions(), "legacy_v1")
+
+    assert result.metric_profile == "legacy_v1"
+    assert result.spectral_angle == pytest.approx(1.0)
+    assert result.cosine_similarity == pytest.approx(1.0)
+
+
+def test_similarity_is_one_when_every_predicted_ion_matches_in_proportion():
+    observed = ObservedSpectrum(mz=[100.0 + 100.0 * i for i in range(1, 11)], intensity=[7.0] * 10)
+
+    for profile in ("v2", "legacy_v1"):
+        result = _score(observed, _ten_y_ions(), profile)
+        assert result.spectral_angle == pytest.approx(1.0)
+        assert result.cosine_similarity == pytest.approx(1.0)
+
+
+def test_similarity_without_matches_is_zero():
+    observed = ObservedSpectrum(mz=[55.0], intensity=[50.0])
+
+    result = _score(observed, _ten_y_ions(), "v2")
+
+    assert result.matched_ion_count == 0
+    assert result.spectral_angle == 0.0
+    assert result.cosine_similarity == 0.0
+    assert result.pearson_correlation is None
+
+
+def test_unknown_metric_profile_is_rejected():
+    with pytest.raises(ValueError, match="metric_profile"):
+        load_config(overrides={"metric_profile": "v3"})
+    with pytest.raises(ValueError, match="metric_profile"):
+        _score(ObservedSpectrum(mz=[200.0], intensity=[50.0]), _ten_y_ions(), "v3")
+
+
+def test_default_metric_profile_is_v2():
+    assert load_config().metric_profile == "v2"
