@@ -22,7 +22,7 @@ It turns heterogeneous de novo and search-engine outputs into one usable workflo
 - On-demand spectrum scoring, observed-spectrum annotation, three interactive HTML views, and publication-ready static SVG/PDF/PNG spectrum figures.
 - PSM/peptide tables, structured dataset summaries, dashboards, SDRF context, and resumable batch prediction/scoring artifacts.
 
-The package does not run local InstaNovo inference, perform FDR/q-value analysis, or carry out protein inference.
+The package reads the output of de novo sequencing and database search engines (InstaNovo, Casanovo, MaxQuant, FragPipe, Proteome Discoverer, or a mapped table); it does not run them. It also does not perform FDR/q-value analysis or protein inference.
 
 ## Quick Start
 

@@ -66,6 +66,12 @@ matches, spectral_angle and cosine_similarity are 0.0 and pearson_correlation is
 Matching is one to one: each observed peak explains at most one predicted ion, assigned closest first, so a peak shared
 by isobaric ions (e.g. b3/y2) counts once and explained_intensity_fraction is at most 1.
 
+Predicted-ion cut-off: a predicted ion is scored only if its intensity is positive and at least min_predicted_intensity
+(default 0.001) times the most intense predicted ion. Predictors give ions they expect to be absent a tiny intensity or
+0, and those would count in total_predicted_ions and could be matched to noise. total_predicted_ions,
+matched_ion_count and matched_ion_fraction therefore refer to the ions above the cut-off. Set
+min_predicted_intensity = 0 to score every ion with a positive intensity; legacy_v1 applies no cut-off.
+
 Select a profile with metric_profile in a JSON or TOML config file passed as config_path (CLI: --config).""",
     "method://candidate_schema_v1": "Canonical candidate schema normalizes upstream engines into peptide/peptidoform, scan/spectrum identifiers, raw score, optional 0-1 confidence, and token-confidence summaries. Supported adapters include instanovo, casanovo, maxquant, fragpipe, proteome_discoverer, and generic mapped tables.",
     "schema://candidate_psm_v1": """CandidatePSM fields:
@@ -87,7 +93,7 @@ candidate, spectral_angle, cosine_similarity, pearson_correlation, xcorr, log10_
 
 MCP score_spectrum also includes metric_summary, an agent-oriented grouping with match_quality, predicted_match_evidence, observed_annotation_evidence, mass_error, candidate, and acquisition fields. A backward-compatible ion_evidence group is retained as a merged view. Acquisition summary includes fragmentation_method, isolation_target_mz, retention_time_seconds/minutes, collision_energy, FAIMS compensation voltage, injection time, scan_header, scan_resolution, instrument_model, and detector_type when available from the scan header or fallbacks.""",
     "config://proteomics_mcp_v1": """Config file keys, JSON or TOML:
-predictor_backend, predictor_model, ms2pip_model (legacy alias), max_fragment_charge, koina_server_url, koina_timeout_seconds, koina_collision_energy, koina_fragmentation_type, koina_instrument_type, koina_batch_size, koina_cache_dir, tolerance, tolerance_unit, usi_backend, metric_profile, annotation_ion_types, annotation_max_isotope, annotation_max_ion_charge, annotation_neutral_losses.
+predictor_backend, predictor_model, ms2pip_model (legacy alias), max_fragment_charge, koina_server_url, koina_timeout_seconds, koina_collision_energy, koina_fragmentation_type, koina_instrument_type, koina_batch_size, koina_cache_dir, tolerance, tolerance_unit, usi_backend, metric_profile, min_predicted_intensity, annotation_ion_types, annotation_max_isotope, annotation_max_ion_charge, annotation_neutral_losses.
 
 If max_fragment_charge is omitted, MS2PIP predictions use charge <= precursor_charge - 1 where the selected/resolved model supports those ion types. For HCD/CID precursor charge > 2, the wrapper can resolve to HCDch2/CIDch2 to include charge-2 fragments. Koina-backed Prosit models additionally depend on collision energy, fragmentation type, instrument type, and the selected remote model identifier.
 
@@ -119,7 +125,7 @@ For multi-run local data, prefer joining by experiment_name/raw-file stem plus s
 - koina: remote prediction through a Koina server, including Prosit-family models selected by predictor_model.
 - mock: deterministic lightweight predictor for tests and offline workflow checks.
 
-InstaNovo is treated as an upstream candidate generator in v1, not as a local inference backend. The canonical public Koina/Prosit path is backend='koina' plus a model name such as Prosit_2020_intensity_HCD. Use describe_predictor_model before a new Koina model: it retrieves that model's live input/output schema and reports whether the currently supported input fields are sufficient.""",
+These predict fragment intensities for a given peptidoform. The de novo sequencing and database search engines (InstaNovo, Casanovo, MaxQuant, FragPipe, Proteome Discoverer) are upstream inputs: their result tables are read through adapters, and none of them is run by this package. The canonical public Koina/Prosit path is backend='koina' plus a model name such as Prosit_2020_intensity_HCD. Use describe_predictor_model before a new Koina model: it retrieves that model's live input/output schema and reports whether the currently supported input fields are sufficient.""",
     "method://terminal_ion_annotation_v1": """proteomics-mcp terminal-ion annotation is used as an independent observed-spectrum annotation summary in the scoring path and as a standalone MCP tool.
 
 The primary match schema remains proteomics-mcp MatchedPeak, based on predicted-fragment to observed-peak matching. The internal annotator contributes annotation_summary fields including annotated peak count, annotated observed-intensity fraction, ion-type counts, per-peak labels, and detailed observed/theoretical m/z error evidence.
