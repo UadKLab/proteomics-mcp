@@ -29,6 +29,10 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 - **Isotope-corrected precursor error:** `precursor_isotope_error` (0, 1 or 2) and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` report the error relative to the 13C isotope peak closest to the observed m/z. Before, a precursor selected on its second isotope peak showed an error of hundreds of ppm ([#73](https://github.com/UadKLab/proteomics-mcp/issues/73)).
 - **Per-candidate `warnings`:** problems found while reading a row that may make its peptidoform or scores wrong. MaxQuant candidates are checked against MaxQuant's `Mass` column; a difference above 0.01 Da is reported there ([#101](https://github.com/UadKLab/proteomics-mcp/issues/101)).
 
+### Changed
+
+- **Faster peptide summaries:** the best PSM of each peptide and peptidoform was found by sorting every group separately. The table is now ranked once and each group takes its lowest rank, with the same order and ties as before. On the manuscript's FragPipe table (52,530 PSMs, 27,603 peptides), `summarize_candidate_inspection_frame`, behind `inspect_psm_table` and `render_psm_table`, takes 10 s instead of 131 s, and `summarize_dataset_frame` 37 s instead of 228 s. The summaries are identical ([#68](https://github.com/UadKLab/proteomics-mcp/issues/68)).
+
 ## [0.1.10] - 2026-10-14
 
 Fixes from the end-to-end check of the published package on the manuscript's public data ([#30](https://github.com/UadKLab/proteomics-mcp/issues/30)). This is the version cited in the manuscript. How scores, annotations and metrics are computed is unchanged.
