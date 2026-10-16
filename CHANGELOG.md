@@ -21,6 +21,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
   - **InstaNovo+ refined files:** `final_prediction` is used. Where refinement produced nothing, the transformer prediction is used instead of dropping the row (39% of rows in 1.1.0-alpha refined files).
   - **Confidence:** a log-probability just above 0 (e.g. 1.9e-08) gave a confidence of 1.9e-08 instead of 1.
   - **Beam files:** `next_beam` is read in every layout, when the beams rank alternatives to the reported prediction. Token log-probabilities of 1.0.x/1.1.x beam files are aligned to the sequence: they carry a trailing extra value, and 1.1.x stores them in reverse order.
+- **HTML escaping:** run names, spectrum ids, peptides, file names, titles and summary keys and values were written into HTML reports as-is. A value containing `</script>` or `<img onerror=...>` broke the page or ran script when the report was opened. Text is now HTML-escaped. JSON in `<script>` blocks (Plotly figures, embedded CSV, spectrum payloads) escapes `<`, `>` and `&`, which keeps the data unchanged. This covers PSM and peptide tables, table browse, summary, dashboard, prediction accuracy, dataset report and spectrum pages ([#78](https://github.com/UadKLab/proteomics-mcp/issues/78)).
 
 ### Added
 

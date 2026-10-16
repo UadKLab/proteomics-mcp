@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html as html_lib
-import json
 import math
 import re
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import Any
 from proteomics_mcp.adapters.modifications import format_peptidoform_for_display
 from proteomics_mcp.core.acquisition import acquisition_metadata_summary
 from proteomics_mcp.core.annotation import annotate_observed_ions, parse_peptidoform
+from proteomics_mcp.core.html_safety import to_script_json
 from proteomics_mcp.core.scoring import precursor_mass_errors
 from proteomics_mcp.models.schemas import ObservedSpectrum, PredictedSpectrum, SpectrumMetricResult, model_dump
 
@@ -119,7 +119,7 @@ def _sequence_toggle_script(control_id: str) -> str:
         Plotly.restyle(gd, {{text: [nextText]}}, [index]);
       }});
     }}
-    const sequenceToggle = document.getElementById({json.dumps(control_id)});
+    const sequenceToggle = document.getElementById({to_script_json(control_id)});
     if (sequenceToggle) {{
       sequenceToggle.addEventListener('change', function(event) {{
         applySequenceToggle(document.getElementById('plot'), Boolean(event.target.checked));
@@ -285,7 +285,7 @@ def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | 
         intensity_label: str,
     ) -> str:
         hover_x, hover_y, hover_customdata, hover_text, hover_sequence_text = hover_scaffold_values(x_values, y_values, raw_intensities, labels, fragment_sequences)
-        return json.dumps(
+        return to_script_json(
             {
                 "x": hover_x,
                 "y": hover_y,
@@ -311,7 +311,7 @@ def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | 
         stick_x, stick_y = make_sticks(group["x"], group["y"])
         text_position = "top center" if sign == "observed" else "bottom center"
         intensity_label = "observed intensity" if sign == "observed" else "predicted intensity"
-        line_trace = json.dumps(
+        line_trace = to_script_json(
             {
                 "x": stick_x,
                 "y": stick_y,
@@ -338,7 +338,7 @@ def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | 
             fragment_sequences=group["sequence"],
             intensity_label=intensity_label,
         )
-        label_trace = json.dumps(
+        label_trace = to_script_json(
             {
                 "x": group["x"],
                 "y": group["y"],
@@ -364,7 +364,7 @@ def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | 
     obs_unmatched_stick_x, obs_unmatched_stick_y = make_sticks(obs_unmatched_x, obs_unmatched_y)
     pred_unmatched_stick_x, pred_unmatched_stick_y = make_sticks(pred_unmatched_x, pred_unmatched_y)
     traces = [
-        json.dumps(
+        to_script_json(
             {
                 "x": obs_unmatched_stick_x,
                 "y": obs_unmatched_stick_y,
@@ -392,7 +392,7 @@ def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | 
     for ion_type, group in sorted(matched_observed_groups.items()):
         traces.extend(matched_traces(ion_type, group, "observed"))
     traces.append(
-        json.dumps(
+        to_script_json(
             {
                 "x": pred_unmatched_stick_x,
                 "y": pred_unmatched_stick_y,
@@ -769,7 +769,7 @@ def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | 
     }});
     {_sequence_toggle_script("fragment-sequence-toggle")}
   </script>
-  <script type="application/json" id="proteomics-mcp-payload">{json.dumps(payload)}</script>
+  <script type="application/json" id="proteomics-mcp-payload">{to_script_json(payload)}</script>
 </body>
 </html>"""
     if output_path is not None:
@@ -1080,7 +1080,7 @@ def _basic_plot_html(
   </div>
   {metrics_panel}
   <script>
-    const traces = {json.dumps(traces)};
+    const traces = {to_script_json(traces)};
     const light = {{
       text: '#27313f',
       zero: '#4D6A7F',
@@ -1111,9 +1111,9 @@ def _basic_plot_html(
     }}
     applyLabelTheme();
     const layout = {{
-      title: {json.dumps(layout_title)},
+      title: {to_script_json(layout_title)},
       xaxis: {{title: 'm/z', zeroline: false, showgrid: false}},
-      yaxis: {{title: {json.dumps(yaxis_title)}, tickformat: '.2f', showgrid: false, zeroline: true, zerolinecolor: theme().zero, zerolinewidth: 1}},
+      yaxis: {{title: {to_script_json(yaxis_title)}, tickformat: '.2f', showgrid: false, zeroline: true, zerolinecolor: theme().zero, zerolinewidth: 1}},
       legend: {{orientation: 'h', y: -0.38}},
       margin: {{l: 80, r: 30, t: 60, b: 210}},
       plot_bgcolor: theme().plot,
@@ -1173,7 +1173,7 @@ def _basic_plot_html(
     }});
     {extra_script}
   </script>
-  <script type="application/json" id="proteomics-mcp-payload">{json.dumps(payload)}</script>
+  <script type="application/json" id="proteomics-mcp-payload">{to_script_json(payload)}</script>
 </body>
 </html>"""
     if output_path is not None:

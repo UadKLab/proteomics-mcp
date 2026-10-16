@@ -1142,3 +1142,78 @@ def test_new_summary_tools_on_candidate_table(tmp_path):
 
     coverage = summarize_file_coverage_tool(path=str(candidate_path), adapter="instanovo", rt_field="rt_minutes", quant_field="abundance")
     assert coverage["files"]["runA"]["overview"]["total_psm_count"] == 2
+
+
+SCRIPT_BREAKOUT = "</script><script>alert(1)</script>"
+IMG_ONERROR = '<img src=x onerror="alert(2)">'
+
+
+def _assert_no_injected_markup(html: str) -> None:
+    assert SCRIPT_BREAKOUT not in html
+    assert IMG_ONERROR not in html
+    assert "<script>alert(1)" not in html
+    assert "<img src=x" not in html
+
+
+def test_html_reports_escape_untrusted_strings(tmp_path):
+    candidates = [
+        CandidatePSM(candidate_id="c1", source_engine="instanovo", peptidoform="PEPTIDE", experiment_name=SCRIPT_BREAKOUT, scan_number=1, confidence=0.9, precursor_charge=2),
+        CandidatePSM(candidate_id="c2", source_engine="instanovo", peptidoform="PEPTIDEK", experiment_name=IMG_ONERROR, scan_number=2, confidence=0.8, precursor_charge=3),
+    ]
+    inspection = summarize_candidate_inspection_frame(candidate_models_to_frame(candidates))
+    for render in (render_psm_table_html, render_peptide_table_html):
+        output = tmp_path / f"{render.__name__}.html"
+        render(inspection, output)
+        html = output.read_text(encoding="utf-8")
+        _assert_no_injected_markup(html)
+    assert "&lt;img src=x onerror=&quot;alert(2)&quot;&gt;" in (tmp_path / "render_psm_table_html.html").read_text(encoding="utf-8")
+
+    frame = pd.DataFrame([{"run": SCRIPT_BREAKOUT, "note": IMG_ONERROR}])
+    html = render_table_browse_html(frame, title=IMG_ONERROR, output_path=tmp_path / "browse.html", csv_filename=SCRIPT_BREAKOUT)
+    _assert_no_injected_markup(html)
+    assert "<title>&lt;img src=x" in html
+    assert "\\u003c/script\\u003e\\u003cscript\\u003ealert(1)" in html  # embedded CSV and file name stay intact as JSON
+
+    summary = {
+        IMG_ONERROR: {SCRIPT_BREAKOUT: IMG_ONERROR},
+        "rows": [{"run": SCRIPT_BREAKOUT, "count": 1}],
+        "values": [IMG_ONERROR],
+        "scalar": SCRIPT_BREAKOUT,
+    }
+    html = render_summary_html(summary, title=SCRIPT_BREAKOUT, output_path=tmp_path / "summary.html")
+    _assert_no_injected_markup(html)
+    assert "<h2>&lt;img src=x" in html
+    assert "<td>&lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt;</td>" in html
+
+
+def test_dashboard_and_accuracy_html_escape_untrusted_strings(tmp_path):
+    summary = {
+        "dashboard": {
+            "overview": {"total_psm_count": 2, "distinct_run_count": 2},
+            "ids_per_file": {"counts": {SCRIPT_BREAKOUT: 1, IMG_ONERROR: 1}},
+            "scatter_2d": {
+                "confidence_vs_spectral_angle": {
+                    "points": [
+                        {"x": 0.9, "y": 0.8, "group": SCRIPT_BREAKOUT, "candidate_id": "c1", "peptidoform": IMG_ONERROR, "run_key": SCRIPT_BREAKOUT, "scan_number": 1},
+                    ]
+                }
+            },
+        },
+        "modifications": {"modified_fraction": 0.5, "distinct_modified_peptidoform_count": 1, "modification_counts": {IMG_ONERROR: 1}, "group_modification_counts": {SCRIPT_BREAKOUT: {IMG_ONERROR: 1}}},
+    }
+    html = render_dashboard_bundle_html(summary, title=SCRIPT_BREAKOUT, output_path=tmp_path / "dashboard.html")
+    _assert_no_injected_markup(html)
+    assert "<h1>&lt;/script&gt;" in html
+    assert "\\u003cimg src=x" in html  # Plotly labels are kept, as escaped JSON
+
+    candidate_path = tmp_path / "preds.csv"
+    pd.DataFrame(
+        [
+            {"experiment_name": SCRIPT_BREAKOUT, "scan_number": 1, "preds": "PEPTIDE", "log_probs": -0.1, "target": "PEPTIDE", "precursor_charge": 2},
+            {"experiment_name": IMG_ONERROR, "scan_number": 2, "preds": "PEPTIDEK", "log_probs": -0.2, "target": "PEPTLDEK", "precursor_charge": 3},
+        ]
+    ).to_csv(candidate_path, index=False)
+    result = summarize_prediction_accuracy_tool(path=str(candidate_path), target_field="target", adapter="instanovo")
+    html = render_prediction_accuracy_html(result, title=IMG_ONERROR, output_path=tmp_path / "accuracy.html")
+    _assert_no_injected_markup(html)
+    assert "<title>&lt;img src=x" in html

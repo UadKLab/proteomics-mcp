@@ -728,3 +728,39 @@ def test_render_html_falls_back_to_precursor_target_metadata(tmp_path):
     assert "Precursor ppm" in html
     assert "Precursor Da" in html
     assert "target minus theoretical" in html
+
+
+def test_spectrum_html_escapes_untrusted_strings(tmp_path):
+    script_breakout = "</script><script>alert(1)</script>"
+    img_onerror = '<img src=x onerror="alert(2)">'
+    observed = ObservedSpectrum(
+        mz=[100.0, 200.0],
+        intensity=[10.0, 5.0],
+        spectrum_id=script_breakout,
+        source=img_onerror,
+        metadata={"attributes": [{"accession": "MS:1000463", "name": "instrument", "value": script_breakout}]},
+    )
+    predicted = mock_predicted_spectrum("PEPTIDE", 2)
+    candidate = CandidatePSM(candidate_id=img_onerror, source_engine="test", peptidoform="PEPTIDE", precursor_charge=2, experiment_name=script_breakout, spectrum_id=img_onerror)
+    result = score_candidate_spectrum(candidate=candidate, observed=observed, predicted=predicted)
+    payload = build_spectrum_payload(observed, predicted, result)
+
+    pages = [
+        render_spectrum_comparison_html(payload, tmp_path / "comparison.html"),
+        render_observed_spectrum_html(observed.model_dump(), tmp_path / "observed.html"),
+        render_annotated_observed_spectrum_html(payload, tmp_path / "annotated.html", peptidoform="PEPTIDE"),
+    ]
+    for html in pages:
+        assert script_breakout not in html
+        assert "<script>alert(1)" not in html
+        assert "<img src=x" not in html
+    assert any("\\u003c/script\\u003e" in html or "&lt;/script&gt;" in html for html in pages)
+
+
+def test_script_json_round_trips_and_cannot_close_the_script_element():
+    from proteomics_mcp.core.html_safety import to_script_json
+
+    value = {"run": "</script><!-- &   ", "n": [1, 2.5, None]}
+    embedded = to_script_json(value)
+    assert not any(character in embedded for character in "<>&  ")
+    assert json.loads(embedded) == value
