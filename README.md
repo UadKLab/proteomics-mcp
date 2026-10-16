@@ -101,7 +101,7 @@ An MCP-capable client launches `proteomics-mcp serve` over stdio and exposes the
 
 For Claude Desktop, install the `.mcpb` file attached to the latest [GitHub release](https://github.com/UadKLab/proteomics-mcp/releases). The extension installs its Python dependencies through the managed `uv` runtime. Select an output directory in the extension settings; local input paths must be accessible to Claude Desktop.
 
-For other MCP clients, run the package from PyPI with `uvx`. Pin a version, such as `proteomics-mcp@0.1.10`, for reproducible results. Step-by-step setup for Claude Desktop, Claude Code, Codex CLI, Cursor and Windsurf is in [Connect an MCP client](docs/clients.md):
+For other MCP clients, run the package from PyPI with `uvx`. Pin a version, such as `proteomics-mcp@0.1.10`, for reproducible results. Step-by-step setup for Claude Desktop, Claude Code, Codex CLI, Cursor and Windsurf is in [Connect an MCP client](https://uadklab.github.io/proteomics-mcp/clients/):
 
 ```json
 {
@@ -136,7 +136,7 @@ Do not run `proteomics-mcp serve` in a terminal by itself. It expects JSON-RPC m
 - "Score the first ten InstaNovo candidates in `/path/to/results.csv` against `/path/to/spectra.ipc` with local MS2PIP, save the scores to `/path/to/scored.csv`, and summarize matched ions." The `score_candidates` tool scores a constrained set and writes the scored table; `summarize_score_metrics` explains individual results.
 - "Convert `/path/to/run.mgf` to `/path/to/run.feather`, then export that spectrum table as `/path/to/instanovo.ipc`." The `mgf_to_feather` and `export_to_instanovo` tools write local files and report spectrum counts and output paths.
 
-For more task-specific examples, see the [prompt examples](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/prompt_examples/00_overview.md).
+For more task-specific examples, see the [prompt examples](https://uadklab.github.io/proteomics-mcp/prompt_examples/00_overview/).
 
 ## Privacy And Support
 
@@ -147,8 +147,8 @@ For software citation, use the metadata in [CITATION.cff](https://github.com/Uad
 ## Documentation
 
 - [Documentation site](https://uadklab.github.io/proteomics-mcp/): installation, reference, and prompt examples.
-- [Technical reference](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/reference.md): installation, configuration, data formats, workflows, metrics, batch artifacts, and tool groups.
-- [Prompt examples](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/prompt_examples/00_overview.md): practical requests for an MCP-capable agent.
+- [Technical reference](https://uadklab.github.io/proteomics-mcp/reference/): installation, configuration, data formats, workflows, metrics, batch artifacts, and tool groups.
+- [Prompt examples](https://uadklab.github.io/proteomics-mcp/prompt_examples/00_overview/): practical requests for an MCP-capable agent.
 - [Examples](https://github.com/UadKLab/proteomics-mcp/blob/main/examples/README.md): rendered spectra and dashboard artifacts included with the repository.
 - [GitHub releases](https://github.com/UadKLab/proteomics-mcp/releases): versioned source and build artifacts, and the Claude Desktop extension.
 - [Changelog](https://github.com/UadKLab/proteomics-mcp/blob/main/CHANGELOG.md): changes per release.
