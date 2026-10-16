@@ -55,6 +55,7 @@ def test_explicit_config_predictor_model_is_not_replaced_by_cli_defaults(tmp_pat
 
 def test_mcp_resources_document_metrics_and_config():
     assert "precursor_mass_error_ppm" in SCHEMAS["method://metric_profile_legacy_v1"]
+    assert "every predicted ion" in SCHEMAS["method://metric_profile_v2"]
     assert "predictor_model" in SCHEMAS["config://proteomics_mcp_v1"]
     assert "koina_server_url" in SCHEMAS["config://proteomics_mcp_v1"]
     assert "max_fragment_charge" in SCHEMAS["config://proteomics_mcp_v1"]

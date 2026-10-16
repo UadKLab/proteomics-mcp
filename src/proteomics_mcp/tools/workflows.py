@@ -197,9 +197,18 @@ def load_column_mapping(column_mapping_path: str) -> dict[str, Any]:
     return mapping
 
 
-def _load_candidate_models(path: str, adapter: str, *, column_mapping_path: str | None = None, **kwargs: Any) -> list[CandidatePSM]:
+def _load_candidate_models(
+    path: str,
+    adapter: str,
+    *,
+    column_mapping_path: str | None = None,
+    fixed_modifications: str | list[str] | None = None,
+    **kwargs: Any,
+) -> list[CandidatePSM]:
     if column_mapping_path and adapter != "generic":
         raise ValueError(f"column_mapping_path applies only to adapter='generic', not '{adapter}'.")
+    if fixed_modifications is not None and adapter != "maxquant":
+        raise ValueError(f"fixed_modifications applies only to adapter='maxquant', not '{adapter}'.")
     if adapter == "generic":
         mapping = load_column_mapping(column_mapping_path) if column_mapping_path else {}
         kwargs = {**mapping, **{key: value for key, value in kwargs.items() if value is not None}}
@@ -219,7 +228,7 @@ def _load_candidate_models(path: str, adapter: str, *, column_mapping_path: str 
     if adapter == "fragpipe":
         return load_fragpipe_psms(path, limit=kwargs.get("limit"))
     if adapter == "maxquant":
-        return load_maxquant_psms(path, limit=kwargs.get("limit"))
+        return load_maxquant_psms(path, limit=kwargs.get("limit"), fixed_modifications=fixed_modifications)
     if adapter == "proteome_discoverer":
         return load_proteome_discoverer_psms(path, limit=kwargs.get("limit"), sheet_name=kwargs.get("sheet_name", 0))
     if adapter == "generic":
@@ -1527,6 +1536,7 @@ def score_from_prediction_batch_tool(
                 tolerance=config.tolerance,
                 tolerance_unit=config.tolerance_unit,
                 metric_profile=config.metric_profile,
+                min_predicted_intensity=config.min_predicted_intensity,
                 annotation_ion_types=config.annotation_ion_types,
                 annotation_max_isotope=config.annotation_max_isotope,
                 annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -1882,12 +1892,14 @@ def export_to_instanovo_tool(
     *,
     output_format: str = "ipc",
     sequence_column: str | None = None,
+    drop_unlabelled: bool = False,
 ) -> dict[str, Any]:
     return export_table_to_instanovo(
         input_path,
         output_path,
         output_format=output_format,
         sequence_column=sequence_column,
+        drop_unlabelled=drop_unlabelled,
     )
 
 
@@ -1975,6 +1987,7 @@ def score_spectrum_tool(
         tolerance=config.tolerance,
         tolerance_unit=config.tolerance_unit,
         metric_profile=config.metric_profile,
+        min_predicted_intensity=config.min_predicted_intensity,
         annotation_ion_types=config.annotation_ion_types,
         annotation_max_isotope=config.annotation_max_isotope,
         annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -2070,6 +2083,7 @@ def score_candidates_tool(
                 tolerance=config.tolerance,
                 tolerance_unit=config.tolerance_unit,
                 metric_profile=config.metric_profile,
+                min_predicted_intensity=config.min_predicted_intensity,
                 annotation_ion_types=config.annotation_ion_types,
                 annotation_max_isotope=config.annotation_max_isotope,
                 annotation_max_ion_charge=config.annotation_max_ion_charge,

@@ -49,6 +49,9 @@ class CandidatePSM:
     token_confidence_min_token: str | None = None
     confidence_type: str | None = None
     source_columns: dict[str, Any] = field(default_factory=dict)
+    # Problems found while reading this row that may make the peptidoform or its scores wrong, e.g. MaxQuant fixed
+    # modifications that could not be applied (#101)
+    warnings: list[str] = field(default_factory=list)
 
     def model_dump(self) -> dict[str, Any]:
         return model_dump(self)
@@ -143,7 +146,7 @@ class SpectrumMetricResult:
     precursor_isotope_error: int | None = None
     precursor_mass_error_corrected_ppm: float | None = None
     precursor_mass_error_corrected_da: float | None = None
-    metric_profile: str = "legacy_v1"
+    metric_profile: str = "v2"
     predictor_metadata: dict[str, Any] = field(default_factory=dict)
     annotation_settings: dict[str, Any] = field(default_factory=dict)
     annotation_summary: dict[str, Any] = field(default_factory=dict)

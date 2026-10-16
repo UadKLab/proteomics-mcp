@@ -83,7 +83,7 @@ def compare_peaks(reference: dict, retrieved: dict) -> dict:
     }
 
 
-def _score(tool, payload: dict, observed: dict, predicted: dict | None) -> dict:
+def _score(tool, payload: dict, observed: dict, predicted: dict | None, config_path: Path) -> dict:
     settings = payload["metrics"]["annotation_settings"]
     arguments = {
         "candidate": payload["metrics"]["candidate"], "observed": observed,
@@ -91,6 +91,7 @@ def _score(tool, payload: dict, observed: dict, predicted: dict | None) -> dict:
         "annotation_ion_types": settings["annotation_ion_types"], "annotation_max_isotope": settings["annotation_max_isotope"],
         "annotation_max_ion_charge": settings["annotation_max_ion_charge"],
         "annotation_neutral_losses": settings["annotation_neutral_losses"],
+        "config_path": str(config_path),
     }
     if predicted is not None:
         arguments["predicted"] = predicted
@@ -133,13 +134,13 @@ def test_usi_spectra_carry_precursor_mz(retrieved, report):
 
 
 @pytest.mark.parametrize(("folder", "path"), CASES, ids=[p.name.removesuffix("_payload.json") for _, p in CASES])
-def test_usi_metrics_with_stored_prediction(retrieved, tool, report, folder, path):
+def test_usi_metrics_with_stored_prediction(retrieved, tool, report, legacy_metrics, folder, path):
     """Step b (scoring engine): only where peaks match; predictions taken from the payload."""
     payload = json.loads(path.read_text())
     usi, (is_error, spectrum) = retrieved[path.name]
     if is_error or not compare_peaks(payload["observed"], spectrum)["identical"]:
         pytest.skip("peaks differ from the reference payload (data source); metrics not compared")
-    result = _score(tool, payload, spectrum, payload["predicted"])
+    result = _score(tool, payload, spectrum, payload["predicted"], legacy_metrics)
     deltas = {name: abs(result[name] - payload["metrics"][name]) for name in METRICS}
     status = "pass" if max(deltas.values()) <= METRIC_ATOL else "fail"
     report("usi", f"step b stored prediction {path.name}", status, {"usi": usi, "max_abs_delta": deltas})
@@ -148,13 +149,13 @@ def test_usi_metrics_with_stored_prediction(retrieved, tool, report, folder, pat
 
 @pytest.mark.usefixtures("ms2pip_runtime")
 @pytest.mark.parametrize(("folder", "path"), CASES, ids=[p.name.removesuffix("_payload.json") for _, p in CASES])
-def test_usi_metrics_with_live_ms2pip(retrieved, tool, report, folder, path):
+def test_usi_metrics_with_live_ms2pip(retrieved, tool, report, legacy_metrics, folder, path):
     """Step b (live MS2PIP 4.2.0 in 0.1.9): only where peaks match."""
     payload = json.loads(path.read_text())
     usi, (is_error, spectrum) = retrieved[path.name]
     if is_error or not compare_peaks(payload["observed"], spectrum)["identical"]:
         pytest.skip("peaks differ from the reference payload (data source); metrics not compared")
-    result = _score(tool, payload, spectrum, None)
+    result = _score(tool, payload, spectrum, None, legacy_metrics)
     deltas = {name: abs(result[name] - payload["metrics"][name]) for name in METRICS}
     status = "pass" if max(deltas.values()) <= METRIC_ATOL else "fail"
     report("usi", f"step b live MS2PIP {path.name}", status, {"usi": usi, "charge": payload["predicted"]["precursor_charge"],

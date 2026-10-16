@@ -4,8 +4,28 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Changed
+
+- **Spectral angle, cosine and Pearson** compare every predicted ion, with zero observed intensity for ions that matched no peak (metric profile `v2`, now the default). Before, only matched ions were compared, so a wrong candidate that matched a single peak scored 1.0, and on real data wrong candidates scored higher than correct ones. Scores change for every PSM with unmatched predicted ions. Set `metric_profile = "legacy_v1"` in a configuration file to reproduce scores from 0.1.10 and earlier, including the manuscript figures ([#72](https://github.com/UadKLab/proteomics-mcp/issues/72)).
+- **Definition change: predicted-ion cut-off.** Under metric profile `v2`, a predicted ion is scored only if its intensity is positive and at least `min_predicted_intensity` (new setting, default `0.001`) times the most intense predicted ion. Prosit and MS2PIP give the ions they expect to be absent a tiny intensity (Prosit down to ~1e-8 of the base peak) or 0, about a third of all predicted ions. Those ions counted in `total_predicted_ions` and could be matched to noise peaks. This changes what `total_predicted_ions`, `matched_ion_count` and `matched_ion_fraction` mean: they now refer to the ions predicted above the cut-off.
+  - Figure 2 (`EFHLNESGDPSSK`): **22/24 → 18/18 matched ions**; explained intensity 0.480 → 0.471, spectral angle 0.833 → 0.834.
+  - The 25 reference payloads: median `total_predicted_ions` 24 → 21, `matched_ion_fraction` 0.54 → 0.73. Spectral angle and cosine change by less than 0.01.
+  - `min_predicted_intensity = 0` scores every ion with a positive intensity. `legacy_v1` scores every predicted ion, so it reproduces 0.1.10 for MS2PIP and Koina predictions ([#83](https://github.com/UadKLab/proteomics-mcp/issues/83)).
+- **One peak, one ion:** under metric profile `v2`, each observed peak explains at most one predicted ion; pairs are assigned closest first. Before, isobaric ions (for example b3/y2) both claimed the same peak, which counted its intensity twice: explained intensity could exceed 1, and matched-ion counts and the hyperscore were inflated. Static figures labelled such a peak with one ion and coloured it as the other. Of the 25 reference payloads, 3 change (Proteome Discoverer ranks 1–3: 1–3 fewer matched ions, explained intensity 0.007–0.048 lower); `legacy_v1` reproduces all of them ([#74](https://github.com/UadKLab/proteomics-mcp/issues/74)).
+
 ### Fixed
 
+- **InstaNovo export:** `export_to_instanovo` wrote missing sequences as the strings `"None"` / `"nan"`, which InstaNovo accepts as peptide labels for training and evaluation. They are now null: InstaNovo 1.3.0 then refuses the table as annotated data instead of using fake labels. `sequences_missing` and `spectra_dropped_without_precursor` report what was not written as a labelled spectrum, and the new `drop_unlabelled` option (CLI `--drop-unlabelled`) leaves out spectra without a sequence, for a labelled training or evaluation set. Missing run names and spectrum ids also became `"None"` / `"nan"`; they now fall back per row to the source file name and `<run>:<scan>` ([#80](https://github.com/UadKLab/proteomics-mcp/issues/80)).
+- **Multiplexed SDRF:** for TMT, iTRAQ and SILAC designs (one SDRF row per channel of the same data file), the file's metadata kept only the last channel, so labels, samples, diseases and factor values of the other channels were lost. Every channel is now kept (`channels`, `channel_count`), and fields that differ between channels hold their distinct values joined with `; `, e.g. label `TMT126; TMT127N`. On PXD006430 (TMT10), 72 files × 10 channels: all 720 rows are now represented; before, 72 ([#81](https://github.com/UadKLab/proteomics-mcp/issues/81)).
+- **Spectrum lookup never silently returns another spectrum** ([#76](https://github.com/UadKLab/proteomics-mcp/issues/76)):
+  - A run name that matches no run of a multi-run spectrum table is an error; before, the first spectrum with that scan number from any run was returned.
+  - A scan number or spectrum id that matches several different spectra is an error, instead of returning the first; identical copies from MGF charge-state enumeration are still accepted.
+  - Spectra without a precursor charge (or m/z, or RT) load; a missing value read from Feather raised `cannot convert float NaN to integer`.
+  - Scan numbers are no longer taken from any number in an identifier. Before, SCIEX native IDs gave the sample number (`sample=1 … cycle=812` → 1), `QE-HF-01.5000.5000.2` gave 1, `Run 7, scans: 1234` gave 7, and Bruker `merged=102 frame=5 …` gave 102.
+- **timsTOF (`bruker_d_to_feather`)** ([#95](https://github.com/UadKLab/proteomics-mcp/issues/95)):
+  - `scan_number` is now the precursor `Id`. Before, it was the precursor's truncated TIMS scan position, which repeats across frames: on a 21-min HeLa ddaPASEF run, 55,897 MS2 spectra shared 709 scan numbers, up to 164 per number, and lookups by scan number returned the first of them.
+  - `mobility` is now 1/K0 (V·s/cm²) instead of the scan position; the scan position is in the new `scan_index` column.
+  - Precursors without a charge (951 in that run) can be loaded.
 - **Modification parsing:** several notations lost modifications, mostly N-terminal ones, and the peptides were scored as unmodified ([#75](https://github.com/UadKLab/proteomics-mcp/issues/75)):
   - MaxQuant: N-terminal modifications (`_(ac)PEPM(ox)K_`), and full names with nested parentheses (`(Oxidation (M))`).
   - FragPipe: `N-term(...)` / `C-term(...)` in `Assigned Modifications`. `Modified Peptide` masses are totals (`n[43]` is acetyl, not carbamyl; `M[147]` is oxidised Met), and both readings are tried. On the arabidopsis table of the manuscript supplement, 503 of 52,530 PSMs change: 406 carried carbamyl instead of acetyl, 97 had lost the acetyl. All 52,530 now match FragPipe's `Calculated Peptide Mass`.
@@ -21,12 +41,14 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
   - **InstaNovo+ refined files:** `final_prediction` is used. Where refinement produced nothing, the transformer prediction is used instead of dropping the row (39% of rows in 1.1.0-alpha refined files).
   - **Confidence:** a log-probability just above 0 (e.g. 1.9e-08) gave a confidence of 1.9e-08 instead of 1.
   - **Beam files:** `next_beam` is read in every layout, when the beams rank alternatives to the reported prediction. Token log-probabilities of 1.0.x/1.1.x beam files are aligned to the sequence: they carry a trailing extra value, and 1.1.x stores them in reverse order.
+- **MaxQuant fixed modifications:** `Modified sequence` lists only variable modifications, so every cysteine of a carbamidomethylated sample was predicted and scored unmodified. Fixed modifications are now read from the run's `parameters.txt` or `mqpar.xml`, or given with `fixed_modifications` / `--fixed-modifications`. In the manuscript supplement, 5,966 of 22,782 ProteomeTools PSMs contain cysteine, including the Figure 3B PSM `AQNSCPICQK` (now `AQNSC[UNIMOD:4]PIC[UNIMOD:4]QK`). Without a source, candidates carry a warning ([#101](https://github.com/UadKLab/proteomics-mcp/issues/101)).
 - **HTML escaping:** run names, spectrum ids, peptides, file names, titles and summary keys and values were written into HTML reports as-is. A value containing `</script>` or `<img onerror=...>` broke the page or ran script when the report was opened. Text is now HTML-escaped. JSON in `<script>` blocks (Plotly figures, embedded CSV, spectrum payloads) escapes `<`, `>` and `&`, which keeps the data unchanged. This covers PSM and peptide tables, table browse, summary, dashboard, prediction accuracy, dataset report and spectrum pages ([#78](https://github.com/UadKLab/proteomics-mcp/issues/78)).
 
 ### Added
 
 - Built-in masses for amidation, dimethyl, GG, iTRAQ4plex, ammonia loss, TMT6plex/10plex/11plex and TMTpro, so they resolve without downloading the Unimod catalogue.
 - **Isotope-corrected precursor error:** `precursor_isotope_error` (0, 1 or 2) and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` report the error relative to the 13C isotope peak closest to the observed m/z. Before, a precursor selected on its second isotope peak showed an error of hundreds of ppm ([#73](https://github.com/UadKLab/proteomics-mcp/issues/73)).
+- **Per-candidate `warnings`:** problems found while reading a row that may make its peptidoform or scores wrong. MaxQuant candidates are checked against MaxQuant's `Mass` column; a difference above 0.01 Da is reported there ([#101](https://github.com/UadKLab/proteomics-mcp/issues/101)).
 
 ## [0.1.10] - 2026-10-14
 
