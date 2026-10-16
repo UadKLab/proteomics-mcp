@@ -65,7 +65,9 @@ matches, spectral_angle and cosine_similarity are 0.0 and pearson_correlation is
 Select a profile with metric_profile in a JSON or TOML config file passed as config_path (CLI: --config).""",
     "method://candidate_schema_v1": "Canonical candidate schema normalizes upstream engines into peptide/peptidoform, scan/spectrum identifiers, raw score, optional 0-1 confidence, and token-confidence summaries. Supported adapters include instanovo, casanovo, maxquant, fragpipe, proteome_discoverer, and generic mapped tables.",
     "schema://candidate_psm_v1": """CandidatePSM fields:
-candidate_id, source_engine, source_engine_version, experiment_name, scan_number, spectrum_id, usi, peptidoform, precursor_mz, precursor_charge, rank, raw_score, raw_score_name, next_beam, next_beam_margin, confidence, token_log_probabilities, token_log_probability_mean, token_log_probability_min, token_confidences, token_confidence_mean, token_confidence_min, token_confidence_min_position, token_confidence_min_token, source_columns.
+candidate_id, source_engine, source_engine_version, experiment_name, scan_number, spectrum_id, usi, peptidoform, precursor_mz, precursor_charge, rank, raw_score, raw_score_name, next_beam, next_beam_margin, confidence, token_log_probabilities, token_log_probability_mean, token_log_probability_min, token_confidences, token_confidence_mean, token_confidence_min, token_confidence_min_position, token_confidence_min_token, source_columns, warnings.
+
+`warnings` lists problems found while reading the row that may make its peptidoform or scores wrong, e.g. MaxQuant fixed modifications that could not be applied.
 
 For InstaNovo beam outputs, `next_beam` is the beam-1 confidence on a 0-1 scale and `next_beam_margin` is `confidence - next_beam`. Search-engine score deltas remain in source_columns rather than being presented as beams.""",
     "schema://observed_spectrum_v1": """ObservedSpectrum fields:
@@ -129,6 +131,9 @@ The returned summary includes:
 - data-file columns and factor columns
 - assay, organism, label, and instrument summaries
 - file_metadata keyed by raw filename, basename, and filename stem for multi-run joins and metadata enrichment
+- multiplexed runs (TMT, iTRAQ, SILAC; one SDRF row per channel): file_metadata keeps every channel in "channels"
+  (channel_count); fields that differ between channels hold their distinct values joined with "; ", e.g. label
+  "TMT126; TMT127N", because a PSM of such a run belongs to all its channels
 
 This is intentionally optional. Users can score spectra without SDRF, but when SDRF exists it can provide sample and acquisition context through MCP-accessible metadata.""",
     "method://visualization_modes_v1": """Visualization modes:

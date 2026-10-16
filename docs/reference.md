@@ -53,7 +53,7 @@ Supported adapters:
   - Confidence is the exponent of the sequence log-probability.
   - Token log-probabilities of legacy beam-search files are aligned to the sequence.
 - `casanovo`: Casanovo prediction CSVs.
-- `maxquant`: `msms.txt` exports.
+- `maxquant`: `msms.txt` exports. MaxQuant's `Modified sequence` lists only variable modifications, so fixed ones (typically `Carbamidomethyl (C)`) are read from the `parameters.txt` or `mqpar.xml` next to the table, including a prefixed copy such as `maxquant_parameters.txt` for `maxquant_msms.txt`. To set them explicitly, pass `fixed_modifications` (MCP `load_candidates`) or `--fixed-modifications` (CLI `load-candidates`) in MaxQuant notation, `;`-separated (`""` for none). They are added to every matching residue or terminus without a variable modification; protein-terminal ones cannot be placed from `msms.txt` and give a warning. If neither source is available, peptidoforms are left as they are and every candidate carries a warning in `warnings`. Each peptidoform's mass is also checked against MaxQuant's `Mass` column, and a difference above 0.01 Da adds a warning to that candidate.
 - `fragpipe`: PSM tables including run/scan parsing from spectrum fields.
 - `proteome_discoverer`: PSM exports, including `.xlsx`.
 - `generic`: CSV, TSV, or XLSX using explicit column mappings. Pass a JSON mapping file with `--column-mapping` (CLI) or `column_mapping_path` (MCP), on any command or tool that takes an adapter:
@@ -67,6 +67,11 @@ Supported adapters:
 
 Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, match spectra using raw-file stem plus scan number rather than scan number alone.
 
+Spectrum lookup (`load_spectrum_from_table`, and the scoring tools) never silently substitutes another spectrum:
+- A run name that matches none of the runs in a multi-run spectrum table is an error. In a single-run table, a different name (for example a renamed file) still refers to that run.
+- A scan number or spectrum id that matches several *different* spectra, such as the same scan in several runs when no run name is given, is an error. Identical copies, as written by MGF charge-state enumeration, are not.
+- Scan numbers are read only from identifiers that state one: `scan=` in native IDs and USIs, Thermo-style MGF titles (`<run>.<scan>.<scan>.<charge>`, also `.dta`), `index=`, `<run>:<scan>`, or a plain number. SCIEX (`sample=… cycle=… experiment=…`) and Bruker (`merged=… frame=…`) native IDs have no single scan number. Their spectra are found by spectrum id instead of by an unrelated number from the identifier.
+
 Recognised modification notations include:
 
 | Source | Examples |
@@ -77,7 +82,7 @@ Recognised modification notations include:
 | FragPipe | `Assigned Modifications` such as `N-term(42.0106), 5M(15.9949)`; `Modified Peptide` with total masses (`n[43]PEPTM[147]K`) or deltas |
 | Proteome Discoverer `Modifications` | `M1(Oxidation); N-Term(Acetyl)`, `1xTMT6plex [N-Term]; 2xCarbamidomethyl [C5; C12]` |
 
-Common modifications (acetyl, carbamidomethyl, carbamyl, deamidation, phospho, oxidation, pyro-Glu, ammonia loss, amidation, methyl, dimethyl, formyl, GG, iTRAQ4plex, TMT6plex/10plex/11plex, TMTpro) resolve without network access; other names and masses are looked up in the Unimod catalogue. A modification that cannot be resolved or placed, such as an unlocalised site (`1xPhospho [S/T]`), stays in the peptidoform as an explicit token (unlocalised ones as ProForma `[UNIMOD:21]?PEPSTK`). It is flagged as an unsupported modification rather than dropped, so the peptidoform is never silently scored as unmodified. MaxQuant `Modified sequence` omits fixed modifications (#101).
+Common modifications (acetyl, carbamidomethyl, carbamyl, deamidation, phospho, oxidation, pyro-Glu, ammonia loss, amidation, methyl, dimethyl, formyl, GG, iTRAQ4plex, TMT6plex/10plex/11plex, TMTpro) resolve without network access; other names and masses are looked up in the Unimod catalogue. A modification that cannot be resolved or placed, such as an unlocalised site (`1xPhospho [S/T]`), stays in the peptidoform as an explicit token (unlocalised ones as ProForma `[UNIMOD:21]?PEPSTK`). It is flagged as an unsupported modification rather than dropped, so the peptidoform is never silently scored as unmodified. MaxQuant fixed modifications come from the run's parameters (see `maxquant` above).
 
 ### Generic Mapping
 
@@ -88,9 +93,9 @@ Required: a peptide/peptidoform and a spectrum locator (`usi`, `spectrum_id`, or
 - IPC/Feather: normalized local spectrum tables.
 - mzML: `mzml-to-feather`, backed by pyOpenMS.
 - MGF: `mgf-to-feather`, backed by pyteomics.
-- Bruker `.d`: `bruker-d-to-feather`, preferring AlphaTims with an embedded-MGF fallback.
+- Bruker `.d`: `bruker-d-to-feather`, preferring AlphaTims with an embedded-MGF fallback. For ddaPASEF, `scan_number` is the precursor `Id`, the identifier of each MS2 spectrum (also in `precursor_id` and `spectrum_id`, `<run>:precursor:<Id>`). `mobility` is the reduced ion mobility 1/K0 (V·s/cm²), and `scan_index` is the precursor's mean position on the TIMS scan axis. Precursors without an assigned charge are kept, with an empty `precursor_charge`.
 - USI: `retrieve-usi-spectrum` through a configured provider.
-- InstaNovo export: `export-to-instanovo` writes a normalized IPC or Parquet inference table.
+- InstaNovo export: `export-to-instanovo` writes a normalized IPC or Parquet inference table. With `sequence_column`, spectra without a sequence get a null `sequence` (reported as `sequences_missing`): InstaNovo refuses such a table as annotated data. For a labelled training or evaluation set, pass `drop_unlabelled` (CLI `--drop-unlabelled`) to leave those spectra out (`spectra_dropped_unlabelled`); otherwise load the table as unannotated. Spectra without precursor m/z or charge are left out (`spectra_dropped_without_precursor`).
 
 USI spectra come from the provider's own processing of the raw file, so they can differ from a local mzML or MGF conversion of the same scan. For the 25 reference PSMs in `examples/` (PXD044934, PXD014877, PXD010595), PRIDE returned the same peaks as the local conversions for 2 PSMs. For the other 23 it returned 1–33 fewer peaks; the missing peaks were the only difference, and every remaining peak had the same m/z and intensity. Scores computed from a USI spectrum can therefore differ from scores computed from a local file. Record which source each result used.
 
@@ -146,7 +151,7 @@ Outputs are Plotly HTML with hover data, zoom, image export, light/dark support,
 
 `inspect_psm_table` and `inspect_peptide_table` normalize and inspect upstream results without rescoring the dataset. Peptide tables collapse modified forms while retaining peptidoform context, run support, charge species, and representative PSM evidence.
 
-Structured tools support field discovery, numeric/categorical summaries, binning, missingness, overlap, modification summaries, quant quality, file coverage, and dashboard bundles. `load_sdrf` and `retrieve_pride_sdrf` add optional run/sample context. PRIDE retrieval recognizes `.sdrf`, SDRF-labelled TSV/TXT, and gzip-compressed variants; API failures report the project accession, request URL, and HTTP response detail.
+Structured tools support field discovery, numeric/categorical summaries, binning, missingness, overlap, modification summaries, quant quality, file coverage, and dashboard bundles. `load_sdrf` and `retrieve_pride_sdrf` add optional run/sample context. In multiplexed designs (TMT, iTRAQ, SILAC), the SDRF has one row per channel of the same data file, and a PSM of that file belongs to all of them. The file's metadata therefore keeps every channel (`channels`, `channel_count`), and fields that differ between channels hold their distinct values joined with `; ` (for example label `TMT126; TMT127N`); sample summaries group such a run under its joined assay names. PRIDE retrieval recognizes `.sdrf`, SDRF-labelled TSV/TXT, and gzip-compressed variants; API failures report the project accession, request URL, and HTTP response detail.
 
 ## Batch Workflows
 

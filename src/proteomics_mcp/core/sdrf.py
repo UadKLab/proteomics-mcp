@@ -54,6 +54,33 @@ def _file_stem(path_value: str | None) -> str | None:
     return Path(str(path_value)).stem
 
 
+_SINGLE_VALUE_FIELDS = (
+    "data_file", "fraction_file", "assay_name", "source_name", "label", "instrument", "organism", "organism_part", "disease",
+)
+_MAPPING_FIELDS = ("factor_values", "characteristics", "comments")
+
+
+def _joined(values: list[Any]) -> str | None:
+    """Distinct values in order of appearance, joined with "; " when there are several."""
+    distinct = list(dict.fromkeys(str(value) for value in values if value is not None and str(value).strip()))
+    return "; ".join(distinct) if distinct else None
+
+
+def _merge_channels(channels: list[dict[str, Any]]) -> dict[str, Any]:
+    """Metadata of one data file from its SDRF rows (one per channel when multiplexed).
+
+    Fields the channels share keep their value; fields that differ hold the distinct values joined with "; ", e.g.
+    label "TMT126; TMT127N". The rows themselves are in "channels".
+    """
+    merged: dict[str, Any] = {field: _joined([channel.get(field) for channel in channels]) for field in _SINGLE_VALUE_FIELDS}
+    for field in _MAPPING_FIELDS:
+        columns = list(dict.fromkeys(column for channel in channels for column in channel.get(field, {})))
+        merged[field] = {column: _joined([channel.get(field, {}).get(column) for channel in channels]) for column in columns}
+    merged["channel_count"] = len(channels)
+    merged["channels"] = channels
+    return merged
+
+
 def summarize_sdrf(frame: pd.DataFrame, *, source: str | None = None) -> dict[str, Any]:
     data_file_columns = _matching_columns(frame, "comment[data file]") + _matching_columns(frame, "comment[data_file]")
     fraction_file_columns = _matching_columns(frame, "comment[fraction file]")
@@ -68,7 +95,7 @@ def summarize_sdrf(frame: pd.DataFrame, *, source: str | None = None) -> dict[st
     comment_columns = [col for col in frame.columns if _normalized_column_name(col).startswith("comment[")]
     characteristics_columns = [col for col in frame.columns if _normalized_column_name(col).startswith("characteristics[")]
 
-    file_metadata: dict[str, dict[str, Any]] = {}
+    channels_by_file: dict[str, list[dict[str, Any]]] = {}
     assays: list[str] = []
     for row in frame.to_dict(orient="records"):
         assay_name = _first_present(row, assay_columns)
@@ -77,7 +104,7 @@ def summarize_sdrf(frame: pd.DataFrame, *, source: str | None = None) -> dict[st
         data_file = _first_present(row, data_file_columns)
         if not data_file:
             continue
-        entry = {
+        channels_by_file.setdefault(data_file, []).append({
             "data_file": data_file,
             "fraction_file": _first_present(row, fraction_file_columns),
             "assay_name": assay_name,
@@ -90,7 +117,13 @@ def summarize_sdrf(frame: pd.DataFrame, *, source: str | None = None) -> dict[st
             "factor_values": {col: row.get(col) for col in factor_columns if str(row.get(col, "")).strip()},
             "characteristics": {col: row.get(col) for col in characteristics_columns if str(row.get(col, "")).strip()},
             "comments": {col: row.get(col) for col in comment_columns if str(row.get(col, "")).strip()},
-        }
+        })
+
+    # Multiplexed designs (TMT, iTRAQ, SILAC) have one SDRF row per channel of the same data file. A PSM of that file
+    # belongs to all of them, so the file's metadata keeps every channel; before, the last row replaced the others (#81).
+    file_metadata: dict[str, dict[str, Any]] = {}
+    for data_file, channels in channels_by_file.items():
+        entry = _merge_channels(channels)
         for key in {data_file, Path(data_file).name, _file_stem(data_file)}:
             if key:
                 file_metadata[str(key)] = entry
