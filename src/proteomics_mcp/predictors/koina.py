@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from functools import lru_cache
 from pathlib import Path
 import re
@@ -148,6 +149,16 @@ def _build_annotation(ion_type: Any, ordinal: Any, charge: Any) -> str:
     return f"{ion}{number}{'+' * max(state, 1)}"
 
 
+def _has_predicted_signal(intensity: Any) -> bool:
+    """Prosit-style models predict an intensity for every annotated ion; 0 (or less) means the ion is not expected.
+
+    Such fragments are left out (#83): they add nothing to the predicted spectrum, but would count as predicted ions
+    and could be matched to noise peaks.
+    """
+    value = float(intensity)
+    return math.isfinite(value) and value > 0
+
+
 def _predicted_spectrum_from_rows(
     *,
     peptidoform: str,
@@ -176,6 +187,7 @@ def _predicted_spectrum_from_rows(
     if len(mz_row) != len(intensity_row) or len(mz_row) != len(annotation_row):
         raise ValueError("Koina fragment m/z, intensity, and annotation arrays must have equal lengths.")
     fragments: list[PredictedFragment] = []
+    dropped_without_signal = 0
     allowed_charge = max_fragment_charge if max_fragment_charge is not None else max(precursor_charge - 1, 1)
     for mz, intensity, annotation in zip(mz_row, intensity_row, annotation_row):
         if float(mz) <= 0:
@@ -184,10 +196,13 @@ def _predicted_spectrum_from_rows(
         ion_type, ordinal, fragment_charge = parse_ion_annotation(str(annotation))
         if fragment_charge > allowed_charge:
             continue
+        if not _has_predicted_signal(intensity):
+            dropped_without_signal += 1
+            continue
         fragments.append(
             PredictedFragment(
                 mz=float(mz),
-                intensity=max(float(intensity), 0.0),
+                intensity=float(intensity),
                 annotation=str(annotation),
                 ion_type=ion_type,
                 ordinal=ordinal,
@@ -210,6 +225,7 @@ def _predicted_spectrum_from_rows(
         metadata={
             "server_url": server_url,
             "model_version": model_version,
+            "dropped_zero_intensity_fragments": dropped_without_signal,
             "collision_energy": collision_energy,
             "fragmentation_type": fragmentation_type,
             "instrument_type": instrument_type,
@@ -351,7 +367,11 @@ def predict_fragments_koina_batch(
         payload = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
         # entries cached before model versions were recorded (<= 0.1.9) are predicted again
         if payload is not None and "model_version" in (payload.get("metadata") or {}):
-            fragments = [PredictedFragment(**fragment) for fragment in payload.get("fragments", [])]
+            cached = [PredictedFragment(**fragment) for fragment in payload.get("fragments", [])]
+            # entries cached by <= 0.1.10 still contain zero-intensity fragments
+            fragments = [fragment for fragment in cached if _has_predicted_signal(fragment.intensity)]
+            metadata = dict(payload.get("metadata") or {})
+            metadata["dropped_zero_intensity_fragments"] = metadata.get("dropped_zero_intensity_fragments", 0) + len(cached) - len(fragments)
             cache_hits[index] = PredictedSpectrum(
                 peptidoform=payload["peptidoform"],
                 precursor_charge=int(payload["precursor_charge"]),
@@ -359,7 +379,7 @@ def predict_fragments_koina_batch(
                 predictor_name=payload.get("predictor_name", "koina"),
                 predictor_version=payload.get("predictor_version"),
                 model=payload.get("model"),
-                metadata={**(payload.get("metadata") or {}), "cache_hit": True},
+                metadata={**metadata, "cache_hit": True},
             )
         else:
             pending.append((index, peptidoform, precursor_charge, path))

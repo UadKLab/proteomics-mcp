@@ -110,6 +110,8 @@ Spectral angle, cosine similarity and Pearson correlation compare the observed a
 
 Predicted ions are matched to observed peaks one to one under `v2`: candidate pairs within tolerance are assigned closest first, so a peak shared by isobaric ions (for example b3 and y2) explains only one of them, and the other takes its next-closest free peak if there is one. Matched-ion counts, explained intensity (at most 1) and the hyperscore count each peak once. Under `legacy_v1`, every ion takes its nearest peak, even a shared one.
 
+Predictors give every possible ion an intensity, and ions they expect to be absent get a tiny one (Prosit down to about 1e-8 of the base peak; for MS2PIP, `2^x − 0.001`). About a third of the predicted ions of a typical peptide fall below 0.1% of the base peak. Under `v2`, predicted ions below `min_predicted_intensity` (default `0.001`) times the most intense predicted ion are not scored. They no longer count in `total_predicted_ions` and cannot be matched to noise peaks, so `matched_ion_fraction` is relative to the ions predicted above that level. Some of these ions do appear in the observed spectrum at low intensity; set `min_predicted_intensity = 0` to score every predicted ion. `legacy_v1` scores all of them. Rendered spectra still draw every predicted fragment.
+
 Observed-spectrum annotation is implemented internally. It supports standard terminal-ion families, exotic families, immonium ions, reporter ions, precursor-related peaks, isotope variants, and optional neutral losses. Use `ion_types=by` for b/y ions, `all` for the broad set, or `exotic` for exotic terminal-ion families.
 
 ## Rendering
