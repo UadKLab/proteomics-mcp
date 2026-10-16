@@ -136,6 +136,8 @@ The vectors span the predicted ions only: observed peaks that match no predicted
 
 The precursor mass error (`precursor_mass_error_ppm`, `precursor_mass_error_da`) is the observed minus the theoretical monoisotopic precursor m/z. The theoretical mass includes every residue and terminal modification; when a modification cannot be resolved, the error is left empty rather than computed without it. Instruments sometimes select a 13C isotope peak as the precursor, which shows up as an error of about 1.003/z m/z. `precursor_isotope_error` (0, 1 or 2) gives the isotope peak closest to the observed m/z, and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` the error relative to that peak.
 
+**One-to-one matching applies only under `v2`.** Predicted ions are matched to observed peaks one to one: candidate pairs within tolerance are assigned closest first, so a peak shared by isobaric ions (for example b3 and y2) explains only one of them, and the other takes its next-closest free peak if there is one. Matched-ion counts, explained intensity (at most 1) and the hyperscore count each peak once. `legacy_v1` deliberately keeps the matching of 0.1.10, so 0.1.10 results still reproduce: every predicted ion takes its nearest peak, even one another ion also takes.
+
 Observed-spectrum annotation is implemented internally. It supports standard terminal-ion families, exotic families, immonium ions, reporter ions, precursor-related peaks, isotope variants, and optional neutral losses. Use `ion_types=by` for b/y ions, `all` for the broad set, or `exotic` for exotic terminal-ion families.
 
 ## Rendering

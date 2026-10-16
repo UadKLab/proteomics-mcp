@@ -25,55 +25,64 @@ def match_predicted_to_observed(
     *,
     tolerance: float = 0.05,
     tolerance_unit: str = "Da",
+    one_to_one: bool = True,
 ) -> list[MatchedPeak]:
+    """Match predicted fragments to observed peaks.
+
+    Every (fragment, peak) pair within tolerance is a candidate, ordered closest first; ties go to the more intense
+    peak, then the lower m/z, then the more intense predicted fragment.
+
+    one_to_one (metric profile v2): pairs are assigned in that order, so each peak explains at most one fragment and
+    each fragment at most one peak (#74). Without competing fragments, every fragment gets its nearest peak. When two
+    fragments compete for a peak (e.g. isobaric b3/y2), the closer one gets it, and the other takes its next-closest
+    unclaimed peak within tolerance, if any.
+
+    Otherwise (legacy_v1): every fragment takes its nearest peak, even one that another fragment also takes, so a
+    peak's intensity can be counted more than once.
+    """
     observed_mz = np.asarray(observed.mz, dtype=float)
     observed_intensity = np.asarray(observed.intensity, dtype=float)
     order = np.argsort(observed_mz, kind="stable")
     sorted_mz = observed_mz[order]
-    matches: list[MatchedPeak] = []
+    candidates: list[tuple[float, float, float, float, int, int]] = []
     for pred_idx, fragment in enumerate(predicted_fragments):
         window = tolerance if tolerance_unit == "Da" else abs(fragment.mz) * tolerance / 1e6
         left = int(np.searchsorted(sorted_mz, fragment.mz - window, side="left"))
         right = int(np.searchsorted(sorted_mz, fragment.mz + window, side="right"))
-        best_idx: int | None = None
-        best_abs_error: float | None = None
-        best_intensity: float | None = None
         for obs_idx in order[left:right]:
             obs_idx = int(obs_idx)
             obs_mz_value = float(observed_mz[obs_idx])
             err = ppm_error(obs_mz_value, fragment.mz) if tolerance_unit == "ppm" else obs_mz_value - fragment.mz
-            abs_err = abs(err)
-            if abs_err <= tolerance:
-                intensity = float(observed_intensity[obs_idx])
-                better = (
-                    best_idx is None
-                    or abs_err < float(best_abs_error)
-                    or (abs_err == best_abs_error and intensity > float(best_intensity))
-                    or (abs_err == best_abs_error and intensity == best_intensity and obs_mz_value < float(observed_mz[best_idx]))
-                )
-                if better:
-                    best_idx = obs_idx
-                    best_abs_error = abs_err
-                    best_intensity = intensity
-        if best_idx is not None:
-            obs_mz_value = float(observed_mz[best_idx])
-            err = ppm_error(obs_mz_value, fragment.mz) if tolerance_unit == "ppm" else obs_mz_value - fragment.mz
-            matches.append(
-                MatchedPeak(
-                    annotation=fragment.annotation,
-                    predicted_mz=fragment.mz,
-                    observed_mz=obs_mz_value,
-                    mz_error=err,
-                    mz_error_unit=tolerance_unit,
-                    predicted_intensity=fragment.intensity,
-                    observed_intensity=float(observed_intensity[best_idx]),
-                    ion_type=fragment.ion_type,
-                    ordinal=fragment.ordinal,
-                    fragment_charge=fragment.charge,
-                    observed_index=best_idx,
-                    predicted_index=pred_idx,
-                )
+            if abs(err) <= tolerance:
+                candidates.append((abs(err), -float(observed_intensity[obs_idx]), obs_mz_value, -float(fragment.intensity), pred_idx, obs_idx))
+    assigned: dict[int, int] = {}
+    claimed_peaks: set[int] = set()
+    for *_, pred_idx, obs_idx in sorted(candidates):
+        if pred_idx in assigned or (one_to_one and obs_idx in claimed_peaks):
+            continue
+        assigned[pred_idx] = obs_idx
+        claimed_peaks.add(obs_idx)
+    matches: list[MatchedPeak] = []
+    for pred_idx, best_idx in sorted(assigned.items()):
+        fragment = predicted_fragments[pred_idx]
+        obs_mz_value = float(observed_mz[best_idx])
+        err = ppm_error(obs_mz_value, fragment.mz) if tolerance_unit == "ppm" else obs_mz_value - fragment.mz
+        matches.append(
+            MatchedPeak(
+                annotation=fragment.annotation,
+                predicted_mz=fragment.mz,
+                observed_mz=obs_mz_value,
+                mz_error=err,
+                mz_error_unit=tolerance_unit,
+                predicted_intensity=fragment.intensity,
+                observed_intensity=float(observed_intensity[best_idx]),
+                ion_type=fragment.ion_type,
+                ordinal=fragment.ordinal,
+                fragment_charge=fragment.charge,
+                observed_index=best_idx,
+                predicted_index=pred_idx,
             )
+        )
     return matches
 
 
@@ -202,7 +211,9 @@ def score_candidate_spectrum(
     annotation_neutral_losses: bool = False,
     use_observed_annotation: bool = True,
 ) -> SpectrumMetricResult:
-    matches = match_predicted_to_observed(observed, predicted.fragments, tolerance=tolerance, tolerance_unit=tolerance_unit)
+    matches = match_predicted_to_observed(
+        observed, predicted.fragments, tolerance=tolerance, tolerance_unit=tolerance_unit, one_to_one=metric_profile != "legacy_v1"
+    )
     angle, cosine, pearson = _similarity_metrics(matches, predicted.fragments, metric_profile)
     matched_observed = [m.observed_intensity for m in matches]
     matched_predicted = [m.predicted_intensity for m in matches]
