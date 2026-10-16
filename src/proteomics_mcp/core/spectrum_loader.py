@@ -5,6 +5,7 @@ import math
 import re
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import numpy as np
 import pandas as pd
@@ -291,13 +292,50 @@ def _proxi_precursor_mz(attributes: list[dict[str, Any]]) -> float | None:
     return None
 
 
+class _TimedPROXIBackend:
+    def __init__(self, backend: Any, timeout_seconds: float) -> None:
+        self._backend: Any = backend
+        self._timeout_seconds: float = timeout_seconds
+        self.name: str = backend.name
+
+    def _request(self, usi: str) -> Any:
+        url = self._backend.url_template.format(usi=usi, **self._backend.options)
+        request = Request(url)
+        with urlopen(request, timeout=self._timeout_seconds) as response:
+            if response.getcode() != 200:
+                raise ValueError("PROXI Service Response Code %r" % response.getcode())
+            return json.loads(response.read().decode("utf-8"))
+
+    def get(self, usi: str) -> dict[str, Any]:
+        return self._backend._coerce(self._request(usi))
+
+    def __call__(self, usi: str) -> dict[str, Any]:
+        return self.get(usi)
+
+
+def _proxi_with_timeout(usi: str, backend: str, timeout_seconds: float, pyteomics_usi: Any) -> Any:
+    if backend == pyteomics_usi.AGGREGATOR_KEY:
+        timed_backends = {
+            name: _TimedPROXIBackend(factory(timeout=timeout_seconds), timeout_seconds)
+            for name, factory in pyteomics_usi._proxies.items()
+        }
+        timed_aggregator = pyteomics_usi.PROXIAggregator(backends=timed_backends, timeout=timeout_seconds)
+        return pyteomics_usi.proxi(usi, backend=timed_aggregator)
+
+    backend_factory = pyteomics_usi._proxies.get(backend)
+    if backend_factory is None:
+        return pyteomics_usi.proxi(usi, backend=backend, timeout=timeout_seconds)
+    timed_backend = _TimedPROXIBackend(backend_factory(timeout=timeout_seconds), timeout_seconds)
+    return pyteomics_usi.proxi(usi, backend=timed_backend)
+
+
 def retrieve_spectrum_from_usi(usi: str, *, backend: str = "pride", timeout_seconds: float = 15.0) -> ObservedSpectrum:
     """Retrieve and normalize a USI spectrum through pyteomics PROXI."""
     try:
         from pyteomics import usi as pyteomics_usi  # type: ignore
     except ImportError as exc:
         raise RuntimeError("USI retrieval requires pyteomics to be installed.") from exc
-    response = pyteomics_usi.proxi(usi, backend=backend, timeout=timeout_seconds)
+    response = _proxi_with_timeout(usi, backend, timeout_seconds, pyteomics_usi)
     mz = response.get("m/z array")
     if mz is None:
         mz = response.get("mz")
