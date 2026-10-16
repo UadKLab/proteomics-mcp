@@ -160,3 +160,21 @@ def test_bruker_d_alphatims(tool, report, tmp_path_factory, fetch):
     assert result.get("source_format") != "bruker_d_embedded_mgf"
     assert summary["spectra"] > 1000 and summary["empty"] == 0
     assert summary["with_precursor_mz"] == summary["spectra"] and summary["same_lengths"]
+    if "scan_index" in summary["columns"]:  # packages with #95: precursor Id as scan number, 1/K0 as mobility
+        table = pd.read_feather(out, columns=["scan_number", "precursor_id", "mobility", "spectrum_id", "precursor_charge"])
+        uncharged = table[table["precursor_charge"].isna()]
+        checks = {
+            "scan_number_unique": bool(table["scan_number"].is_unique),
+            "scan_number_is_precursor_id": bool((table["scan_number"] == table["precursor_id"]).all()),
+            "mobility_range": [float(table["mobility"].min()), float(table["mobility"].max())],
+            "uncharged": int(len(uncharged)),
+        }
+        if len(uncharged):
+            from proteomics_mcp.core.spectrum_loader import load_spectrum_from_table
+
+            checks["uncharged_loads"] = load_spectrum_from_table(out, spectrum_id=uncharged["spectrum_id"].iloc[0]).precursor_charge is None
+        report("conversion", "bruker_d_to_feather timsTOF identifiers (#95)",
+               "pass" if checks["scan_number_unique"] and 0.5 <= checks["mobility_range"][0] <= checks["mobility_range"][1] <= 2.0 else "fail", checks)
+        assert checks["scan_number_unique"] and checks["scan_number_is_precursor_id"]
+        assert 0.5 <= checks["mobility_range"][0] <= checks["mobility_range"][1] <= 2.0
+        assert checks.get("uncharged_loads", True)

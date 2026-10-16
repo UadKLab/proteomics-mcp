@@ -6,6 +6,18 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **Spectrum lookup never silently returns another spectrum** ([#76](https://github.com/UadKLab/proteomics-mcp/issues/76)):
+  - A run name that matches no run of a multi-run spectrum table is an error; before, the first spectrum with that scan number from any run was returned.
+  - A scan number or spectrum id that matches several different spectra is an error, instead of returning the first; identical copies from MGF charge-state enumeration are still accepted.
+  - Spectra without a precursor charge (or m/z, or RT) load; a missing value read from Feather raised `cannot convert float NaN to integer`.
+  - Scan numbers are no longer taken from any number in an identifier. Before, SCIEX native IDs gave the sample number (`sample=1 … cycle=812` → 1), `QE-HF-01.5000.5000.2` gave 1, `Run 7, scans: 1234` gave 7, and Bruker `merged=102 frame=5 …` gave 102.
+- **timsTOF (`bruker_d_to_feather`)** ([#95](https://github.com/UadKLab/proteomics-mcp/issues/95)):
+  - `scan_number` is now the precursor `Id`. Before, it was the precursor's truncated TIMS scan position, which repeats across frames: on a 21-min HeLa ddaPASEF run, 55,897 MS2 spectra shared 709 scan numbers, up to 164 per number, and lookups by scan number returned the first of them.
+  - `mobility` is now 1/K0 (V·s/cm²) instead of the scan position; the scan position is in the new `scan_index` column.
+  - Precursors without a charge (951 in that run) can be loaded.
+
+### Fixed
+
 - **InstaNovo prediction CSVs:** every output format of InstaNovo 1.0.0, 1.1.0, 1.1.3 and 1.2.2 in Zenodo [10.5281/zenodo.20756892](https://doi.org/10.5281/zenodo.20756892) (32 files) is now read correctly:
   - **Positions, not scan numbers:** for MGF input, and mzML input in 1.0.0, InstaNovo's `scan_number` is the spectrum's 0-based position in the file. It was used as a scan number, so spectrum lookup returned the wrong spectrum for 88% of rows and none for 12%. It is now stored as `spectrum_index`, and `load_spectrum_from_table` / scoring look spectra up by position within the run.
   - **1.1.0 transformer files** (`predictions` with `log_probabilities`) failed with "Could not detect an InstaNovo prediction schema".
