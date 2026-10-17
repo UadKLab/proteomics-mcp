@@ -46,6 +46,8 @@ For HPC use, either run upstream inference/search on the cluster and inspect mou
 
 ## Input Tables
 
+Every adapter reads tables the same way: `.csv` is comma-separated; `.tsv`, `.tab` and `.txt` are tab-separated; `.xlsx`, `.xlsm` and `.xls` are read as Excel; compressed files (`.gz`, `.bz2`, `.xz`, `.zip`) by the extension before the compression one. Without a known extension the delimiter is taken from the header line, and a file whose content does not match its extension (a tab-separated file named `.csv`) is read with the delimiter its header uses. So an InstaNovo or Casanovo table saved as `.tsv`, or a MaxQuant or FragPipe table exported as `.csv`, loads too.
+
 Supported adapters:
 
 - `instanovo`: prediction CSVs of InstaNovo 1.0–1.2: transformer greedy and beam search (`preds`/`log_probs`, `predictions`/`log_probabilities`, `predictions`/`log_probs`), InstaNovo+ with and without refinement (`final_prediction`, `diffusion_predictions`, falling back to `transformer_predictions` where refinement produced nothing), verbose prediction columns, and combined runs. Notes:
