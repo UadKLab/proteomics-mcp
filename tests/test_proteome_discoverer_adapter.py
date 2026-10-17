@@ -70,3 +70,25 @@ def test_load_proteome_discoverer_psms_preserves_multiple_modifications_and_met_
 
     assert candidates[0].peptidoform == "VHLTPEEKSAVTALWGK"
     assert candidates[1].peptidoform == "KIYPTVNC[UNIMOD:4]QPLGM[UNIMOD:35]ISLM[UNIMOD:35]K"
+
+
+def test_met_loss_sites_are_shifted_and_mismatched_sites_are_reported(tmp_path):
+    # PD numbers modification sites from the methionine it reports as lost (#125).
+    path = tmp_path / "pd.xlsx"
+    rows = [
+        ("[K].mSYELPAPFKEmVK.[A]", "N-Term(Prot)(Met-loss); M12(Oxidation)"),
+        ("[K].PEPTIDEK.[A]", "M3(Oxidation)"),
+    ]
+    pd.DataFrame(
+        [
+            {"Annotated Sequence": seq, "Modifications": mods, "Spectrum File": "run.raw", "First Scan": scan, "Charge": 2, "m/z [Da]": 500.0}
+            for scan, (seq, mods) in enumerate(rows, start=1)
+        ]
+    ).to_excel(path, index=False)
+
+    met_loss, mismatched = load_proteome_discoverer_psms(path)
+
+    assert met_loss.peptidoform == "SYELPAPFKEM[UNIMOD:35]VK"
+    assert met_loss.warnings == []
+    assert mismatched.peptidoform == "[UNIMOD:35]?PEPTIDEK"
+    assert mismatched.warnings == ["Modification 'Oxidation' at site M3 does not match the residue at that position; kept unlocalised."]
