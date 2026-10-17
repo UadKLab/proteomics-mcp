@@ -98,6 +98,13 @@ def test_fragpipe_modifications(row, expected):
         # Met-loss: the methionine is removed from the sequence once, not again through the modification mass
         ("MPEPTIDEK", "N-Term(Prot)(Met-loss+Acetyl)", "[UNIMOD:1]-PEPTIDEK"),
         ("MPEPTIDEK", "1xMet-loss+Acetyl [N-Term]", "[UNIMOD:1]-PEPTIDEK"),
+        # PD numbers sites from the removed methionine, so they shift by one after a Met-loss (#125)
+        ("[K].mSYELPAPFKEmVK.[A]", "N-Term(Prot)(Met-loss); M12(Oxidation)", "SYELPAPFKEM[UNIMOD:35]VK"),
+        ("[-].mIDKELLDILAcPLcK.[A]", "N-Term(Prot)(Met-loss); C12(Carbamidomethyl); C15(Carbamidomethyl)", "IDKELLDILAC[UNIMOD:4]PLC[UNIMOD:4]K"),
+        ("[-].mIDKELLDILAcPLcK.[A]", "1xMet-loss [N-Term]; 2xCarbamidomethyl [C12; C15]", "IDKELLDILAC[UNIMOD:4]PLC[UNIMOD:4]K"),
+        ("[-].mSDKELLDILAcPLcK.[A]", "N-Term(Prot)(Met-loss+Acetyl); C12(Carbamidomethyl)", "[UNIMOD:1]-SDKELLDILAC[UNIMOD:4]PLCK"),
+        # without a Met-loss, a leading methionine keeps its own site
+        ("[K].MSYELPAPFKEMVK.[A]", "M1(Oxidation); M12(Oxidation)", "M[UNIMOD:35]SYELPAPFKEM[UNIMOD:35]VK"),
     ],
 )
 def test_proteome_discoverer_modifications(annotated, mods, expected):
@@ -109,6 +116,7 @@ def test_proteome_discoverer_modifications(annotated, mods, expected):
     [
         _peptidoform_from_annotated_sequence("PEPSTK", "1xPhospho [S/T]"),  # unlocalised
         _peptidoform_from_annotated_sequence("PEPTCDECK", "1xCarbamidomethyl [C4]"),  # site does not match the residue
+        _peptidoform_from_annotated_sequence("PEPTIDEK", "M3(Oxidation)"),  # site does not match the residue (#125)
         _peptidoform_from_modified_sequence("_PEPK(NotAModification)R_", None),
         _peptidoform_from_row(pd.Series({"Peptide": "PEPTMK", "Assigned Modifications": "5M(15.9949), garbled"})),
         "(+42.01)PEPTIDE",  # not normalised

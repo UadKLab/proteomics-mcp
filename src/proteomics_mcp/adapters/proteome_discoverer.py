@@ -53,8 +53,24 @@ def _terminal_mod_name(mod_text: str) -> str | None:
 _COUNTED_MOD_RE = re.compile(r"(?P<count>\d+)x(?P<name>[^\[;]+?)\s*\[(?P<sites>[^\]]*)\]")
 
 
+def _site_position(residues: list[str], residue: str, position: int, offset: int) -> int | None:
+    """Position of a PD site in residues, or None when the residue there is not the one PD names.
+
+    PD numbers sites against its own sequence; offset is how many leading residues were removed from it (1 after a
+    protein N-terminal Met-loss, whose sites PD still numbers from the methionine) (#125).
+    """
+    shifted = position - offset
+    if 1 <= shifted <= len(residues) and residues[shifted - 1] == residue.upper():
+        return shifted
+    return None
+
+
+def _unplaced_site_warning(name: str, site: str) -> str:
+    return f"Modification {name!r} at site {site} does not match the residue at that position; kept unlocalised."
+
+
 def _counted_modifications(
-    mods_text: str, residues: list[str]
+    mods_text: str, residues: list[str], offset: int = 0, warnings: list[str] | None = None
 ) -> tuple[dict[int, list[str]], list[str], list[str], list[str], str]:
     """Parse the "NxName [sites]" notation; return (residue, N-term, C-term, unlocalised modifications, remaining text)."""
     residue_mods: dict[int, list[str]] = {}
@@ -67,11 +83,20 @@ def _counted_modifications(
         for site in [s.strip() for s in match.group("sites").split(";") if s.strip()]:
             site = re.sub(r"\([\d.]+\)$", "", site).strip()
             residue_site = re.fullmatch(r"(?P<residue>[A-Za-z])(?P<position>\d+)", site)
-            position = int(residue_site.group("position")) if residue_site else 0
-            if residue_site and 1 <= position <= len(residues) and residues[position - 1] == residue_site.group("residue").upper():
-                residue_mods.setdefault(int(residue_site.group("position")), []).append(name)
+            position = (
+                _site_position(residues, residue_site.group("residue"), int(residue_site.group("position")), offset)
+                if residue_site
+                else None
+            )
+            if position is not None:
+                residue_mods.setdefault(position, []).append(name)
                 placed += 1
-            elif site.lower().startswith("n-term"):
+                continue
+            if residue_site:
+                if warnings is not None:
+                    warnings.append(_unplaced_site_warning(name, site))
+                continue
+            if site.lower().startswith("n-term"):
                 nterm.append(name)
                 placed += 1
             elif site.lower().startswith("c-term"):
@@ -81,7 +106,9 @@ def _counted_modifications(
     return residue_mods, nterm, cterm, unlocalized, _COUNTED_MOD_RE.sub("", mods_text)
 
 
-def _peptidoform_from_annotated_sequence(annotated_sequence: Any, modifications: Any = None) -> str | None:
+def _peptidoform_from_annotated_sequence(
+    annotated_sequence: Any, modifications: Any = None, warnings: list[str] | None = None
+) -> str | None:
     core = _peptide_core(annotated_sequence)
     if not core:
         return None
@@ -93,17 +120,23 @@ def _peptidoform_from_annotated_sequence(annotated_sequence: Any, modifications:
     if not residues:
         return None
 
-    residue_mods, nterm_mods, cterm_mods, unlocalized_mods, mods_text = _counted_modifications(mods_text, residues)
+    offset = 1 if met_removed else 0
+    residue_mods, nterm_mods, cterm_mods, unlocalized_mods, mods_text = _counted_modifications(mods_text, residues, offset, warnings)
     if met_removed:
         # The methionine is already removed from the sequence; keep only what follows the loss ("Met-loss+Acetyl" -> "Acetyl").
         nterm_mods = [re.sub(r"^met-loss\+?", "", name, flags=re.IGNORECASE) for name in nterm_mods]
     for part in [segment.strip() for segment in mods_text.split(";") if segment.strip()]:
         residue_match = re.match(r"^(?P<residue>[A-Za-z])(?P<position>\d+)\((?P<mod>.+)\)$", part)
         if residue_match:
-            position = int(residue_match.group("position"))
             mod_name = residue_match.group("mod").strip()
-            if 1 <= position <= len(residues):
+            position = _site_position(residues, residue_match.group("residue"), int(residue_match.group("position")), offset)
+            if position is not None:
                 residue_mods.setdefault(position, []).append(mod_name)
+            else:
+                # Never place a modification on a residue PD did not name: keep it, unlocalised, so it stays visible.
+                unlocalized_mods.append(mod_name)
+                if warnings is not None:
+                    warnings.append(_unplaced_site_warning(mod_name, part.split("(", 1)[0]))
             continue
         if part.startswith("N-Term"):
             mod_name = _terminal_mod_name(part)
@@ -137,7 +170,8 @@ def load_proteome_discoverer_psms(path: str | Path, *, limit: int | None = None,
 
     candidates: list[CandidatePSM] = []
     for row_idx, row in frame.iterrows():
-        peptidoform = _peptidoform_from_annotated_sequence(row.get("Annotated Sequence"), row.get("Modifications"))
+        row_warnings: list[str] = []
+        peptidoform = _peptidoform_from_annotated_sequence(row.get("Annotated Sequence"), row.get("Modifications"), row_warnings)
         if not peptidoform:
             continue
         experiment_name = _run_name(row.get("Spectrum File"))
@@ -173,6 +207,7 @@ def load_proteome_discoverer_psms(path: str | Path, *, limit: int | None = None,
                 confidence=confidence,
                 confidence_type="posterior_error_probability" if pep is not None else None,
                 source_columns={str(k): row[k] for k in row.index},
+                warnings=row_warnings,
             )
         )
     return candidates
