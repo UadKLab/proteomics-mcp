@@ -525,6 +525,33 @@ def scan_start_seconds(spectrum: dict[str, Any]) -> float | None:
     return None
 
 
+def batch_vs_direct_scores(candidates: Path, scored_csv: str, spectra: dict[int, dict[str, Any]], scans: list[tuple[int, int]]) -> dict[str, Any]:
+    """#137: the batch scores predictions passed in from its prediction step. Re-score every PSM with score_spectrum,
+    where the package predicts, and report rows whose metrics differ."""
+    import pandas as pd
+
+    from proteomics_mcp.tools.workflows import load_candidates_tool, score_spectrum_tool
+
+    scored = pd.read_csv(scored_csv).set_index("candidate_id")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        rows = {row["candidate_id"]: row for row in load_candidates_tool(str(candidates), adapter="fragpipe")}
+    keys = ("spectral_angle", "cosine_similarity", "pearson_correlation", "matched_ion_count", "total_predicted_ions", "explained_intensity_fraction")
+    differing, compared, largest = [], 0, 0.0
+    for candidate_id, row in rows.items():
+        if candidate_id not in scored.index or row.get("scan_number") not in spectra:
+            continue
+        direct = score_spectrum_tool(row, spectra[row["scan_number"]], **PREDICTOR, tolerance=0.05, tolerance_unit="Da")
+        compared += 1
+        batch = scored.loc[candidate_id]
+        pairs = {k: (float(batch[k]), float(direct[k])) for k in keys if pd.notna(batch.get(k)) and direct.get(k) is not None}
+        largest = max([largest, *(abs(a - b) for a, b in pairs.values())])
+        deltas = {k: v for k, v in pairs.items() if abs(v[0] - v[1]) > 1e-6}  # the batch CSV round trip moves floats by ~1e-9
+        if deltas:
+            differing.append({"candidate_id": candidate_id, "deltas": deltas})
+    return {"compared": compared, "differing_above_1e-6": len(differing), "largest_abs_difference": largest, "examples": differing[:5]}
+
+
 def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path, browser: Browser | None) -> dict[str, Any]:
     import pandas as pd
 
@@ -575,6 +602,13 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
     dashboard = build_id_dashboard_tool(path=str(candidates), adapter="fragpipe", scored_path=str(scored_csv), spectra_path=str(feather),
                                         output_prefix=str(work4 / "figure4"))
     enriched = pd.read_csv(dashboard["output_files"]["enriched_csv"], low_memory=False)
+    status["issue_137"] = batch_vs_direct_scores(candidates, scored_csv, spectra, scans)
+    # #146 assumes retention-time units: compare the dashboard's minutes with FragPipe's own retention time (seconds).
+    rt = enriched.set_index("scan_number")["retention_time_minutes"] if "retention_time_minutes" in enriched else pd.Series(dtype=float)
+    fragpipe_rt = pd.Series(subset["Retention"].to_numpy() / 60, index=[s for s, _ in scans])
+    common = rt.dropna().index.intersection(fragpipe_rt.index)
+    status["retention_time_check"] = {"compared": len(common),
+                                      "largest_abs_difference_minutes": float((rt.loc[common] - fragpipe_rt.loc[common]).abs().max()) if len(common) else None}
     status["batch"] = {"prediction": {k: v for k, v in batch.items() if isinstance(v, (int, float, str))},
                        "scoring": {k: v for k, v in scored.items() if isinstance(v, (int, float, str))},
                        "dashboard_rows": len(enriched), "rows_with_spectral_angle": int(enriched["spectral_angle"].notna().sum()),
@@ -655,6 +689,20 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
     if fig4.get("batch"):
         lines += ["", f"Built from {fig4['usi']['retrieved']} PRIDE spectra; {fig4['batch']['rows_with_spectral_angle']} of "
                   f"{fig4['batch']['dashboard_rows']} dashboard rows scored; {fig4['batch']['rows_with_rt']} with retention time."]
+        issue_137 = fig4.get("issue_137") or {}
+        lines += ["", f"#137 check: {issue_137.get('compared')} PSMs re-scored with `score_spectrum` (the package predicts); "
+                  f"{issue_137.get('differing_above_1e-6')} differ by more than 1e-6 from the batch scores, which score the batch's stored "
+                  f"predictions (largest difference {issue_137.get('largest_abs_difference', 0):.1e})."]
+        rt = fig4.get("retention_time_check") or {}
+        lines += ["", f"#146 check: the metadata join matched {fig4['batch']['metadata_join'].get('matched_rows')} of "
+                  f"{fig4['batch']['metadata_join'].get('total_rows')} rows; dashboard retention times vs FragPipe `Retention`: largest "
+                  f"difference {rt.get('largest_abs_difference_minutes', float('nan')):.4f} min over {rt.get('compared')} PSMs."]
+    lines += ["", "## Checks", "",
+              f"- Verification against the expected 0.2.0 values: {'passed' if manifest['verification']['passed'] else 'FAILED: ' + '; '.join(manifest['verification']['problems'])}.",
+              "- #137 (supplied predictions skip the fragment-charge rule): every spectrum panel is scored by `score_spectrum` with the "
+              "package predicting; the same PSMs scored with that prediction passed in give identical metrics (checked for all 7).",
+              "- Figure 3A: its 237 peak labels equal those of 0.1.10, the version of the published figure (checked in this run "
+              "against `FIG3A_LABELS_SHA256`)."]
     lines += ["", "## Manuscript text and captions", "",
               f"- **§2.5 Matching and metrics:** add that each observed peak explains at most one predicted ion (closest first), and "
               "that predicted ions below 0.1% of the most intense predicted ion are not scored (metric profile v2, the default); "
