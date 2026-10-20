@@ -318,6 +318,7 @@ def figure2_metrics_with(ms2pip: str, args: argparse.Namespace, workdir: Path) -
     lines = [line for line in exported.splitlines() if line.strip() and not line.lstrip().startswith(("#", "ms2pip=="))]
     requirements.write_text("\n".join([*lines, f"ms2pip=={ms2pip}", ""]))
     command = ["uv", "run", "--no-project", "--python", args.compare_python, "--with-requirements", str(requirements), "--with", str(REPO_ROOT),
+               "--reinstall-package", "proteomics-mcp",  # build this checkout, never a cached build of another commit
                "python", str(Path(__file__).resolve()), "--figure2-metrics-only", str(out), "--cache-dir", str(args.cache_dir)]
     if args.zenodo_zip:
         command += ["--zenodo-zip", str(args.zenodo_zip)]
@@ -667,7 +668,7 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
               "Rendering note: the sequence stubs read `DM(ox)HGVTSH…`; the published panel shows `DMHGVTSH…` (pre-release renderer; "
               "every release since 0.1.8 shows the modification). Keep the published 3A or accept the stub notation.", ""]
     b_old, b_new = results["fig3b"]["published"], results["fig3b"]["new"]
-    ann_old = annotation({**b_old, "metrics": {**b_old["metrics"], "annotation_settings": b_old["metrics"]["annotation_settings"]}}, FIG3B_ION_TYPES)
+    ann_old = b_old["metrics"]["annotation_summary"]  # the published (0.1.10) labels, stored with the panel's settings
     ann_new = annotation(b_new, FIG3B_ION_TYPES)
     changed_labels = sum(1 for a, b in zip(ann_old["annotations"], ann_new["annotations"]) if a != b)
     lines += [f"**3B → image changes (published image wrong).** Peptidoform `{b_old['metrics']['candidate']['peptidoform']}` → "
@@ -871,7 +872,7 @@ def main(argv: list[str] | None = None) -> int:
             inputs[rel] = {"sha256": file_digest(supplement / rel)}
     manifest = {
         "started": started, "finished": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "command": shlex.join([sys.executable, *sys.argv]), "cwd": os.getcwd(),
+        "command": shlex.join(["python", *sys.argv]), "interpreter": sys.executable, "cwd": os.getcwd(),
         "package": {"proteomics-mcp": version("proteomics-mcp"), "source": str(Path(__import__("proteomics_mcp").__file__).parent)},
         "git": git, "ms2pip": ms2pip_version, "python": platform.python_version(), "platform": platform.platform(), "versions": package_versions(),
         "settings": {"metric_profile": "v2 (package default)", "tolerance": "0.05 Da", "predictor": PREDICTOR, "mirror_label_top_n": MIRROR_LABELS,
