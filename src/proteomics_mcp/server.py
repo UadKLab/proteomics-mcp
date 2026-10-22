@@ -690,8 +690,11 @@ if MCPServer is not None:
         default_experiment_name: str | None = None,
         limit: int | None = None,
         config_path: str | None = None,
+            collision_energy: float | None = None,
     ) -> dict[str, Any]:
-        """Build a reusable fragment-prediction batch with manifest, fragment, mapping, failure, and status artifacts."""
+        """Build a reusable fragment-prediction batch with manifest, fragment, mapping, failure, and status artifacts.
+
+        Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
         return build_prediction_batch_tool(
             path=path,
             output_prefix=_resolve(output_prefix),
@@ -706,6 +709,7 @@ if MCPServer is not None:
             default_experiment_name=default_experiment_name,
             limit=limit,
             config_path=config_path,
+            collision_energy=collision_energy,
         )
 
     @mcp.tool()
@@ -763,9 +767,12 @@ if MCPServer is not None:
         backend: str | None = None,
         max_fragment_charge: int | None = None,
         config_path: str | None = None,
+            collision_energy: float | None = None,
     ) -> dict[str, Any]:
-        """Predict fragment ions and intensities for one peptidoform and precursor charge."""
-        return predict_fragments_tool(peptidoform, charge, model, backend, max_fragment_charge=max_fragment_charge, config_path=config_path)
+        """Predict fragment ions and intensities for one peptidoform and precursor charge.
+
+        Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
+        return predict_fragments_tool(peptidoform, charge, model, backend, max_fragment_charge=max_fragment_charge, config_path=config_path, collision_energy=collision_energy)
 
     @mcp.tool()
     def retrieve_usi_spectrum(usi: str, backend: str = "pride", timeout_seconds: float = 15.0) -> dict[str, Any]:
@@ -853,8 +860,11 @@ if MCPServer is not None:
         annotation_max_ion_charge: int | None = None,
         annotation_neutral_losses: bool | None = None,
         config_path: str | None = None,
+            collision_energy: float | None = None,
     ) -> dict[str, Any]:
-        """Score one candidate against one observed spectrum, optionally using a supplied predicted spectrum."""
+        """Score one candidate against one observed spectrum, optionally using a supplied predicted spectrum.
+
+        Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
         return score_spectrum_tool(
             candidate,
             observed,
@@ -870,6 +880,7 @@ if MCPServer is not None:
             annotation_max_ion_charge=annotation_max_ion_charge,
             annotation_neutral_losses=annotation_neutral_losses,
             config_path=config_path,
+            collision_energy=collision_energy,
         )
 
     @mcp.tool()
@@ -907,8 +918,11 @@ if MCPServer is not None:
         limit: int | None = None,
         status_path: str | None = None,
         config_path: str | None = None,
+            collision_energy: float | None = None,
     ) -> dict[str, Any]:
-        """Score many candidates directly against local spectra or USI targets without a reusable prediction batch."""
+        """Score many candidates directly against local spectra or USI targets without a reusable prediction batch.
+
+        Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
         return score_candidates_tool(
             candidates_path=candidates_path,
             spectra_path=spectra_path,
@@ -928,6 +942,7 @@ if MCPServer is not None:
             limit=limit,
             status_path=_resolve(status_path),
             config_path=config_path,
+            collision_energy=collision_energy,
         )
 
     @mcp.tool()

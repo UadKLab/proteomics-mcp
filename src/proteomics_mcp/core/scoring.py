@@ -301,7 +301,13 @@ def score_candidate_spectrum(
         # predicted_index refers to predicted.fragments, which the renderers draw, not to the scored subset
         matched_peaks=[dataclasses.replace(match, predicted_index=scored[match.predicted_index]) for match in matches],
         metric_profile=metric_profile,
-        predictor_metadata={"predictor_name": predicted.predictor_name, "predictor_version": predicted.predictor_version, "model": predicted.model},
+        predictor_metadata={
+            "predictor_name": predicted.predictor_name,
+            "predictor_version": predicted.predictor_version,
+            "model": predicted.model,
+            # the collision energy a Koina prediction used, and where it came from (#128)
+            **{key: predicted.metadata[key] for key in ("collision_energy", "collision_energy_source") if predicted.metadata.get(key) is not None},
+        },
         annotation_settings={
             "tolerance": tolerance,
             "tolerance_unit": tolerance_unit,
