@@ -292,6 +292,38 @@ def _proxi_precursor_mz(attributes: list[dict[str, Any]]) -> float | None:
     return None
 
 
+# Units a PROXI "scan start time" (MS:1000016) attribute may carry, as seconds per unit
+_PROXI_TIME_UNITS = {
+    "UO:0000010": 1.0, "second": 1.0,
+    "UO:0000031": 60.0, "minute": 60.0,
+    "UO:0000028": 0.001, "millisecond": 0.001,
+}
+
+
+def _proxi_retention_time(attributes: list[dict[str, Any]]) -> tuple[float | None, str | None]:
+    """Retention time in seconds from the PROXI scan start time (MS:1000016), and where it came from (#135).
+
+    PROXI attributes may carry their unit (unitAccession / unitName). PRIDE sends none, and its values are seconds:
+    scan 21989 of the PXD044934 S. brodae run has 1964.03, the 32.73 min Proteome Discoverer reports. Without a unit
+    the value is therefore read as seconds; a unit this module does not know gives no retention time.
+    """
+    for attr in attributes:
+        if attr.get("accession") != "MS:1000016" and str(attr.get("name", "")).lower() != "scan start time":
+            continue
+        try:
+            value = float(attr["value"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        unit = next((attr[key] for key in ("unitAccession", "unit_accession", "unitName", "unit_name", "unit") if attr.get(key)), None)
+        if unit is None:
+            return value, "MS:1000016 scan start time (no unit given; read as seconds)"
+        factor = _PROXI_TIME_UNITS.get(str(unit)) or _PROXI_TIME_UNITS.get(str(unit).lower())
+        if factor is None:
+            return None, f"MS:1000016 scan start time in unknown unit {unit!r}; not used"
+        return value * factor, f"MS:1000016 scan start time ({unit})"
+    return None, None
+
+
 class _TimedPROXIBackend:
     def __init__(self, backend: Any, timeout_seconds: float) -> None:
         self._backend: Any = backend
@@ -358,6 +390,9 @@ def retrieve_spectrum_from_usi(usi: str, *, backend: str = "pride", timeout_seco
         "attributes": attributes,
     }
     precursor_mz = _proxi_precursor_mz(attributes if isinstance(attributes, list) else [])
+    rt_seconds, rt_source = _proxi_retention_time(attributes if isinstance(attributes, list) else [])
+    if rt_source is not None:
+        metadata["rt_source"] = rt_source
     precursor_charge = None
     for attr in attributes if isinstance(attributes, list) else []:
         name = str(attr.get("name", "")).lower()
@@ -372,6 +407,7 @@ def retrieve_spectrum_from_usi(usi: str, *, backend: str = "pride", timeout_seco
         scan_number=parsed_scan,
         precursor_mz=precursor_mz,
         precursor_charge=precursor_charge,
+        rt_seconds=rt_seconds,
         source=f"usi:{backend}",
         metadata=metadata,
     )
