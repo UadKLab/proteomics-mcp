@@ -13,6 +13,8 @@ from proteomics_mcp.models.schemas import ObservedSpectrum
 
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE = json.loads((ROOT / "tests" / "fixtures" / "engine_reference_examples.json").read_text(encoding="utf-8"))
+if not (ROOT / "examples").is_dir():
+    pytest.skip("examples/ is only available in a source checkout", allow_module_level=True)
 
 
 def _example_spectrum(name: str) -> ObservedSpectrum:
