@@ -131,7 +131,8 @@ def read_spectra(path: Path) -> list[tuple[str, ObservedSpectrum]]:
 
 def _docker(image: str, work: Path, *command: str) -> None:
     user = [] if platform.system() == "Windows" else ["-u", f"{os.getuid()}:{os.getgid()}"]
-    completed = subprocess.run(["docker", "run", "--rm", *user, "-v", f"{work}:/work", "-w", "/work", image, *command],
+    # docker reads a relative -v source as the name of a volume, so the path must be absolute
+    completed = subprocess.run(["docker", "run", "--rm", *user, "-v", f"{work.resolve()}:/work", "-w", "/work", image, *command],
                                capture_output=True, text=True)
     (work / "engine.log").write_text(completed.stdout + completed.stderr, encoding="utf-8")
     if completed.returncode != 0:
@@ -332,6 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--update-golden", action="store_true", help="with --run-engines: replace golden/ with this run")
     parser.add_argument("--out", type=Path, default=HERE / "out")
     args = parser.parse_args(argv)
+    args.out = args.out.resolve()
     args.out.mkdir(parents=True, exist_ok=True)
     engine_rows = run_engines(args.out / "engines") if args.run_engines else read_golden()
     status = 0
