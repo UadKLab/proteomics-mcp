@@ -852,9 +852,14 @@ if MCPServer is not None:
         annotation_max_isotope: int | None = None,
         annotation_max_ion_charge: int | None = None,
         annotation_neutral_losses: bool | None = None,
+        score_predictions_as_given: bool | None = None,
         config_path: str | None = None,
     ) -> dict[str, Any]:
-        """Score one candidate against one observed spectrum, optionally using a supplied predicted spectrum."""
+        """Score one candidate against one observed spectrum, optionally using a supplied predicted spectrum.
+
+        A supplied prediction goes through the same rules as one the package makes: fragments above the fragment-charge
+        limit (max_fragment_charge, or precursor charge - 1) are left out, unless score_predictions_as_given. The result
+        lists the scored ions, the ions left out with the reason, and the settings in effect."""
         return score_spectrum_tool(
             candidate,
             observed,
@@ -869,6 +874,7 @@ if MCPServer is not None:
             annotation_max_isotope=annotation_max_isotope,
             annotation_max_ion_charge=annotation_max_ion_charge,
             annotation_neutral_losses=annotation_neutral_losses,
+            score_predictions_as_given=score_predictions_as_given,
             config_path=config_path,
         )
 

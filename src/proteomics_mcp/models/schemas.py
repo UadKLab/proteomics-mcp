@@ -148,6 +148,12 @@ class SpectrumMetricResult:
     precursor_mass_error_corrected_da: float | None = None
     metric_profile: str = "v2"
     predictor_metadata: dict[str, Any] = field(default_factory=dict)
+    # What was scored (#137): the aligned predicted/observed intensities behind spectral angle, cosine and Pearson, the
+    # predicted ions left out with the reason, the number of values each metric was computed on, and the settings
+    scored_ions: list[dict[str, Any]] = field(default_factory=list)
+    excluded_predicted_ions: list[dict[str, Any]] = field(default_factory=list)
+    metric_n: dict[str, int] = field(default_factory=dict)
+    scoring_settings: dict[str, Any] = field(default_factory=dict)
     annotation_settings: dict[str, Any] = field(default_factory=dict)
     annotation_summary: dict[str, Any] = field(default_factory=dict)
     acquisition_provenance: dict[str, Any] = field(default_factory=dict)
