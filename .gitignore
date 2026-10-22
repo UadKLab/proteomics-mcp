@@ -26,3 +26,4 @@ data/
 # Local presentation/slide assets not intended for distribution.
 presentation/
 validation/engine_scores/out/
+!validation/engine_scores/data/
