@@ -653,13 +653,18 @@ if MCPServer is not None:
         column_mapping_path: str | None = None,
         scored_path: str | None = None,
         top_n: int | None = None,
-        rt_source_field: str = "rt",
+        rt_source_field: str | None = None,
+        rt_unit: str = "seconds",
         confidence_field: str | None = "confidence",
         mz_field: str = "precursor_mz",
         default_experiment_name: str | None = None,
         limit: int | None = None,
     ) -> dict[str, Any]:
-        """Build a full HTML dashboard bundle from a normalized ID table, with optional spectra metadata and scored enrichment."""
+        """Build a full HTML dashboard bundle from a normalized ID table, with optional spectra metadata and scored enrichment.
+
+        With spectra_path, candidates are joined to spectra by run and scan number; metadata_join in the result counts the
+        matches and the unmatched rows by reason. rt_source_field names the spectra table's retention-time column
+        (default: rt, retention_time, retention_time_seconds or RT, whichever it has), in rt_unit ("seconds" or "minutes")."""
         return build_id_dashboard_tool(
             path=path,
             spectra_path=spectra_path,
@@ -669,6 +674,7 @@ if MCPServer is not None:
             scored_path=scored_path,
             top_n=top_n,
             rt_source_field=rt_source_field,
+            rt_unit=rt_unit,
             confidence_field=confidence_field,
             mz_field=mz_field,
             default_experiment_name=default_experiment_name,
