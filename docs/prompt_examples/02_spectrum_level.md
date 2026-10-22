@@ -56,7 +56,7 @@ Annotate the observed spectrum for this phosphopeptide using all ion types, incl
 
 **User prompt**
 
-Compare the spectral angle, matched-ion fraction, explained intensity, and log2 xcorr for these five selected PSMs.
+Compare the spectral angle, matched-ion fraction, explained intensity, and XCorr for these five selected PSMs.
 
 **What the MCP should do**
 

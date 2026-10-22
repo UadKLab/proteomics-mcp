@@ -1,0 +1,2164 @@
+{
+ "description": "Scores reported by Comet 2026.01.1 and X! Tandem 2015.12.15.2 (BioContainers images pinned by digest) for the 25 reference payloads in examples/*_top5, written as MGF with m/z to 6 and intensity to 4 decimals. Comet: no enzyme, +-3 Da (MH+), internal decoys, top 10 hits, high_res XCorr settings. X! Tandem: default_input.xml with refine off, 20 ppm. Regenerate with validation/engine_scores/ (PR 3).",
+ "comet_image": "quay.io/biocontainers/comet-ms@sha256:af4868654b0652fb55e8b87e8d1da77bed87f92345e4e85895280b4a9e3e9c9c",
+ "xtandem_image": "quay.io/biocontainers/xtandem@sha256:712774bdb3afbfd884d22de3cc2e5b93ccaf0074ba527a3b5b2cba748aac10ea",
+ "comet_params": {
+  "peptide_mass_tolerance": 3.0,
+  "peptide_mass_units": 0,
+  "precursor_tolerance_type": 0
+ },
+ "comet": [
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "AQNSC[+57.021464]PIC[+57.021464]QK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 2.896
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "NGAAC[+57.021464]SPIDGSC[+57.021464]",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 0.847
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "QANSPLC[+57.021464]RFI",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 0.842
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "EEGSLSSPPSAM[+15.994915]",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 0.794
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "SC[+57.021464]NAQPIASSDG",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.734
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "QANQNQPRYS",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.733
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "NQASC[+57.021464]TKRDE",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 0.719
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "LSGGGASGKSGSGAGG",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 0.676
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "DETNTLPTGKGA",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 0.663
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "GMPNWLHGSHA",
+   "rank": 10,
+   "decoy": true,
+   "xcorr": 0.647
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "HTYDDEFFTFK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 3.634
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "VEALC[+57.021464]GFQFTFK",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 0.82
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "SENAIVGFLAIPGY",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 0.645
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "HEMTPEEIESM[+15.994915]T",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 0.636
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "DVDFVFEDPFAF",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.629
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "AEVLEKLKNQFK",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.603
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "C[+57.021464]LGDFLEVYDYG",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 0.58
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "QLDNYQDC[+57.021464]TFF",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.576
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "LNEC[+57.021464]LSVQENNK",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.573
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "LGC[+57.021464]LILAVLTTFK",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 0.568
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "AQNSC[+57.021464]PIC[+57.021464]QK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 2.603
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "GMPNWLHGSHA",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 0.772
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "EEGSLSSPPSAM[+15.994915]",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 0.759
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "QANQNQPRYS",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 0.734
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "QANSPLC[+57.021464]RFI",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.696
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "LSGGGASGKSGSGAGG",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.663
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "AGAGGSGSESDHTA",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 0.652
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "MIASDALAM[+15.994915]APT",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 0.641
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "NQASC[+57.021464]TKRDE",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 0.639
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "NGAAC[+57.021464]SPIDGSC[+57.021464]",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 0.638
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "HTYDDEFFTFK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 3.641
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "VEALC[+57.021464]GFQFTFK",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 0.824
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "SENAIVGFLAIPGY",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 0.644
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "HEMTPEEIESM[+15.994915]T",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 0.642
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "AEVLEKLKNQFK",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.604
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "DVDFVFEDPFAF",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.595
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "LNEC[+57.021464]LSVQENNK",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 0.58
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "C[+57.021464]LGDFLEVYDYG",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 0.573
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "LGC[+57.021464]LILAVLTTFK",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.571
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "SPQSDDIKDRGDD",
+   "rank": 10,
+   "decoy": true,
+   "xcorr": 0.547
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KAVEATQVC[+57.021464]R",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 3.106
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KAVEM[+15.994915]ALQAW",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 1.133
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KAVILNC[+57.021464]SAEG",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 1.093
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KAVTAADMEAR",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 1.076
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KVAKTVDENSA",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.97
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "VKAELLVQM[+15.994915]D",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 0.965
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "SLRAAKVVC[+57.021464]R",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 0.964
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KGLEAADKKAE",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.96
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KADDLLNGTSK",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 0.913
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KASNEDVTKAV",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 0.911
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 5.418
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "DALAEPPQRC[+57.021464]TGVC[+57.021464]EYALFGPPELVWNEAWKM[+15.994915]GQL",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 1.654
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "HHMAQVHWSGGDVHYHLESHPPGPFEVNAEGNLYVT",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 1.552
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "AVDSGSELNSRSSTLSSSSM[+15.994915]SLSPKLC[+57.021464]AEKEAATSELQS",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 1.518
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "GIETNKFTSLTRIVVKDGEQSIIVTPKTVNGVQRTAF",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 1.508
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "TESESKNSHSKTSVEKNHVEKDKMNTLDILRMETT",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 1.489
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "FMEETTFHHVLQC[+57.021464]HARLNSNRTFTKTC[+57.021464]TPVVC[+57.021464]K",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 1.415
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "PLTGNVYSGFGFHSAQDSALLYYRASPDGLC[+57.021464]QVSLQQ",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 1.372
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "AASDENHRPLSAASNSDQLEDQALAQM[+15.994915]KPYSSSKDSSP",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 1.35
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "TIC[+57.021464]LHC[+57.021464]YSHGC[+57.021464]NISVPNTMLSLC[+57.021464]ISC[+57.021464]TAEEMMKK",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 1.35
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 7.202
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "KTEPLDFNDYKVLMATHGFSGTSPFMNGGLGATSPLGVHP",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 2.623
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "TGEPMSKQRYTGGVSGTDSSSSLNSPSNRC[+57.021464]QSRALAM[+15.994915]SSV",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 2.423
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "ESVINPNITSQDKNEQGGM[+15.994915]LC[+57.021464]SQMENLPSTALPAQMED",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 2.407
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "LTSTPSSLDFNLPQVSVTTNPSSMGSDPQKAELEASPDRS",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 2.336
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "GSMRKAPGSDPFMSSGQGPNGGM[+15.994915]GDPYSRAAGPGLGNVAMGPR",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 2.299
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "DRAIEEFTLSC[+57.021464]AGYC[+57.021464]VATYVLGIGDRHSDNIM[+15.994915]IRESG",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 2.292
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "MSVGFGEPMSKQRYTGGVSGTDSSSSLNSPSNRC[+57.021464]QSRALA",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 2.243
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "YGSWREPVNPYYVNAGYALAPATSANDSEQQSLSSDADT",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 2.24
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "IVSSIDELNDSEVYEKVVDYQEESKETSMNGLSGGVGAN",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 2.222
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "ISM[+15.994915]DEQDLLNGAGETYEVALTEPGTYSFYC[+57.021464]APHQGAGM[+15.994915]VGK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 6.693
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "GQDGVQDEFSLQPEEEEKYTVIYPYTARDQDEM[+15.994915]NLER",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 1.876
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "PMQGGAGM[+15.994915]PNIGGAM[+15.994915]GASPYNANPLANYNPQRPYGGQPGYQGGQ",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 1.457
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "KSLC[+57.021464]RNSNMDVNESRSGGEHGFLNQC[+57.021464]RYKFNNWM[+15.994915]KGV",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.368
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "PM[+15.994915]QGGAGMPNIGGAM[+15.994915]GASPYNANPLANYNPQRPYGGQPGYQGGQ",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 1.328
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "GTGSDLHDDM[+15.994915]FGDEKQDSESNVDPRDDVFGYPHQFEDKP",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 1.319
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "MPDPGLM[+15.994915]PLPDTAADLDWSNLVDAAKAYEVQRASFFAASDE",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 1.309
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "SSYSTLTGSLTMDDNRRIQM[+15.994915]LADTVATLPRGRKQLALTRS",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 1.298
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "M[+15.994915]PDPGLMPLPDTAADLDWSNLVDAAKAYEVQRASFFAASDE",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 1.26
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "FSFDTDRSPAPM[+15.994915]SC[+57.021464]DKSTQTPSPPC[+57.021464]QAFNHYLSAMASMR",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 1.245
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 5.733
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "GDPYSRAAGPGLGNVAM[+15.994915]GPRQHYPYGGPYDRV",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 1.796
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "PAYDQAPEVTLQADIEVMSTVHISSVYNDVP",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 1.651
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "SC[+57.021464]IGLYVDIAKIFC[+57.021464]NTNPLSTRSGIM[+15.994915]LTTM",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.551
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "SLSNSSIDTGSATTTLGLGENTVM[+15.994915]SPNLIPAQTP",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 1.549
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "DTVSLSAQPGPTVASGENVTLLC[+57.021464]QSWWQFDT",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 1.537
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "TNLYEGHIEKDAREFIDKQVC[+57.021464]GTPEYIAP",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 1.511
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "SASVM[+15.994915]AAPC[+57.021464]ALASSKLAYPEVEESKFKSEEGV",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 1.494
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "HVESLNSNM[+15.994915]TPFGLLPAEMGVGLHQMPSQASP",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 1.491
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "SC[+57.021464]IGLYVDIAKIFC[+57.021464]NTNPLSTRSGIMLTTM[+15.994915]",
+   "rank": 10,
+   "decoy": true,
+   "xcorr": 1.478
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "TSPSDNPFISSIEVYSLDTGM[+15.994915]YDDLGPNEGLILHDR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 5.377
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "GGGAGGGGAGAGQRPSFSIDHIMGHGGGGAAPPGAGEGSPGPPFAAA",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 1.341
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "GTASGGDPLTGLGGVM[+15.994915]AQAGFNGGNLTNFFSLPGSRTPEIV",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 1.329
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "M[+15.994915]HLPRRADGLSYM[+15.994915]MSQLETAFSISKGTSRGSSSTATS",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.302
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "M[+15.994915]HLPRRADGLSYMM[+15.994915]SQLETAFSISKGTSRGSSSTATS",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 1.299
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "VENLSVEHRVLSRDPSAELEAKQPDSGM[+15.994915]SSPNTTVSV",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 1.213
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "SPDSEPVLEKDDLM[+15.994915]DM[+15.994915]DASQQNLFDNKFDDIFGSS",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 1.168
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "HYPYGGPYDRVRTEPGIGPEGNM[+15.994915]STGAPQPNLM[+15.994915]PSNP",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 1.153
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "SPDTQELADVSSVC[+57.021464]TPTTGSQVEPSEEEHIAKPIKDV",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 1.128
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "PMVLENSKDDGQDMSLSGKSNLDETSGMPSSFSASHSL",
+   "rank": 10,
+   "decoy": true,
+   "xcorr": 1.112
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "DM[+15.994915]HGVTSHLSNQELQDLVEFMK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 6.864
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "IFAESEGPSVNRSYWAEVLFAGM[+15.994915]",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 1.395
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "KYTVFC[+57.021464]SHPYPTVISEFEASPD",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 1.294
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "TLNPEPMFRYDQKGEKDRMSM",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.278
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "GYVHPVNLTWPFVVSGRPDSDTK",
+   "rank": 5,
+   "decoy": false,
+   "xcorr": 1.26
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "RPQGNSQLLEQAIEAGDLPKC[+57.021464]YS",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 1.247
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "WVFADM[+15.994915]DLLHKVVAPAIRM[+15.994915]SLK",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 1.24
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "NQFFNNVDSEGAEDLQRDSM[+15.994915]QL",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 1.238
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "TQVPEQEM[+15.994915]EVQEPAEPTGVNM[+15.994915]LS",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 1.219
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "YGTGLEGGTTGIQSEFFINTTRAGP",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 1.201
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "EVAFELDKTPVITGDAPGFIVNR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 4.656
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "C[+57.021464]RMLQISRVDGKTSPIQSKSPT",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 1.303
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "AGLFAVRSAGWRDDLARRVAAGVA",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 1.291
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "SLIRKDDPRVEC[+57.021464]FAGRSGNAKL",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.266
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "EVTKQVSM[+15.994915]ARQAQVDLEREKK",
+   "rank": 5,
+   "decoy": false,
+   "xcorr": 1.257
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "EVPHNLLEIRNNQVMANLATLP",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 1.233
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "LSGM[+15.994915]GKLVAQRGTGELLAQVEQSP",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 1.221
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "LSGVFETILTYGAM[+15.994915]WNGKSVLGQ",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 1.193
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "PPPPPPPPIGM[+15.994915]MGPLPPPPPPLPAGG",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 1.189
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "PPPPPPPPIGMM[+15.994915]GPLPPPPPPLPAGG",
+   "rank": 10,
+   "decoy": true,
+   "xcorr": 1.186
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "YVSRPGIISEDDDTEILGSDR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 5.903
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "STLTGSLTMDDNRRIQMLADT",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 1.344
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "FGTYYQLC[+57.021464]SLMDVVNAMVLI",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 1.163
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "VDNYVSSIHVTSM[+15.994915]VEIDAQLT",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.148
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "RNYLDELSVKLPHM[+15.994915]M[+15.994915]DEGR",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 1.133
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "TIVM[+15.994915]KALQPDLPFEAMMSGLE",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 1.034
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "GVAQLEPLDDLEMHEDC[+57.021464]SNY",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 1.013
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "C[+57.021464]PLVPRYDC[+57.021464]LTGERLEEAR",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 0.992
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "NYLNRLLTM[+15.994915]SFYRNYHAM[+15.994915]",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.977
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "VYQEPIM[+15.994915]SQGAALSGEPTTLTK",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.977
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "GEVDKLGFLMLAYSPDGAKDEFGR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 5.887
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "ALTIC[+57.021464]PIPKEVESSPDPDLVPDHS",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 1.784
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "NASIGKTLNEGEHSSVQC[+57.021464]FSHTVN",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 1.298
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "KDGPAFPIYEASC[+57.021464]SGDKNDRC[+57.021464]NI",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.269
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "LLC[+57.021464]EYLSDPFASTLRSADGSKDDG",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 1.257
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "DM[+15.994915]GSQLRSSLSPKGSKSC[+57.021464]STYIGPG",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 1.223
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "EITQTQYILEGYSILDNNAATM[+15.994915]L",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 1.208
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "TTTNVIDVSGSYSSIMLKVIETAGQ",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 1.193
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "QEQGVIM[+15.994915]GTFPAYVTSGASC[+57.021464]LIDVG",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 1.189
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "ASTTSTKKMM[+15.994915]EEATC[+57.021464]SIC[+57.021464]LSLM[+15.994915]T",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 1.184
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "DMHGVTSHLSNQELQDLVEFMK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 6.649
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "HSFLAPIHQM[+15.994915]SWPEKVASFC[+57.021464]VA",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 1.522
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "SSLSSAMKQAPQATSGLMEPPGPSTP",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 1.413
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "LNGDGSSSFDTSSKNKPFVTMKNP",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.401
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "DKEPAEPPAGAFPGFPSPPAPPAAAAT",
+   "rank": 5,
+   "decoy": false,
+   "xcorr": 1.349
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "KSTEQHENLVSKNEAPVSSVM[+15.994915]ET",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 1.33
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "DAGEGGLDLAIEGPSKAEISC[+57.021464]IDNK",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 1.328
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "TVLSMTTLMIGSRTSLPNTNC[+57.021464]FI",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 1.328
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "RSVPEEYLC[+57.021464]VAEGGKMVFRETV",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 1.309
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "NGFNVLKFGSNSLSIDLPVEFM[+15.994915]L",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 1.264
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "LQLETELEALKEELLFMK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 4.463
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "KHRYELPLFPIFYDILN",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 1.545
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "IEDVEIEAGKAHLSQPKNSL",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 1.522
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "QLRSGDRLSVTWFGLETTL",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 1.432
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "ELVKFIGDIYYGLFRGC[+57.021464]K",
+   "rank": 5,
+   "decoy": false,
+   "xcorr": 1.419
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "QLLGVENLLTFSHELLMGY",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 1.362
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "VPAAAAVAAGPEPAPAGPAKPAGPAA",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 1.272
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "QKEQSDNETAGGTKYRLVGV",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 1.261
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "GPGPGATATVTVLVERVMPPPK",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 1.253
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "NRLTQPVTEKWINRLSSH",
+   "rank": 10,
+   "decoy": true,
+   "xcorr": 1.25
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "EFHLNESGDPSSK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 3.336
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "SPSADQSLEDSPSK",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 1.4
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "KPSSRATSPVLSSK",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 1.005
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "DFIPHTSDLPSSK",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 0.959
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "TLVEWERNPSKS",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.781
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "KPM[+15.994915]HPLLDAVPSK",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.776
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "PMKMGSHLFPSKS",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 0.775
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "KSDQALHSFSEAK",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.774
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "KNPRNPQGGSSSKS",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.771
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "KSYDFTPMDSSAV",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 0.763
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "EVYQQQQYGSGGR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 2.674
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "GLYVLVGAGALM[+15.994915]M[+15.994915]AV",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 0.781
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "SLTSEMLM[+15.994915]LSPGSE",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 0.754
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "SLTSEM[+15.994915]LMLSPGSE",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 0.754
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "LDYGSQSGREGQGF",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 0.741
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "DPYAAGAQFPNYSP",
+   "rank": 5,
+   "decoy": false,
+   "xcorr": 0.735
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "VEEYLC[+57.021464]VAEGGKM[+15.994915]",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.727
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "RLDMM[+15.994915]SKEGGRGGS",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 0.717
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "ASPQHTQTEKDYP",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.675
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "FGSVEEGPLSTGSSF",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.664
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "TLFPLFMK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 1.632
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "KKSYQGALT",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 0.637
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "LLMFILPF",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 0.614
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "TIRYPPHL",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 0.607
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "TLHPPYRI",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 0.607
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "TTRIYNKT",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.602
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "VLFM[+15.994915]LAATL",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.587
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "KIEHKPNK",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 0.572
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "LFPDTDYK",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.56
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "VLNYMARK",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.554
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "SRGFGFVLFK",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 2.15
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "GDC[+57.021464]GFNVLKF",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 1.14
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "SPKNEPPLFK",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 1.0
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "IVC[+57.021464]NKHIKF",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 0.957
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "KFEKSGYLKG",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.877
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "C[+57.021464]EEC[+57.021464]GNIFK",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 0.861
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "LVHGYGIATLL",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 0.85
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "M[+15.994915]VAEM[+15.994915]VGIKF",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 0.85
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "DQVC[+57.021464]TFLFK",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.832
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "PELPSVTREK",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.827
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "YKFTTR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 1.55
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "KFFTDR",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 0.913
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "KFYSSIA",
+   "rank": 3,
+   "decoy": true,
+   "xcorr": 0.911
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "KEDLGTR",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 0.776
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "KASNLKR",
+   "rank": 5,
+   "decoy": false,
+   "xcorr": 0.759
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "KGPRSLSA",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.742
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "KGNEVIR",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 0.741
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "KPTKGER",
+   "rank": 8,
+   "decoy": true,
+   "xcorr": 0.731
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "KAAELER",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.714
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "VPNQPVY",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 0.699
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "EYLM[+15.994915]FR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 1.229
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "KPYYFR",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 0.811
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "KYM[+15.994915]FIR",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 0.791
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "LEPELSVS",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 0.755
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "VEQPVFR",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.712
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "PPYMLVVG",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 0.688
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "YTMC[+57.021464]FR",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 0.648
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "GVMALLC[+57.021464]I",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.635
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "TTRLRMV",
+   "rank": 9,
+   "decoy": true,
+   "xcorr": 0.613
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "PPC[+57.021464]ITLAT",
+   "rank": 10,
+   "decoy": true,
+   "xcorr": 0.6
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "FLYNTR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 1.252
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "YIFEIE",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 0.943
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "FIQDYK",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 0.839
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "KEASHLE",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 0.806
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "M[+15.994915]LEGGYK",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.744
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "M[+15.994915]ITAFGGT",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.709
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "FIATYQA",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 0.698
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "LFEKMM[+15.994915]",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.696
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "IYFEKN",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.689
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "YNKFKN",
+   "rank": 10,
+   "decoy": false,
+   "xcorr": 0.647
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "YLPPFR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 1.189
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "RVYPLM[+15.994915]",
+   "rank": 2,
+   "decoy": false,
+   "xcorr": 0.778
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "LHPAPVR",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 0.699
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "KFVPFR",
+   "rank": 4,
+   "decoy": false,
+   "xcorr": 0.675
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "KQSLVSK",
+   "rank": 5,
+   "decoy": true,
+   "xcorr": 0.661
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "TLENVSK",
+   "rank": 6,
+   "decoy": true,
+   "xcorr": 0.652
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "STGEPFR",
+   "rank": 7,
+   "decoy": false,
+   "xcorr": 0.65
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "LFLPFR",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.626
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "FPVSRNA",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.623
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "TFPIGLF",
+   "rank": 10,
+   "decoy": true,
+   "xcorr": 0.608
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "NFNFPR",
+   "rank": 1,
+   "decoy": false,
+   "xcorr": 1.442
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "ISHPSPR",
+   "rank": 2,
+   "decoy": true,
+   "xcorr": 0.88
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "NNFMLR",
+   "rank": 3,
+   "decoy": false,
+   "xcorr": 0.857
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "FNNRFP",
+   "rank": 4,
+   "decoy": true,
+   "xcorr": 0.817
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "FNNMRI",
+   "rank": 5,
+   "decoy": false,
+   "xcorr": 0.812
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "PFEFPR",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 0.757
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "RYVTPR",
+   "rank": 6,
+   "decoy": false,
+   "xcorr": 0.757
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "HPALNDQ",
+   "rank": 7,
+   "decoy": true,
+   "xcorr": 0.749
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "HLSSVPVG",
+   "rank": 8,
+   "decoy": false,
+   "xcorr": 0.715
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "LSAYVSR",
+   "rank": 9,
+   "decoy": false,
+   "xcorr": 0.703
+  }
+ ],
+ "xtandem": [
+  {
+   "payload": "19_proteome_discoverer_top5/rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "DMHGVTSHLSNQELQDLVEFMK",
+   "hyperscore": 110.2
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload",
+   "charge": 3,
+   "peptidoform": "DM[+15.994915]HGVTSHLSNQELQDLVEFMK",
+   "hyperscore": 105.3
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload",
+   "charge": 3,
+   "peptidoform": "YVSRPGIISEDDDTEILGSDR",
+   "hyperscore": 91.1
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload",
+   "charge": 3,
+   "peptidoform": "TSPSDNPFISSIEVYSLDTGM[+15.994915]YDDLGPNEGLILHDR",
+   "hyperscore": 72.6
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload",
+   "charge": 3,
+   "peptidoform": "EVAFELDKTPVITGDAPGFIVNR",
+   "hyperscore": 68.2
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_2_scan_11648_EFHLNESGDPSSK_payload",
+   "charge": 2,
+   "peptidoform": "EFHLNESGDPSSK",
+   "hyperscore": 59.5
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload",
+   "charge": 4,
+   "peptidoform": "SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK",
+   "hyperscore": 70.0
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_3_scan_8734_EVYQQQQYGSGGR_payload",
+   "charge": 2,
+   "peptidoform": "EVYQQQQYGSGGR",
+   "hyperscore": 60.3
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_1_scan_43956_LQLETELEALKEELLFMK_payload",
+   "charge": 3,
+   "peptidoform": "LQLETELEALKEELLFMK",
+   "hyperscore": 63.3
+  },
+  {
+   "payload": "17_maxquant_top5/rank_1_scan_6637_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "AQNSC[+57.021464]PIC[+57.021464]QK",
+   "hyperscore": 53.9
+  },
+  {
+   "payload": "17_maxquant_top5/rank_3_scan_6689_AQNSCPICQK_payload",
+   "charge": 2,
+   "peptidoform": "AQNSC[+57.021464]PIC[+57.021464]QK",
+   "hyperscore": 54.6
+  },
+  {
+   "payload": "17_maxquant_top5/rank_5_scan_5597_KAVEATQVCR_payload",
+   "charge": 2,
+   "peptidoform": "KAVEATQVC[+57.021464]R",
+   "hyperscore": 53.2
+  },
+  {
+   "payload": "17_maxquant_top5/rank_2_scan_38257_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "HTYDDEFFTFK",
+   "hyperscore": 54.0
+  },
+  {
+   "payload": "17_maxquant_top5/rank_4_scan_38223_HTYDDEFFTFK_payload",
+   "charge": 2,
+   "peptidoform": "HTYDDEFFTFK",
+   "hyperscore": 54.0
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload",
+   "charge": 3,
+   "peptidoform": "ISM[+15.994915]DEQDLLNGAGETYEVALTEPGTYSFYC[+57.021464]APHQGAGM[+15.994915]VGK",
+   "hyperscore": 61.9
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload",
+   "charge": 4,
+   "peptidoform": "FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK",
+   "hyperscore": 54.6
+  },
+  {
+   "payload": "18_fragpipe_top5/rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload",
+   "charge": 3,
+   "peptidoform": "QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR",
+   "hyperscore": 58.6
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_4_scan_15204_YLPPFR_payload",
+   "charge": 2,
+   "peptidoform": "YLPPFR",
+   "hyperscore": 29.8
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_5_scan_33229_SRGFGFVLFK_payload",
+   "charge": 3,
+   "peptidoform": "SRGFGFVLFK",
+   "hyperscore": 29.2
+  },
+  {
+   "payload": "22_hela_instanovo_top5/rank_4_scan_39484_TLFPLFMK_payload",
+   "charge": 2,
+   "peptidoform": "TLFPLFMK",
+   "hyperscore": 26.2
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload",
+   "charge": 2,
+   "peptidoform": "FLYNTR",
+   "hyperscore": 20.3
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_1_scan_4634_YKFTTR_payload",
+   "charge": 2,
+   "peptidoform": "YKFTTR",
+   "hyperscore": 19.8
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload",
+   "charge": 2,
+   "peptidoform": "EYLM[+15.994915]FR",
+   "hyperscore": 22.4
+  },
+  {
+   "payload": "23_sbrodae_casanovo_top5/rank_5_scan_14776_NFNFPR_payload",
+   "charge": 2,
+   "peptidoform": "NFNFPR",
+   "hyperscore": 21.1
+  },
+  {
+   "payload": "19_proteome_discoverer_top5/rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload",
+   "charge": 3,
+   "peptidoform": "TSISGNWKANTGSAM[+15.994915]LEQVAM[+15.994915]TER",
+   "hyperscore": 11.4
+  }
+ ]
+}

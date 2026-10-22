@@ -81,6 +81,12 @@ def _settings(payload: dict) -> dict:
             "annotation_neutral_losses": s["annotation_neutral_losses"]}
 
 
+def _metric(result: dict, name: str):
+    """A result metric under the name the 0.1.x payloads use: 0.2.0 renamed the legacy_v1 XCorr and hyperscore
+    variants to *_like (#51), so log2_xcorr is log2_xcorr_like in a 0.2.0 legacy_v1 result."""
+    return result[name] if name in result else result[f"{name}_like"]
+
+
 def _deltas(result: dict, stored: dict) -> dict[str, float]:
     deltas = {}
     for m in EXACT + CLOSE:
@@ -88,7 +94,7 @@ def _deltas(result: dict, stored: dict) -> dict[str, float]:
             deltas[m] = abs(result[m] - stored[m])
     for m in RELATIVE:
         if stored.get(m):
-            deltas[m] = abs(result[m] - stored[m]) / abs(stored[m])
+            deltas[m] = abs(_metric(result, m) - stored[m]) / abs(stored[m])
     return deltas
 
 
@@ -145,8 +151,8 @@ def test_figure2_legend_values(tool, report, legacy_metrics, source):
                                                     "predictor_backend": "ms2pip", "predictor_model": "HCD",
                                                     "config_path": str(legacy_metrics), **_settings(payload)})
         assert not is_error, metrics
-    mismatches = {m: (_printed(metrics[m], spec), spec[0]) for m, spec in FIGURE2_LEGEND.items()
-                  if _printed(metrics[m], spec) != spec[0]}
+    mismatches = {m: (_printed(_metric(metrics, m), spec), spec[0]) for m, spec in FIGURE2_LEGEND.items()
+                  if _printed(_metric(metrics, m), spec) != spec[0]}
     version_dependent = {}
     if source == "live" and Version(version("ms2pip")) != Version("4.1.2"):
         version_dependent = {m: mismatches.pop(m) for m in PREDICTED_MZ_DEPENDENT if m in mismatches}

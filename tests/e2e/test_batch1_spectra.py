@@ -29,6 +29,12 @@ METRICS = ("spectral_angle", "cosine_similarity", "pearson_correlation", "explai
 IDS = [name.split("/")[0] for name in PAYLOADS]
 
 
+def _metric(result: dict, name: str):
+    """A result metric under the name the 0.1.x payloads use: 0.2.0 renamed the legacy_v1 XCorr and hyperscore
+    variants to *_like (#51), so log2_xcorr is log2_xcorr_like in a 0.2.0 legacy_v1 result."""
+    return result[name] if name in result else result[f"{name}_like"]
+
+
 def _load(name: str) -> dict:
     path = REPO_EXAMPLES / name
     if not path.is_file():
@@ -52,7 +58,7 @@ def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, legacy
                                                "predicted": payload["predicted"], "config_path": str(legacy_metrics),
                                                **_settings(payload)})
     assert not is_error, result
-    deltas = {m: abs(result[m] - payload["metrics"][m]) for m in METRICS if payload["metrics"].get(m) is not None}
+    deltas = {m: abs(_metric(result, m) - payload["metrics"][m]) for m in METRICS if payload["metrics"].get(m) is not None}
 
     # CLI parity for the same inputs
     files = {}
@@ -71,7 +77,7 @@ def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, legacy
     cli_deltas = {}
     if cli_ok:
         cli_result = json.loads(completed.stdout)
-        cli_deltas = {m: abs(cli_result[m] - result[m]) for m in deltas}
+        cli_deltas = {m: abs(_metric(cli_result, m) - _metric(result, m)) for m in deltas}
     report("spectra", f"score_spectrum (stored prediction) {name.split('/')[0]}", "pass" if max(deltas.values()) <= RESCORE_ATOL else "fail",
            {"max_abs_delta_vs_payload": deltas, "cli_returncode": completed.returncode, "cli_vs_mcp": cli_deltas,
             "cli_stderr": completed.stderr[-300:] if not cli_ok else ""})

@@ -89,8 +89,8 @@ def _scored_frame() -> pd.DataFrame:
                 "spectral_angle": 0.80,
                 "cosine_similarity": 0.81,
                 "pearson_correlation": 0.78,
-                "log2_xcorr": 4.0,
-                "log2_hyperscore": 5.0,
+                "xcorr": 4.0,
+                "hyperscore": 5.0,
                 "matched_ion_count": 12,
                 "matched_ion_fraction": 0.60,
                 "explained_intensity_fraction": 0.55,
@@ -116,8 +116,8 @@ def _scored_frame() -> pd.DataFrame:
                 "spectral_angle": 0.70,
                 "cosine_similarity": 0.71,
                 "pearson_correlation": 0.69,
-                "log2_xcorr": 3.6,
-                "log2_hyperscore": 4.7,
+                "xcorr": 3.6,
+                "hyperscore": 4.7,
                 "matched_ion_count": 11,
                 "matched_ion_fraction": 0.55,
                 "explained_intensity_fraction": 0.50,
@@ -143,8 +143,8 @@ def _scored_frame() -> pd.DataFrame:
                 "spectral_angle": 0.77,
                 "cosine_similarity": 0.79,
                 "pearson_correlation": 0.74,
-                "log2_xcorr": 5.2,
-                "log2_hyperscore": 6.5,
+                "xcorr": 5.2,
+                "hyperscore": 6.5,
                 "matched_ion_count": 13,
                 "matched_ion_fraction": 0.64,
                 "explained_intensity_fraction": 0.58,
@@ -170,8 +170,8 @@ def _scored_frame() -> pd.DataFrame:
                 "spectral_angle": 0.92,
                 "cosine_similarity": 0.90,
                 "pearson_correlation": 0.89,
-                "log2_xcorr": 6.0,
-                "log2_hyperscore": 7.0,
+                "xcorr": 6.0,
+                "hyperscore": 7.0,
                 "matched_ion_count": 18,
                 "matched_ion_fraction": 0.75,
                 "explained_intensity_fraction": 0.71,
@@ -736,7 +736,7 @@ def test_candidate_inspection_and_dashboard_accept_scored_enrichment(tmp_path):
                     "peptidoform": "PEPTIDE",
                     "spectral_angle": 0.83,
                     "pearson_correlation": 0.79,
-                    "log2_xcorr": 4.2,
+                    "xcorr": 4.2,
                     "matched_ion_fraction": 0.61,
                     "explained_intensity_fraction": 0.57,
                     "matched_ion_count": 12,
@@ -751,7 +751,7 @@ def test_candidate_inspection_and_dashboard_accept_scored_enrichment(tmp_path):
                     "peptidoform": "TESTIDE",
                     "spectral_angle": 0.72,
                     "pearson_correlation": 0.68,
-                    "log2_xcorr": 3.8,
+                    "xcorr": 3.8,
                     "matched_ion_fraction": 0.52,
                     "explained_intensity_fraction": 0.48,
                     "matched_ion_count": 9,
@@ -785,7 +785,7 @@ def test_candidate_inspection_and_dashboard_accept_scored_enrichment(tmp_path):
     assert "confidence_vs_spectral_angle" in dashboard["grids_2d"]
     assert "confidence_vs_spectral_angle" in dashboard["scatter_2d"]
     assert "spectral_angle_vs_pearson" in dashboard["scatter_2d"]
-    assert "spectral_angle_vs_log2_xcorr" in dashboard["scatter_2d"]
+    assert "spectral_angle_vs_xcorr" in dashboard["scatter_2d"]
     assert "confidence_vs_matched_ion_count" in dashboard["scatter_2d"]
     assert "spectral_angle_vs_precursor_mass_error_ppm" in dashboard["scatter_2d"]
     assert "spectral_angle_vs_fragment_mass_error_abs_mean_ppm" in dashboard["scatter_2d"]

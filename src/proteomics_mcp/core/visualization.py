@@ -447,6 +447,21 @@ def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | 
         note_html = f'<div class="metric-note">{escaped_note}</div>' if note else ""
         return f'<div class="metric-tile"><div class="metric-label">{escaped_label}</div><div class="metric-value">{escaped_value}</div>{note_html}</div>'
 
+    def _search_score_tiles(metrics: dict[str, Any]) -> list[str]:
+        # 0.2.0 scores: Comet XCorr and the X! Tandem hyperscore. Payloads scored under legacy_v1 or by 0.1.x carry the
+        # earlier variants, labelled as such so they are not read as the engines' scores.
+        if metrics.get("xcorr_like") is not None or (metrics.get("xcorr") is None and metrics.get("log2_xcorr") is not None):
+            log2_xcorr = metrics.get("log2_xcorr_like", metrics.get("log2_xcorr"))
+            log2_hyperscore = metrics.get("log2_hyperscore_like", metrics.get("log2_hyperscore"))
+            return [
+                metric_tile("log2 XCorr-like", metric_value(log2_xcorr), "legacy_v1 variant, 0.1 m/z bins"),
+                metric_tile("log2 hyperscore-like", metric_value(log2_hyperscore), "legacy_v1 variant"),
+            ]
+        return [
+            metric_tile("XCorr", metric_value(metrics.get("xcorr")), "Comet"),
+            metric_tile("Hyperscore", metric_value(metrics.get("hyperscore"), decimals=1), "X! Tandem"),
+        ]
+
     def numeric_list(values: Any) -> list[float]:
         if not isinstance(values, list):
             return []
@@ -517,10 +532,9 @@ def render_spectrum_comparison_html(payload: dict[str, Any], output_path: str | 
                 "Match Quality",
                 [
                     metric_tile("Spectral angle", metric_value(metrics.get("spectral_angle")), "spectrum similarity"),
-                    metric_tile("Cosine", metric_value(metrics.get("cosine_similarity")), "matched-ion intensities"),
-                    metric_tile("Pearson", metric_value(metrics.get("pearson_correlation")), "matched-ion intensities"),
-                    metric_tile("log2 XCorr", metric_value(metrics.get("log2_xcorr")), "0.1 m/z bins"),
-                    metric_tile("log2 Hyperscore", metric_value(metrics.get("log2_hyperscore")), "matched-ion evidence"),
+                    metric_tile("Cosine", metric_value(metrics.get("cosine_similarity")), "all predicted ions"),
+                    metric_tile("Pearson", metric_value(metrics.get("pearson_correlation")), "all predicted ions"),
+                    *_search_score_tiles(metrics),
                 ],
             )
         )

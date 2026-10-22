@@ -5,9 +5,10 @@ import math
 
 import numpy as np
 
-from proteomics_mcp.config import DEFAULT_METRIC_PROFILE, DEFAULT_MIN_PREDICTED_INTENSITY, METRIC_PROFILES
+from proteomics_mcp.config import DEFAULT_METRIC_PROFILE, DEFAULT_MIN_PREDICTED_INTENSITY, DEFAULT_XCORR_PRESET, METRIC_PROFILES
 from proteomics_mcp.core.acquisition import acquisition_metadata_summary, precursor_target_mz
 from proteomics_mcp.core.annotation import PROTON_MASS, annotate_observed_ions, peptidoform_neutral_mass
+from proteomics_mcp.core.engine_scores import COMET_PRESETS, COMET_VERSION, XTANDEM_VERSION, XTandemHyperscoreParams, comet_xcorr, xtandem_hyperscore
 from proteomics_mcp.core.metrics import cosine_similarity, hyperscore, mean, pearson_correlation, spectral_angle, xcorr_like
 from proteomics_mcp.models.schemas import CandidatePSM, MatchedPeak, ObservedSpectrum, PredictedFragment, PredictedSpectrum, SpectrumMetricResult
 
@@ -313,6 +314,61 @@ def _scored_ions(indices: list[int], fragments: list[PredictedFragment], matches
     return rows
 
 
+def _search_scores(
+    *,
+    observed: ObservedSpectrum,
+    peptidoform: str,
+    precursor_mz: float | None,
+    charge: int | None,
+    metric_profile: str,
+    fragments: list[PredictedFragment],
+    matches: list[MatchedPeak],
+    xcorr_preset: str,
+    hyperscore_fragment_error: float,
+    hyperscore_fragment_error_unit: str,
+) -> dict[str, dict[str, object]]:
+    """XCorr and hyperscore: Comet's and X! Tandem's under v2 (#51); the 0.1.x variants under legacy_v1."""
+    if metric_profile == "legacy_v1":
+        xcorr = xcorr_like(observed.mz, observed.intensity, [f.mz for f in fragments], [f.intensity for f in fragments])
+        hyper = hyperscore(len(matches), [m.observed_intensity for m in matches], [m.predicted_intensity for m in matches])
+        values = {
+            "xcorr": None,
+            "hyperscore": None,
+            "xcorr_like": xcorr,
+            "log10_xcorr_like": math.log10(xcorr) if xcorr is not None and xcorr > 0 else None,
+            "log2_xcorr_like": math.log2(xcorr) if xcorr is not None and xcorr > 0 else None,
+            "hyperscore_like": hyper,
+            "log2_hyperscore_like": math.log2(hyper) if hyper is not None and hyper > 0 else None,
+        }
+        return {"values": values, "settings": {"xcorr": "legacy_v1 xcorr_like", "hyperscore": "legacy_v1 hyperscore_like"}}
+    if xcorr_preset not in COMET_PRESETS:
+        raise ValueError(f"Unknown xcorr_preset {xcorr_preset!r}; expected one of {', '.join(COMET_PRESETS)}.")
+    comet_params = COMET_PRESETS[xcorr_preset]
+    tandem_params = XTandemHyperscoreParams(
+        fragment_monoisotopic_mass_error=hyperscore_fragment_error,
+        fragment_monoisotopic_mass_error_units="ppm" if hyperscore_fragment_error_unit == "ppm" else "Daltons",
+    )
+    values = {
+        "xcorr": comet_xcorr(observed, peptidoform, precursor_mz=precursor_mz, charge=charge, params=comet_params),
+        "hyperscore": xtandem_hyperscore(observed, peptidoform, precursor_mz=precursor_mz, charge=charge, params=tandem_params),
+    }
+    settings = {
+        "xcorr": {
+            "definition": f"Comet {COMET_VERSION} XCorr",
+            "preset": xcorr_preset,
+            "fragment_bin_tol": comet_params.fragment_bin_tol,
+            "fragment_bin_offset": comet_params.fragment_bin_offset,
+            "theoretical_fragment_ions": comet_params.theoretical_fragment_ions,
+        },
+        "hyperscore": {
+            "definition": f"X! Tandem {XTANDEM_VERSION} hyperscore, reported as 4*log10(H)",
+            "fragment_error": hyperscore_fragment_error,
+            "fragment_error_unit": hyperscore_fragment_error_unit,
+        },
+    }
+    return {"values": values, "settings": settings}
+
+
 def score_candidate_spectrum(
     *,
     candidate: CandidatePSM,
@@ -329,6 +385,9 @@ def score_candidate_spectrum(
     use_observed_annotation: bool = True,
     max_fragment_charge: int | None = None,
     score_predictions_as_given: bool = False,
+    xcorr_preset: str = DEFAULT_XCORR_PRESET,
+    hyperscore_fragment_error: float = 0.4,
+    hyperscore_fragment_error_unit: str = "Da",
 ) -> SpectrumMetricResult:
     charge = candidate.precursor_charge or observed.precursor_charge or predicted.precursor_charge
     prepared = prepare_predicted_for_scoring(
@@ -347,11 +406,6 @@ def score_candidate_spectrum(
     similarity_n = len(similarity_vectors(matches, fragments, metric_profile)[0])
     matched_observed = [m.observed_intensity for m in matches]
     matched_predicted = [m.predicted_intensity for m in matches]
-    predicted_mz = [f.mz for f in fragments]
-    predicted_int = [f.intensity for f in fragments]
-    xcorr = xcorr_like(observed.mz, observed.intensity, predicted_mz, predicted_int)
-    log10_xcorr = math.log10(xcorr) if xcorr is not None and xcorr > 0 else None
-    log2_xcorr = math.log2(xcorr) if xcorr is not None and xcorr > 0 else None
     total_intensity = sum(observed.intensity)
     matched_intensity = sum(matched_observed)
     isotope_intensity = _isotope_intensity(observed, matches, tolerance) if tolerance_unit == "Da" else 0.0
@@ -364,8 +418,18 @@ def score_candidate_spectrum(
     isotope_error, corrected_error_ppm, corrected_error_da = precursor_isotope_corrected_errors(
         candidate.peptidoform, charge, observed_precursor_mz
     )
-    hyperscore_value = hyperscore(len(matches), matched_observed, matched_predicted)
-    log2_hyperscore = math.log2(hyperscore_value) if hyperscore_value is not None and hyperscore_value > 0 else None
+    search_scores = _search_scores(
+        observed=observed,
+        peptidoform=candidate.peptidoform,
+        precursor_mz=observed.precursor_mz if observed.precursor_mz is not None else candidate.precursor_mz,
+        charge=charge,
+        metric_profile=metric_profile,
+        fragments=fragments,
+        matches=matches,
+        xcorr_preset=xcorr_preset,
+        hyperscore_fragment_error=hyperscore_fragment_error,
+        hyperscore_fragment_error_unit=hyperscore_fragment_error_unit,
+    )
     annotation_summary: dict[str, object] = {"engine": "internal_predicted_fragment_matcher", "matched_predicted_fragment_count": len(matches)}
     if use_observed_annotation:
         try:
@@ -387,11 +451,7 @@ def score_candidate_spectrum(
         spectral_angle=angle,
         cosine_similarity=cosine,
         pearson_correlation=pearson,
-        xcorr=xcorr,
-        log10_xcorr=log10_xcorr,
-        log2_xcorr=log2_xcorr,
-        hyperscore=hyperscore_value,
-        log2_hyperscore=log2_hyperscore,
+        **search_scores["values"],
         matched_ion_count=len(matches),
         total_predicted_ions=total_predicted,
         matched_ion_fraction=(len(matches) / total_predicted) if total_predicted else None,
@@ -430,6 +490,7 @@ def score_candidate_spectrum(
             "min_predicted_intensity": 0.0 if metric_profile == "legacy_v1" else min_predicted_intensity,
             "intensity_processing": prepared.intensity_processing,
             "matching": "one predicted ion per observed peak, closest first" if metric_profile != "legacy_v1" else "nearest peak per predicted ion",
+            **search_scores["settings"],
         },
         annotation_settings={
             "tolerance": tolerance,

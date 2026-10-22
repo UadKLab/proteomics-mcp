@@ -10,6 +10,9 @@ METRIC_PROFILES = ("v2", "legacy_v1")
 DEFAULT_METRIC_PROFILE = "v2"
 # Under metric profile v2, predicted fragments below this fraction of the most intense one are not scored (#83).
 DEFAULT_MIN_PREDICTED_INTENSITY = 0.001
+# Comet XCorr presets, as recommended in the comet.params template (see core.engine_scores.COMET_PRESETS).
+XCORR_PRESETS = ("high_res", "low_res")
+DEFAULT_XCORR_PRESET = "high_res"
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,11 @@ class ProteomicsMCPConfig:
     min_predicted_intensity: float = DEFAULT_MIN_PREDICTED_INTENSITY
     # Score a supplied prediction without the fragment-charge limit; the result records that it was (#137)
     score_predictions_as_given: bool = False
+    # Comet XCorr: "high_res" (fragment_bin_tol 0.02, offset 0.0, flanking peaks) or "low_res" (1.0005, 0.4, M peak only)
+    xcorr_preset: str = DEFAULT_XCORR_PRESET
+    # X! Tandem hyperscore: "spectrum, fragment monoisotopic mass error" and its units ("Da" or "ppm")
+    hyperscore_fragment_error: float = 0.4
+    hyperscore_fragment_error_unit: str = "Da"
     annotation_ion_types: str = "by"
     annotation_max_isotope: int = 1
     annotation_max_ion_charge: int | None = None
@@ -58,6 +66,12 @@ class ProteomicsMCPConfig:
         min_intensity = normalized.get("min_predicted_intensity")
         if min_intensity is not None and not 0 <= float(min_intensity) < 1:
             raise ValueError(f"min_predicted_intensity must be in [0, 1), relative to the most intense fragment; got {min_intensity!r}.")
+        xcorr_preset = normalized.get("xcorr_preset")
+        if xcorr_preset is not None and xcorr_preset not in XCORR_PRESETS:
+            raise ValueError(f"Unknown xcorr_preset {xcorr_preset!r}; expected one of {', '.join(XCORR_PRESETS)}.")
+        unit = normalized.get("hyperscore_fragment_error_unit")
+        if unit is not None and unit not in ("Da", "ppm"):
+            raise ValueError(f"hyperscore_fragment_error_unit must be 'Da' or 'ppm'; got {unit!r}.")
         known = {field: normalized[field] for field in cls.__dataclass_fields__ if field in normalized}
         return cls(**known)
 
