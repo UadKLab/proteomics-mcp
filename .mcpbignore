@@ -24,6 +24,7 @@ docs/
 examples/
 scripts/
 tests/
+validation/
 presentation/
 proteomics_mcp_review.md
 install.json
