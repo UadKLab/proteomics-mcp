@@ -699,7 +699,7 @@ if MCPServer is not None:
         default_experiment_name: str | None = None,
         limit: int | None = None,
         config_path: str | None = None,
-            collision_energy: float | None = None,
+        collision_energy: float | None = None,
     ) -> dict[str, Any]:
         """Build a reusable fragment-prediction batch with manifest, fragment, mapping, failure, and status artifacts.
 
@@ -776,7 +776,7 @@ if MCPServer is not None:
         backend: str | None = None,
         max_fragment_charge: int | None = None,
         config_path: str | None = None,
-            collision_energy: float | None = None,
+        collision_energy: float | None = None,
     ) -> dict[str, Any]:
         """Predict fragment ions and intensities for one peptidoform and precursor charge.
 
@@ -868,10 +868,15 @@ if MCPServer is not None:
         annotation_max_isotope: int | None = None,
         annotation_max_ion_charge: int | None = None,
         annotation_neutral_losses: bool | None = None,
+        score_predictions_as_given: bool | None = None,
         config_path: str | None = None,
-            collision_energy: float | None = None,
+        collision_energy: float | None = None,
     ) -> dict[str, Any]:
         """Score one candidate against one observed spectrum, optionally using a supplied predicted spectrum.
+
+        A supplied prediction goes through the same rules as one the package makes: fragments above the fragment-charge
+        limit (max_fragment_charge, or precursor charge - 1) are left out, unless score_predictions_as_given. The result
+        lists the scored ions, the ions left out with the reason, and the settings in effect.
 
         Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
         return score_spectrum_tool(
@@ -888,6 +893,7 @@ if MCPServer is not None:
             annotation_max_isotope=annotation_max_isotope,
             annotation_max_ion_charge=annotation_max_ion_charge,
             annotation_neutral_losses=annotation_neutral_losses,
+            score_predictions_as_given=score_predictions_as_given,
             config_path=config_path,
             collision_energy=collision_energy,
         )
@@ -927,7 +933,7 @@ if MCPServer is not None:
         limit: int | None = None,
         status_path: str | None = None,
         config_path: str | None = None,
-            collision_energy: float | None = None,
+        collision_energy: float | None = None,
     ) -> dict[str, Any]:
         """Score many candidates directly against local spectra or USI targets without a reusable prediction batch.
 

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import contextvars
+import dataclasses
 import functools
 import gzip
 import inspect
 import json
 import logging
-import math
 import os
 from pathlib import Path
 import re
@@ -343,6 +343,44 @@ def _read_csv_if_exists(path: str | None) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def _config_scoring_settings(config: Any) -> dict[str, Any]:
+    """Scoring settings shared by every row of a batch (#137)."""
+    return {
+        "metric_profile": config.metric_profile,
+        "tolerance": config.tolerance,
+        "tolerance_unit": config.tolerance_unit,
+        "min_predicted_intensity": 0.0 if config.metric_profile == "legacy_v1" else config.min_predicted_intensity,
+        "max_fragment_charge": config.max_fragment_charge,
+        "fragment_charge_rule": "explicit max_fragment_charge" if config.max_fragment_charge is not None else "charge <= precursor_charge - 1",
+        "score_predictions_as_given": config.score_predictions_as_given,
+    }
+
+
+def _scoring_columns(result: Any) -> dict[str, Any]:
+    """Per-row record of how a batch row was scored (#137); the ion-level detail goes to the scored-ions file."""
+    settings = result.scoring_settings
+    return {
+        "predictor_version": settings.get("predictor_version"),
+        "prediction_collision_energy": settings.get("collision_energy"),
+        "tolerance": settings.get("tolerance"),
+        "tolerance_unit": settings.get("tolerance_unit"),
+        "min_predicted_intensity": settings.get("min_predicted_intensity"),
+        "max_fragment_charge": settings.get("max_fragment_charge"),
+        "score_predictions_as_given": settings.get("score_predictions_as_given"),
+        "similarity_n": result.metric_n.get("spectral_angle"),
+        "excluded_predicted_ion_count": len(result.excluded_predicted_ions),
+    }
+
+
+def _scored_ions_record(result: Any, **ids: Any) -> dict[str, Any]:
+    return {
+        **ids,
+        "metric_n": result.metric_n,
+        "scored_ions": result.scored_ions,
+        "excluded_predicted_ions": result.excluded_predicted_ions,
+    }
+
+
 def _prediction_batch_key(
     *,
     peptidoform: str,
@@ -350,7 +388,7 @@ def _prediction_batch_key(
     predictor_backend: str,
     model: str,
     max_fragment_charge: int | None,
-    collision_energy: float | None = None,
+    koina_settings: dict[str, Any] | None = None,
 ) -> str:
     payload = {
         "peptidoform": peptidoform,
@@ -359,9 +397,10 @@ def _prediction_batch_key(
         "model": model,
         "max_fragment_charge": max_fragment_charge,
     }
-    if collision_energy is not None and not (isinstance(collision_energy, float) and math.isnan(collision_energy)):
-        # Koina predictions depend on it: the same peptide at two collision energies is two predictions (#128)
-        payload["collision_energy"] = round(float(collision_energy), 4)
+    if koina_settings:
+        # Koina predictions depend on these too: the same peptide at another collision energy, fragmentation or
+        # instrument type is another prediction, so it must not share a key (#137, #128)
+        payload["koina_settings"] = koina_settings
     return hashlib.sha1(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
@@ -1112,6 +1151,11 @@ def build_prediction_batch_tool(
     else:
         work_rows["collision_energy"] = None
         work_rows["collision_energy_source"] = None
+    koina_settings = (
+        {"fragmentation_type": config.koina_fragmentation_type, "instrument_type": config.koina_instrument_type}
+        if config.predictor_backend == "koina"
+        else None
+    )
     work_rows["prediction_id"] = work_rows.apply(
         lambda row: "pred:" + _prediction_batch_key(
             peptidoform=str(row["peptidoform"]),
@@ -1119,7 +1163,8 @@ def build_prediction_batch_tool(
             predictor_backend=config.predictor_backend,
             model=config.predictor_model,
             max_fragment_charge=config.max_fragment_charge,
-            collision_energy=row["collision_energy"],
+            # the collision energy is per spectrum (#128); fragmentation and instrument type are batch-wide (#137)
+            koina_settings={**koina_settings, "collision_energy": round(float(row["collision_energy"]), 4)} if koina_settings else None,
         ),
         axis=1,
     )
@@ -1269,8 +1314,11 @@ def build_prediction_batch_tool(
                     "max_fragment_charge": metadata.get("max_fragment_charge", config.max_fragment_charge),
                     "fragment_charge_rule": metadata.get("fragment_charge_rule"),
                     "available_fragment_charges": metadata.get("available_fragment_charges"),
+                    "model_version": metadata.get("model_version"),
                     "collision_energy": metadata.get("collision_energy"),
                     "collision_energy_source": metadata.get("collision_energy_source"),
+                    "fragmentation_type": metadata.get("fragmentation_type"),
+                    "instrument_type": metadata.get("instrument_type"),
                     "fragment_count": fragment_count,
                     "prediction_status": "ok",
                     "prediction_seconds": elapsed,
@@ -1551,6 +1599,10 @@ def _load_prediction_batch_artifacts(manifest_path: str) -> tuple[dict[str, Any]
                 "requested_model": _clean_optional_text(meta.get("requested_model")),
                 "max_fragment_charge": _clean_optional_int(meta.get("max_fragment_charge")),
                 "fragment_charge_rule": _clean_optional_text(meta.get("fragment_charge_rule")),
+                "model_version": _clean_optional_text(meta.get("model_version")),
+                "collision_energy": _clean_optional_float(meta.get("collision_energy")),
+                "fragmentation_type": _clean_optional_text(meta.get("fragmentation_type")),
+                "instrument_type": _clean_optional_text(meta.get("instrument_type")),
             },
         )
     return manifest, prediction_map, spectra
@@ -1589,6 +1641,9 @@ def score_from_prediction_batch_tool(
             "annotation_neutral_losses": annotation_neutral_losses,
         },
     )
+    if config.max_fragment_charge is None and manifest.get("requested_max_fragment_charge") is not None:
+        # The batch was predicted with an explicit fragment-charge limit; score it under the same rule (#137)
+        config = dataclasses.replace(config, max_fragment_charge=int(manifest["requested_max_fragment_charge"]))
 
     input_path = manifest.get("input_path")
     adapter = manifest.get("adapter", "instanovo")
@@ -1601,6 +1656,7 @@ def score_from_prediction_batch_tool(
     scored_rows: list[dict[str, Any]] = []
     failure_rows: list[dict[str, Any]] = []
     log_rows: list[dict[str, Any]] = []
+    scored_ion_rows: list[dict[str, Any]] = []
     prefix = Path(output_prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
     status_json = _batch_status_path(prefix, "_scoring_status.json")
@@ -1609,8 +1665,10 @@ def score_from_prediction_batch_tool(
     failures_csv = prefix.with_name(prefix.name + "_scoring_failures.csv")
     log_jsonl = prefix.with_name(prefix.name + "_scoring_log.jsonl")
     manifest_json = prefix.with_name(prefix.name + "_scoring_manifest.json")
+    scored_ions_jsonl = prefix.with_name(prefix.name + "_scored_ions.jsonl")
     output_files = {
         "scored_csv": str(scored_csv),
+        "scored_ions_jsonl": str(scored_ions_jsonl),
         "failures_csv": str(failures_csv),
         "log_jsonl": str(log_jsonl),
         "status_json": str(status_json),
@@ -1672,6 +1730,8 @@ def score_from_prediction_batch_tool(
                 tolerance_unit=config.tolerance_unit,
                 metric_profile=config.metric_profile,
                 min_predicted_intensity=config.min_predicted_intensity,
+                max_fragment_charge=config.max_fragment_charge,
+                score_predictions_as_given=config.score_predictions_as_given,
                 annotation_ion_types=config.annotation_ion_types,
                 annotation_max_isotope=config.annotation_max_isotope,
                 annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -1743,8 +1803,10 @@ def score_from_prediction_batch_tool(
                     "metric_profile": result.metric_profile,
                     "predictor_name": predicted.predictor_name,
                     "predictor_model": predicted.model,
+                    **_scoring_columns(result),
                 }
             )
+            scored_ion_rows.append(_scored_ions_record(result, candidate_id=candidate.candidate_id, prediction_id=prediction_id))
             log_rows.append(
                 {
                     **event_base,
@@ -1801,6 +1863,7 @@ def score_from_prediction_batch_tool(
     pd.DataFrame(scored_rows).to_csv(scored_csv, index=False)
     pd.DataFrame(failure_rows).to_csv(failures_csv, index=False)
     _write_jsonl(log_jsonl, log_rows)
+    _write_jsonl(scored_ions_jsonl, scored_ion_rows)
 
     scoring_manifest = {
         "batch_id": batch_id,
@@ -1811,6 +1874,7 @@ def score_from_prediction_batch_tool(
         "rows_scored": int(len(scored_rows)),
         "rows_failed": int(len(failure_rows)),
         "batch_seconds": time.time() - started,
+        "scoring_settings": _config_scoring_settings(config),
         "metric_groups": {
             "match_quality": ["spectral_angle", "cosine_similarity", "pearson_correlation", "xcorr", "log10_xcorr", "log2_xcorr", "hyperscore", "log2_hyperscore"],
             "predicted_match_evidence": ["matched_ion_count", "total_predicted_ions", "matched_ion_fraction", "explained_intensity_fraction"],
@@ -2084,6 +2148,7 @@ def score_spectrum_tool(
     annotation_max_isotope: int | None = None,
     annotation_max_ion_charge: int | None = None,
     annotation_neutral_losses: bool | None = None,
+    score_predictions_as_given: bool | None = None,
     config_path: str | None = None,
     collision_energy: float | None = None,
 ) -> dict[str, Any]:
@@ -2100,6 +2165,7 @@ def score_spectrum_tool(
             "annotation_max_isotope": annotation_max_isotope,
             "annotation_max_ion_charge": annotation_max_ion_charge,
             "annotation_neutral_losses": annotation_neutral_losses,
+            "score_predictions_as_given": score_predictions_as_given,
         },
     )
     candidate_model = _model_from_argument(CandidatePSM, candidate, "candidate")
@@ -2127,6 +2193,8 @@ def score_spectrum_tool(
         tolerance_unit=config.tolerance_unit,
         metric_profile=config.metric_profile,
         min_predicted_intensity=config.min_predicted_intensity,
+        max_fragment_charge=config.max_fragment_charge,
+        score_predictions_as_given=config.score_predictions_as_given,
         annotation_ion_types=config.annotation_ion_types,
         annotation_max_isotope=config.annotation_max_isotope,
         annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -2178,6 +2246,7 @@ def score_candidates_tool(
     )
     candidates = _load_candidate_models(candidates_path, adapter, limit=limit, **adapter_options)
     rows: list[dict[str, Any]] = []
+    scored_ion_rows: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
     resolved_status_path = Path(status_path) if status_path else None
     update_interval = _status_update_interval(int(len(candidates)))
@@ -2225,6 +2294,8 @@ def score_candidates_tool(
                 tolerance_unit=config.tolerance_unit,
                 metric_profile=config.metric_profile,
                 min_predicted_intensity=config.min_predicted_intensity,
+                max_fragment_charge=config.max_fragment_charge,
+                score_predictions_as_given=config.score_predictions_as_given,
                 annotation_ion_types=config.annotation_ion_types,
                 annotation_max_isotope=config.annotation_max_isotope,
                 annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -2293,8 +2364,12 @@ def score_candidates_tool(
                     "ion_type_counts": result.annotation_summary.get("ion_type_counts"),
                     "annotated_intensity_fraction": result.annotation_summary.get("annotated_intensity_fraction"),
                     "metric_profile": result.metric_profile,
+                    "predictor_name": predicted.predictor_name,
+                    "predictor_model": predicted.model,
+                    **_scoring_columns(result),
                 }
             )
+            scored_ion_rows.append(_scored_ions_record(result, candidate_id=candidate.candidate_id))
         except Exception as exc:
             failures.append({"candidate_id": candidate.candidate_id, "error": str(exc)})
         if resolved_status_path is not None:
@@ -2319,8 +2394,11 @@ def score_candidates_tool(
                         "latest_candidate_id": candidate.candidate_id,
                     },
                 )
+    scored_ions_path = None
     if output_path:
         pd.DataFrame(rows).to_csv(output_path, index=False)
+        scored_ions_path = str(Path(output_path).with_name(Path(output_path).stem + "_scored_ions.jsonl"))
+        _write_jsonl(Path(scored_ions_path), scored_ion_rows)
     if resolved_status_path is not None:
         _write_batch_status(
             resolved_status_path,
@@ -2346,6 +2424,8 @@ def score_candidates_tool(
         "rows_scored": len(rows),
         "rows_failed": len(failures),
         "output_path": output_path,
+        "scored_ions_path": scored_ions_path,
+        "scoring_settings": _config_scoring_settings(config),
         "status_path": str(resolved_status_path) if resolved_status_path is not None else None,
         "rows_preview": rows[:20],
         "metric_groups": {

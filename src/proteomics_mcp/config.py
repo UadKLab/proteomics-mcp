@@ -30,6 +30,8 @@ class ProteomicsMCPConfig:
     usi_backend: str = "pride"
     metric_profile: str = DEFAULT_METRIC_PROFILE
     min_predicted_intensity: float = DEFAULT_MIN_PREDICTED_INTENSITY
+    # Score a supplied prediction without the fragment-charge limit; the result records that it was (#137)
+    score_predictions_as_given: bool = False
     annotation_ion_types: str = "by"
     annotation_max_isotope: int = 1
     annotation_max_ion_charge: int | None = None

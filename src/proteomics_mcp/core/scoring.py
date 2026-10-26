@@ -154,21 +154,85 @@ def _similarity_metrics(
     return angle, cosine, pearson
 
 
-def scored_fragment_indices(fragments: list[PredictedFragment], metric_profile: str, min_predicted_intensity: float) -> list[int]:
-    """Indices of the predicted fragments that are scored.
+def fragment_charge_limit(precursor_charge: int | None, max_fragment_charge: int | None) -> tuple[int, str]:
+    """Highest fragment charge that is scored, and the rule it came from. The predictors apply the same rule."""
+    if max_fragment_charge is not None:
+        return int(max_fragment_charge), "explicit max_fragment_charge"
+    return max(1, int(precursor_charge or 2) - 1), "charge <= precursor_charge - 1"
 
-    Predictors give every possible ion an intensity, and ions predicted to be absent get a tiny positive one (Prosit
-    down to ~1e-8, MS2PIP 2**x - 0.001) or 0. Under v2, fragments without a finite positive intensity, and those below
-    min_predicted_intensity times the most intense one, are left out (#83): they would count as predicted ions, and
-    could be matched to noise peaks. legacy_v1 scores every fragment, as 0.1.10 did, for every predictor.
+
+@dataclasses.dataclass(slots=True)
+class PreparedPrediction:
+    """The predicted fragments that are scored, and the ones left out with the reason."""
+
+    indices: list[int]
+    fragments: list[PredictedFragment]
+    exclusions: list[dict[str, object]]
+    max_fragment_charge: int | None
+    fragment_charge_rule: str | None
+    intensity_processing: str
+
+
+def prepare_predicted_for_scoring(
+    predicted: PredictedSpectrum,
+    *,
+    precursor_charge: int | None,
+    max_fragment_charge: int | None = None,
+    metric_profile: str = DEFAULT_METRIC_PROFILE,
+    min_predicted_intensity: float = DEFAULT_MIN_PREDICTED_INTENSITY,
+    score_as_given: bool = False,
+) -> PreparedPrediction:
+    """Apply the prediction-side rules, the same for every path a prediction can take to the scorer (#137).
+
+    Under v2, in this order:
+      1. fragments above the fragment-charge limit are left out (the rule the predictors apply), unless score_as_given;
+      2. fragments with a non-finite or non-positive m/z, or a non-finite intensity, are left out;
+      3. fragments with intensity <= 0 are left out;
+      4. intensities are divided by the most intense remaining fragment, as the predictors do after their own filter;
+      5. fragments below min_predicted_intensity of that maximum are left out (#83).
+    Predictors give ions they expect to be absent a tiny positive intensity (Prosit down to ~1e-8, MS2PIP 2**x - 0.001)
+    or 0; step 5 keeps those from counting as predicted ions or being matched to noise peaks.
+
+    legacy_v1 scores every fragment as given, as 0.1.10 did.
     """
+    fragments = predicted.fragments
     if metric_profile == "legacy_v1":
-        return list(range(len(fragments)))
-    with_signal = [index for index, fragment in enumerate(fragments) if math.isfinite(fragment.intensity) and fragment.intensity > 0]
-    if not with_signal or min_predicted_intensity <= 0:
-        return with_signal
-    threshold = min_predicted_intensity * max(fragments[index].intensity for index in with_signal)
-    return [index for index in with_signal if fragments[index].intensity >= threshold]
+        return PreparedPrediction(list(range(len(fragments))), list(fragments), [], None, None, "as given (legacy_v1)")
+    if metric_profile not in METRIC_PROFILES:
+        raise ValueError(f"Unknown metric_profile {metric_profile!r}; expected one of {', '.join(METRIC_PROFILES)}.")
+    exclusions: list[dict[str, object]] = []
+
+    def exclude(index: int, reason: str) -> None:
+        fragment = fragments[index]
+        exclusions.append(
+            {"index": index, "annotation": fragment.annotation, "charge": fragment.charge, "mz": fragment.mz, "intensity": fragment.intensity, "reason": reason}
+        )
+
+    limit, rule = fragment_charge_limit(precursor_charge, max_fragment_charge)
+    if score_as_given:
+        limit, rule = None, "none (score_predictions_as_given)"
+    kept: list[int] = []
+    for index, fragment in enumerate(fragments):
+        if limit is not None and fragment.charge > limit:
+            exclude(index, "fragment_charge_above_limit")
+        elif not math.isfinite(fragment.mz) or fragment.mz <= 0:
+            exclude(index, "invalid_mz")
+        elif not math.isfinite(fragment.intensity):
+            exclude(index, "non_finite_intensity")
+        elif fragment.intensity <= 0:
+            exclude(index, "non_positive_intensity")
+        else:
+            kept.append(index)
+    base_peak = max((fragments[index].intensity for index in kept), default=0.0)
+    scored: list[int] = []
+    for index in kept:
+        if min_predicted_intensity > 0 and fragments[index].intensity < min_predicted_intensity * base_peak:
+            exclude(index, "below_min_predicted_intensity")
+        else:
+            scored.append(index)
+    exclusions.sort(key=lambda item: int(item["index"]))
+    normalized = [dataclasses.replace(fragments[index], intensity=fragments[index].intensity / base_peak) for index in scored]
+    return PreparedPrediction(scored, normalized, exclusions, limit, rule, "divided by the most intense scored fragment")
 
 
 def theoretical_precursor_mz(peptidoform: str, charge: int | None) -> float | None:
@@ -215,6 +279,49 @@ def precursor_isotope_corrected_errors(
     return isotope, error_da / isotope_mz * 1e6, error_da
 
 
+# Prediction settings worth keeping with a score: what was asked of the predictor and what answered (#137), including the
+# collision energy a Koina prediction used and where it came from (#128)
+_PREDICTOR_SETTING_KEYS = (
+    "model_version",
+    "requested_model",
+    "resolved_model",
+    "collision_energy",
+    "collision_energy_source",
+    "fragmentation_type",
+    "instrument_type",
+)
+
+
+def _predictor_metadata(predicted: PredictedSpectrum) -> dict[str, object]:
+    metadata: dict[str, object] = {"predictor_name": predicted.predictor_name, "predictor_version": predicted.predictor_version, "model": predicted.model}
+    metadata.update({key: predicted.metadata[key] for key in _PREDICTOR_SETTING_KEYS if predicted.metadata.get(key) is not None})
+    return metadata
+
+
+def _scored_ions(indices: list[int], fragments: list[PredictedFragment], matches: list[MatchedPeak]) -> list[dict[str, object]]:
+    """The aligned predicted/observed intensities behind spectral angle, cosine and Pearson, one row per scored ion.
+
+    index refers to predicted.fragments; observed_intensity is 0 where no peak matched.
+    """
+    by_fragment = {match.predicted_index: match for match in matches}
+    rows: list[dict[str, object]] = []
+    for position, (index, fragment) in enumerate(zip(indices, fragments)):
+        match = by_fragment.get(position)
+        rows.append(
+            {
+                "index": index,
+                "annotation": fragment.annotation,
+                "charge": fragment.charge,
+                "mz": fragment.mz,
+                "predicted_intensity": fragment.intensity,
+                "observed_intensity": match.observed_intensity if match else 0.0,
+                "observed_mz": match.observed_mz if match else None,
+                "observed_index": match.observed_index if match else None,
+            }
+        )
+    return rows
+
+
 def score_candidate_spectrum(
     *,
     candidate: CandidatePSM,
@@ -229,13 +336,24 @@ def score_candidate_spectrum(
     annotation_max_ion_charge: int | None = None,
     annotation_neutral_losses: bool = False,
     use_observed_annotation: bool = True,
+    max_fragment_charge: int | None = None,
+    score_predictions_as_given: bool = False,
 ) -> SpectrumMetricResult:
-    scored = scored_fragment_indices(predicted.fragments, metric_profile, min_predicted_intensity)
-    fragments = [predicted.fragments[index] for index in scored]
+    charge = candidate.precursor_charge or observed.precursor_charge or predicted.precursor_charge
+    prepared = prepare_predicted_for_scoring(
+        predicted,
+        precursor_charge=charge,
+        max_fragment_charge=max_fragment_charge,
+        metric_profile=metric_profile,
+        min_predicted_intensity=min_predicted_intensity,
+        score_as_given=score_predictions_as_given,
+    )
+    scored, fragments = prepared.indices, prepared.fragments
     matches = match_predicted_to_observed(
         observed, fragments, tolerance=tolerance, tolerance_unit=tolerance_unit, one_to_one=metric_profile != "legacy_v1"
     )
     angle, cosine, pearson = _similarity_metrics(matches, fragments, metric_profile)
+    similarity_n = len(similarity_vectors(matches, fragments, metric_profile)[0])
     matched_observed = [m.observed_intensity for m in matches]
     matched_predicted = [m.predicted_intensity for m in matches]
     predicted_mz = [f.mz for f in fragments]
@@ -250,7 +368,6 @@ def score_candidate_spectrum(
     ppm_errors = [ppm_error(m.observed_mz, m.predicted_mz) for m in matches if m.predicted_mz != 0]
     da_errors = [m.observed_mz - m.predicted_mz for m in matches]
     total_predicted = len(fragments)
-    charge = candidate.precursor_charge or observed.precursor_charge or predicted.precursor_charge
     observed_precursor_mz = candidate.precursor_mz or precursor_target_mz(observed)
     precursor_error_ppm, precursor_error_da = precursor_mass_errors(candidate.peptidoform, charge, observed_precursor_mz)
     isotope_error, corrected_error_ppm, corrected_error_da = precursor_isotope_corrected_errors(
@@ -301,12 +418,27 @@ def score_candidate_spectrum(
         # predicted_index refers to predicted.fragments, which the renderers draw, not to the scored subset
         matched_peaks=[dataclasses.replace(match, predicted_index=scored[match.predicted_index]) for match in matches],
         metric_profile=metric_profile,
-        predictor_metadata={
-            "predictor_name": predicted.predictor_name,
-            "predictor_version": predicted.predictor_version,
-            "model": predicted.model,
-            # the collision energy a Koina prediction used, and where it came from (#128)
-            **{key: predicted.metadata[key] for key in ("collision_energy", "collision_energy_source") if predicted.metadata.get(key) is not None},
+        predictor_metadata=_predictor_metadata(predicted),
+        scored_ions=_scored_ions(scored, fragments, matches),
+        excluded_predicted_ions=prepared.exclusions,
+        metric_n={
+            "spectral_angle": similarity_n,
+            "cosine_similarity": similarity_n,
+            "pearson_correlation": similarity_n,
+            "matched_ions": len(matches),
+            "total_predicted_ions": total_predicted,
+        },
+        scoring_settings={
+            **_predictor_metadata(predicted),
+            "metric_profile": metric_profile,
+            "tolerance": tolerance,
+            "tolerance_unit": tolerance_unit,
+            "max_fragment_charge": prepared.max_fragment_charge,
+            "fragment_charge_rule": prepared.fragment_charge_rule,
+            "score_predictions_as_given": score_predictions_as_given,
+            "min_predicted_intensity": 0.0 if metric_profile == "legacy_v1" else min_predicted_intensity,
+            "intensity_processing": prepared.intensity_processing,
+            "matching": "one predicted ion per observed peak, closest first" if metric_profile != "legacy_v1" else "nearest peak per predicted ion",
         },
         annotation_settings={
             "tolerance": tolerance,

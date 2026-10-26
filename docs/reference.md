@@ -169,6 +169,25 @@ The precursor mass error (`precursor_mass_error_ppm`, `precursor_mass_error_da`)
 
 Some ions below the cut-off do appear in the observed spectrum at low intensity. Set `min_predicted_intensity = 0` to score every ion with a positive intensity. `legacy_v1` applies no cut-off and scores every predicted ion, reproducing 0.1.10 for MS2PIP and Koina predictions. Rendered spectra still draw every predicted fragment.
 
+**One set of rules for every prediction (#137).** Under `v2`, a prediction goes through the same rules whether the package made it or it was passed in (`score_spectrum`'s `predicted`, or a prediction batch read back by `score_from_prediction_batch`), in this order:
+
+1. fragments above the fragment-charge limit are left out: `max_fragment_charge` when set, otherwise precursor charge − 1 (at least 1), the rule the predictors apply;
+2. fragments with an invalid m/z (non-finite or ≤ 0) or a non-finite intensity are left out;
+3. fragments with intensity ≤ 0 are left out;
+4. intensities are divided by the most intense remaining fragment;
+5. fragments below the `min_predicted_intensity` cut-off are left out.
+
+`score_predictions_as_given = true` (config, `score_spectrum` argument, CLI `--score-predictions-as-given`) skips step 1. Scoring a prediction batch uses the batch's explicit `max_fragment_charge` unless the scoring call sets one.
+
+**What was scored.** Every score result records it:
+
+- `scored_ions`: each scored predicted ion with its predicted intensity and the intensity of the observed peak it matched (0 if none). These are the vectors behind spectral angle, cosine and Pearson; `index` refers to the prediction's fragment list.
+- `excluded_predicted_ions`: the predicted ions left out, each with its reason (`fragment_charge_above_limit`, `invalid_mz`, `non_finite_intensity`, `non_positive_intensity`, `below_min_predicted_intensity`).
+- `metric_n`: the number of values behind each metric. Pearson on a handful of ions is fragile.
+- `scoring_settings`: predictor, model and model version, collision energy sent and where it came from, tolerance and unit, metric profile, cut-off, fragment-charge rule, and whether the prediction was scored as given.
+
+Batch scoring adds the settings as columns of the scored table and to the scoring manifest, and writes the per-ion detail to `<prefix>_scored_ions.jsonl` (`score_candidates`: `<output>_scored_ions.jsonl`).
+
 Observed-spectrum annotation is implemented internally. It supports standard terminal-ion families, exotic families, immonium ions, reporter ions, precursor-related peaks, isotope variants, and optional neutral losses. Use `ion_types=by` for b/y ions, `all` for the broad set, or `exotic` for exotic terminal-ion families.
 
 ## Rendering

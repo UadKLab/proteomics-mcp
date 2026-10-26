@@ -89,6 +89,9 @@ def test_score_spectrum_predicts_at_the_spectrum_nce(koina_requests):
     assert koina_requests == [[28.0]]
     assert result["predictor_metadata"]["collision_energy"] == 28.0
     assert result["predictor_metadata"]["collision_energy_source"] == "spectrum: scan filter @hcd28.00"
+    # the settings recorded with the score (#137) carry the per-spectrum energy and its source
+    assert result["scoring_settings"]["collision_energy"] == 28.0
+    assert result["scoring_settings"]["collision_energy_source"] == "spectrum: scan filter @hcd28.00"
 
 
 def test_an_explicit_collision_energy_wins(koina_requests):
@@ -132,3 +135,4 @@ def test_prediction_batch_groups_requests_by_each_spectrum_nce(koina_requests, t
     predictions = pd.read_csv(manifest["output_files"]["predictions_csv"])
     assert sorted(predictions["collision_energy"]) == [28.0, 28.0, 32.0]
     assert predictions["collision_energy_source"].str.startswith("spectrum: scan filter").all()
+    assert (predictions["fragmentation_type"] == "HCD").all() and (predictions["instrument_type"] == "QE").all()

@@ -358,6 +358,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--annotation-max-isotope", type=int)
     p.add_argument("--annotation-max-ion-charge", type=int)
     p.add_argument("--annotation-neutral-losses", action="store_true")
+    p.add_argument(
+        "--score-predictions-as-given",
+        action="store_true",
+        help="Score --predicted-json without the fragment-charge limit; the result records it.",
+    )
     p.add_argument("--config")
     p.add_argument("--collision-energy", type=float, help="collision energy for Koina predictions (default: the spectrum's Thermo NCE, else the config's koina_collision_energy)")
     p = sub.add_parser("score-candidates")
@@ -897,6 +902,7 @@ def main(argv: list[str] | None = None) -> None:
                     annotation_max_isotope=args.annotation_max_isotope,
                     annotation_max_ion_charge=args.annotation_max_ion_charge,
                     annotation_neutral_losses=args.annotation_neutral_losses or None,
+                    score_predictions_as_given=args.score_predictions_as_given or None,
                     config_path=args.config,
                     collision_energy=args.collision_energy,
                 ),
