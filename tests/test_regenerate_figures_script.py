@@ -102,3 +102,8 @@ def test_raster_panels_are_the_screenshots(script):
     """Only the screenshots of interactive plots are raster panels, and they must reach 300 dpi in the figure."""
     assert script.MIN_RASTER_DPI == 300
     assert script.RASTER_PANELS == {"Suppl_figure2B", "Suppl_figure2C", "Figure4A", "Figure4B", "Figure4C", "Figure4D", "Figure4E"}
+
+
+def test_manifest_records_the_command_as_typed(script, monkeypatch):
+    monkeypatch.setattr(script.sys, "argv", [str(script.REPO_ROOT / "scripts" / "regenerate_figures.py"), "--out", "/tmp/f", "--in-figure-environment"])
+    assert script.user_command() == "uv run python scripts/regenerate_figures.py --out /tmp/f"

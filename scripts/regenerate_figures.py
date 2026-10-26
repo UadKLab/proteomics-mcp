@@ -206,6 +206,13 @@ def package_versions() -> dict[str, str]:
     return {name: installed_version(name) for name in names}
 
 
+def user_command() -> str:
+    """The command as run from the checkout, without the figure environment's re-run (--in-figure-environment)."""
+    script = Path(sys.argv[0]).resolve()
+    shown = str(script.relative_to(REPO_ROOT)) if REPO_ROOT in script.parents else str(script)
+    return shlex.join(["uv", "run", "python", shown, *(a for a in sys.argv[1:] if a != "--in-figure-environment")])
+
+
 def git_state() -> dict[str, Any]:
     def run(*args: str) -> str:
         try:
@@ -1132,7 +1139,7 @@ def main(argv: list[str] | None = None) -> int:
             inputs[rel] = {"sha256": file_digest(supplement / rel)}
     manifest = {
         "started": started, "finished": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "command": shlex.join(["python", *sys.argv]), "interpreter": sys.executable, "cwd": os.getcwd(),
+        "command": user_command(), "interpreter": sys.executable, "cwd": os.getcwd(),
         "package": {"proteomics-mcp": version("proteomics-mcp"), "source": str(Path(__import__("proteomics_mcp").__file__).parent)},
         "git": git, "ms2pip": ms2pip_version, "python": platform.python_version(), "platform": platform.platform(), "versions": package_versions(),
         "figure_environment": {"pinned": FIGURE_ENVIRONMENT, "requirements": "work/requirements_figures.txt",

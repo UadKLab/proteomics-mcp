@@ -133,7 +133,7 @@ def provenance_markdown(figures: dict, release: str, build_command: str) -> str:
         "- **Previous version:** Zenodo record " + ZENODO_RECORD + " reproduces proteomics-mcp 0.1.8 / 0.1.10; this version goes "
         f"with {release}.", "",
         "## Commands", "",
-        "```bash", sanitized(figures.get("command", "")).replace("python ", "uv run python ", 1), build_command, "```", "",
+        "```bash", sanitized(figures.get("command", "")), build_command, "```", "",
         "Rebuild Figure 4 from this deposit alone: add `--figure4-mgf processed/arabidopsis/figure4_usi_spectra.mgf` to the first command.", "",
         RAW_CONVERSION])
 

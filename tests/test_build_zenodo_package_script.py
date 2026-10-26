@@ -42,7 +42,7 @@ def _figures(tmp_path: Path, status: str = "REGENERATED") -> Path:
     (staged / "figure_assets/pdfs/Figure3.pdf").write_text("figure 3")
     (staged / "processed/arabidopsis/figure4_usi_spectra.mgf").write_text("BEGIN IONS\nEND IONS\n")
     manifest = {"package": {"proteomics-mcp": "0.1.10"}, "git": {"describe": "v0.1.10-9-gabc", "sha": "abc", "dirty": False}, "ms2pip": "4.1.2",
-                "python": "3.12.13", "command": f"python scripts/regenerate_figures.py --out {Path.home()}/figures",
+                "python": "3.12.13", "command": f"uv run python scripts/regenerate_figures.py --out {Path.home()}/figures",
                 "verification": {"problems": [], "passed": True}, "figure4": {"status": status, "checks": {"100 PSMs scored": True}},
                 "examples": {}}
     (figures / "manifest.json").write_text(json.dumps(manifest))
