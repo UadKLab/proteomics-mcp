@@ -116,6 +116,23 @@ uv run python scripts/regenerate_figures.py --out ~/pmcp/figures-vX.Y.Z --cache-
 - **Checks:** the run stops with exit code 3, before assembling anything, if a value differs from what the release must give (`EXPECTED` in the script).
 - **Outputs** (outside the repository; never committed): `Figure2/3/4.pdf`, `Suppl_figure2/5.pdf` and PNGs with the Zenodo file names, `panels/` (each panel as PDF and PNG, for layout touch-ups), `comparison/` (published left, new right), `CHANGES.md` (every changed value with its issue, and the manuscript text to update), and `manifest.json` (package version and git SHA, MS2PIP and Python versions, input checksums, command line, output checksums).
 - **MS2PIP comparison:** Figure 2 is also scored with each release in `--compare-ms2pip` (default `4.2.0`, the locked release), in a uv environment with the locked dependencies and only MS2PIP replaced.
+- **Deposit:** the run also writes `deposit/`, laid out like the Zenodo supplement. It holds the regenerated figure PDFs, the reference examples (the 7 deposited payloads with their views, and every `top5_summary.csv`), and the Figure 4 tables, interactive files and spectra MGF.
+
+### Zenodo supplement
+
+After the figures are regenerated from the tag, assemble the next version of the supplement:
+
+```bash
+uv run python scripts/build_zenodo_package.py --figures ~/pmcp/figures-vX.Y.Z --cache-dir ~/pmcp/cache --out ~/pmcp/zenodo-vX.Y.Z
+```
+
+`<out>/supplement/` has the structure of the current deposit:
+- every deposited file unchanged, except those the run regenerated;
+- the new files (the Figure 4 MGF, `regeneration/manifest.json`, `regeneration/FIGURE_CHANGES.md`);
+- `CHANGES.md`: each file regenerated, added, unchanged or not regenerated, with the reason and issue links;
+- `MANIFEST.sha256` for every file.
+
+The script refuses a run whose checks or Figure 4 did not pass. It uploads nothing: the maintainer uploads the folder as a new version of the Zenodo record.
 
 ## Yanking a release
 
