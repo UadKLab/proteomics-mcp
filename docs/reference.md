@@ -46,6 +46,8 @@ For HPC use, either run upstream inference/search on the cluster and inspect mou
 
 ## Input Tables
 
+Every adapter reads tables the same way: `.csv` is comma-separated; `.tsv`, `.tab` and `.txt` are tab-separated; `.xlsx`, `.xlsm` and `.xls` are read as Excel; compressed files (`.gz`, `.bz2`, `.xz`, `.zip`) by the extension before the compression one. Without a known extension the delimiter is taken from the header line, and a file whose content does not match its extension (a tab-separated file named `.csv`) is read with the delimiter its header uses. So an InstaNovo or Casanovo table saved as `.tsv`, or a MaxQuant or FragPipe table exported as `.csv`, loads too.
+
 Supported adapters:
 
 - `instanovo`: prediction CSVs of InstaNovo 1.0–1.2: transformer greedy and beam search (`preds`/`log_probs`, `predictions`/`log_probabilities`, `predictions`/`log_probs`), InstaNovo+ with and without refinement (`final_prediction`, `diffusion_predictions`, falling back to `transformer_predictions` where refinement produced nothing), verbose prediction columns, and combined runs. Notes:
@@ -64,6 +66,8 @@ Supported adapters:
   ```
 
   `peptide_column` is required. The other keys are `scan_column`, `spectrum_id_column`, `usi_column`, `charge_column`, `precursor_mz_column`, `score_column`, `next_beam_column`, `next_beam_margin_column`, `next_score_column`, `next_score_margin_column`, `token_log_probabilities_column`, `score_type` (`confidence_0_1`, `posterior_error_probability`, `evalue`, `score_unscaled` or `unknown`, the default) and `source_engine` (default `generic`). The mapping is rejected for the named adapters.
+
+  The peptide column is normalised like the built-in adapters' (#124): masses, names and parenthesised masses become UNIMOD accessions, so `ALPM[+15.9949]HIR`, `ALPM(+15.99)HIR` and `ALPM[Oxidation]HIR` all load as `ALPM[UNIMOD:35]HIR`. The column as written stays in `source_columns`. A modification that is neither a UNIMOD name or accession nor a mass shift is kept as written, with a warning on the PSM. `source_engine` only labels the rows and does not choose a parser.
 
 Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, match spectra using raw-file stem plus scan number rather than scan number alone.
 
@@ -121,6 +125,18 @@ koina_cache_dir = ".proteomics_mcp_cache/koina"
 ```
 
 JSON and TOML configuration files are accepted. Explicit tool arguments override configuration values.
+
+**Collision energy (#128).** Prosit and the other collision-energy-dependent Koina models take a normalised collision energy (NCE). Each prediction uses, in this order:
+
+1. the `collision_energy` argument of `predict_fragments`, `score_spectrum`, `score_candidates` or `build_prediction_batch` (CLI `--collision-energy`);
+2. otherwise the spectrum's own NCE, when it is known to be one: the Thermo scan filter (`…@hcd28.00`), or the collision energy of a Thermo spectrum, which is the NCE;
+3. otherwise `koina_collision_energy` from the configuration (30).
+
+Absolute energies in eV, as Bruker timsTOF and SCIEX report them, are not an NCE and are never used for step 2. `build_prediction_batch` takes each spectrum's value from the spectra table (`spectra_path`), and sends one Koina request per collision energy. The same peptide at two energies is two predictions.
+
+The result records the energy used and where it came from (`predictor_metadata.collision_energy`, `collision_energy_source`), as do prediction-batch rows.
+
+The NCE an instrument reports is not always the value at which Prosit predicts the spectrum best. Tools such as Oktoberfest calibrate it per run. To use a calibrated value, pass it as `collision_energy`.
 
 ## Spectrum-Level Evidence
 
