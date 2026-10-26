@@ -66,7 +66,7 @@ def test_package_keeps_the_deposit_and_records_every_change(script, tmp_path, mo
     assert "`figure_assets/pdfs/Figure3.pdf`" in changes.split("## Regenerated, identical")[1].split("##")[0]
     assert "[#51](https://github.com/UadKLab/proteomics-mcp/issues/51)" in changes
     listed = {line.split("  ", 1)[1]: line.split("  ", 1)[0] for line in (supplement / "MANIFEST.sha256").read_text().splitlines()}
-    files = {str(p.relative_to(supplement)) for p in supplement.rglob("*") if p.is_file() and p.name != "MANIFEST.sha256"}
+    files = {p.relative_to(supplement).as_posix() for p in supplement.rglob("*") if p.is_file() and p.name != "MANIFEST.sha256"}
     assert set(listed) == files
     assert listed["CHANGES.md"] == hashlib.sha256((supplement / "CHANGES.md").read_bytes()).hexdigest()
 

@@ -209,7 +209,8 @@ def user_command() -> str:
     """The command as run from the checkout, without the figure environment's re-run (--in-figure-environment)."""
     script = Path(sys.argv[0]).resolve()
     shown = script.relative_to(REPO_ROOT).as_posix() if REPO_ROOT in script.parents else script.as_posix()
-    return shlex.join(["uv", "run", "python", shown, *(a for a in sys.argv[1:] if a != "--in-figure-environment")])
+    # arguments are paths, flags and versions: paths are written with / on every platform
+    return shlex.join(["uv", "run", "python", shown, *(a.replace("\\", "/") for a in sys.argv[1:] if a != "--in-figure-environment")])
 
 
 def git_state() -> dict[str, Any]:

@@ -224,7 +224,9 @@ def main(argv: list[str] | None = None) -> int:
         if sanitized(text) != text:
             path.write_text(sanitized(text))
             rewritten.append(path.relative_to(supplement).as_posix())
-    build_command = "uv run python scripts/build_zenodo_package.py " + " ".join(sanitized(a) for a in (argv if argv is not None else sys.argv[1:]))
+    # arguments are paths, flags and versions: paths are written with / on every platform
+    build_command = "uv run python scripts/build_zenodo_package.py " + " ".join(
+        sanitized(a.replace("\\", "/")) for a in (argv if argv is not None else sys.argv[1:]))
     (supplement / "PROVENANCE.md").write_text(provenance_markdown(figures, args.release, build_command))
     changed["added"].append("PROVENANCE.md")
     unchanged = sorted(deposited - set(changed["replaced"]) - set(changed["same"]))
