@@ -1,0 +1,40 @@
+# Runs Comet and X! Tandem from the BioContainers images pinned by digest (validation/engine_scores/validate.py) and
+# checks that (1) their output still equals validation/engine_scores/golden/psms.tsv, and (2) proteomics-mcp's xcorr
+# and hyperscore reproduce every PSM they report (#51). The pull-request test suite checks (2) against the golden
+# file without Docker; this workflow also checks (1).
+name: engine validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 1"
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "src/proteomics_mcp/core/engine_scores.py"
+      - "src/proteomics_mcp/core/annotation.py"
+      - "validation/engine_scores/**"
+      - ".github/workflows/engine-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Pull the pinned engine images
+        run: |
+          docker pull quay.io/biocontainers/comet-ms:2026011--h9ee0642_0@sha256:af4868654b0652fb55e8b87e8d1da77bed87f92345e4e85895280b4a9e3e9c9c
+          docker pull quay.io/biocontainers/xtandem:15.12.15.2--h4464bbb_11@sha256:712774bdb3afbfd884d22de3cc2e5b93ccaf0074ba527a3b5b2cba748aac10ea
+      - name: Run the engines and compare
+        run: uv run --with matplotlib python validation/engine_scores/validate.py --run-engines --out validation-out
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: engine-validation
+          path: validation-out/

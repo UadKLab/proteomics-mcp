@@ -1,0 +1,3 @@
+# The engine-validation inputs and golden files are compared byte for byte (sha256 digests, the engines' own output), so
+# check them out exactly as committed: no line-ending conversion on Windows (core.autocrlf) or anywhere else (#51).
+validation/engine_scores/** -text
