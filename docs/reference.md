@@ -65,11 +65,20 @@ Supported adapters:
    "score_column": "Score", "score_type": "confidence_0_1"}
   ```
 
-  `peptide_column` is required. The other keys are `scan_column`, `spectrum_id_column`, `usi_column`, `charge_column`, `precursor_mz_column`, `score_column`, `next_beam_column`, `next_beam_margin_column`, `next_score_column`, `next_score_margin_column`, `token_log_probabilities_column`, `score_type` (`confidence_0_1`, `posterior_error_probability`, `evalue`, `score_unscaled` or `unknown`, the default) and `source_engine` (default `generic`). The mapping is rejected for the named adapters.
+  `peptide_column` is required. The other keys are `scan_column`, `spectrum_id_column`, `run_column` (alias `experiment_name_column`: the PSM's run, so it finds its spectrum in a multi-run table), `usi_column`, `charge_column`, `precursor_mz_column`, `score_column`, `next_beam_column`, `next_beam_margin_column`, `next_score_column`, `next_score_margin_column`, `token_log_probabilities_column`, `score_type` (`confidence_0_1`, `posterior_error_probability`, `evalue`, `score_unscaled` or `unknown`, the default) and `source_engine` (default `generic`). The mapping is rejected for the named adapters.
 
   The peptide column is normalised like the built-in adapters' (#124): masses, names and parenthesised masses become UNIMOD accessions, so `ALPM[+15.9949]HIR`, `ALPM(+15.99)HIR` and `ALPM[Oxidation]HIR` all load as `ALPM[UNIMOD:35]HIR`. The column as written stays in `source_columns`. A modification that is neither a UNIMOD name or accession nor a mass shift is kept as written, with a warning on the PSM. `source_engine` only labels the rows and does not choose a parser.
 
-Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, match spectra using raw-file stem plus scan number rather than scan number alone.
+Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, spectra are matched by run and scan number, never by scan number alone. One rule applies to the metadata join (`build_prediction_batch`, `build_id_dashboard`), the spectrum lookup (`score_candidates`, `score_from_prediction_batch`) and the converters:
+
+- **Run names.** A run name is the base name without compression (`.gz`, `.bz2`, `.xz`, `.zip`) and spectrum-file suffixes (`.mzML`, `.mzXML`, `.mgf`, `.raw`, `.d`, `.wiff`, `.feather`, …): `/data/A.mzML.gz`, `A.raw` and `A` are the same run. Other dots stay, as in `QE-HF-01.5000`. `mzml_to_feather`, `mgf_to_feather` and `bruker_d_to_feather` name runs this way.
+- **The spectrum table's run** is its `experiment_name`, `source_name` or `source_file` column, the first it fills. The InstaNovo spectra layout (`experiment_name`) works as well as the converters' tables (`source_name`, `source_file`).
+- **A PSM's run** is its `experiment_name`, otherwise the run part of its spectrum id (`<run>:<scan>`, or a USI). A spectrum id `<run>:<scan>` is also looked up by run and scan when the spectrum table has no `spectrum_id` column.
+- **Join report.** The metadata join keeps every candidate row. `metadata_join` reports:
+  - `matched_rows`, the rows that found their spectrum;
+  - the unmatched rows by reason (`no_run`, `no_scan_number`, `no_spectrum_for_run_and_scan`), and the runs not in the spectrum table;
+  - how many rows got a retention time, the run column used, and `warnings`.
+- **Retention time.** It is read from `rt_source_field`, by default the first of `rt`, `retention_time`, `retention_time_seconds`, `RT` the table has, in `rt_unit` (`seconds`, the default, or `minutes`; `build_id_dashboard`, CLI `--rt-unit`). A warning flags a unit that looks wrong: seconds whose latest value is under 5 min, or minutes that add up to over 10 h.
 
 Spectrum lookup (`load_spectrum_from_table`, and the scoring tools) never silently substitutes another spectrum:
 - A run name that matches none of the runs in a multi-run spectrum table is an error. In a single-run table, a different name (for example a renamed file) still refers to that run.

@@ -130,7 +130,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--top-n", type=int)
-    p.add_argument("--rt-source-field", default="rt")
+    p.add_argument("--rt-source-field", help="retention-time column of the spectra table (default: rt, retention_time, ... whichever it has)")
+    p.add_argument("--rt-unit", choices=["seconds", "minutes"], default="seconds")
     p.add_argument("--confidence-field", default="confidence")
     p.add_argument("--mz-field", default="precursor_mz")
     p.add_argument("--default-experiment-name", help="Raw-file stem to use when an InstaNovo export lacks run provenance.")
@@ -541,6 +542,7 @@ def main(argv: list[str] | None = None) -> None:
                     scored_path=args.scored_path,
                     top_n=args.top_n,
                     rt_source_field=args.rt_source_field,
+                    rt_unit=args.rt_unit,
                     confidence_field=args.confidence_field,
                     mz_field=args.mz_field,
                     default_experiment_name=args.default_experiment_name,

@@ -24,6 +24,13 @@ def _confidence_from_score(value: float | None, score_type: str) -> float | None
     raise ValueError(f"Unsupported score_type: {score_type}")
 
 
+def _text_or_none(value: Any) -> str | None:
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def load_generic_candidates(
     path: str | Path,
     *,
@@ -38,12 +45,17 @@ def load_generic_candidates(
     charge_column: str | None = None,
     precursor_mz_column: str | None = None,
     spectrum_id_column: str | None = None,
+    run_column: str | None = None,
+    experiment_name_column: str | None = None,
     usi_column: str | None = None,
     token_log_probabilities_column: str | None = None,
     source_engine: str = "generic",
     limit: int | None = None,
 ) -> list[CandidatePSM]:
     frame = read_candidate_table(path, limit=limit)
+    if run_column and experiment_name_column and run_column != experiment_name_column:
+        raise ValueError("run_column and experiment_name_column name the same field; give one of them.")
+    run_column = run_column or experiment_name_column
     missing = [
         col
         for col in [
@@ -55,6 +67,7 @@ def load_generic_candidates(
             charge_column,
             precursor_mz_column,
             spectrum_id_column,
+            run_column,
             usi_column,
             token_log_probabilities_column,
         ]
@@ -91,6 +104,8 @@ def load_generic_candidates(
                 peptidoform=peptidoform,
                 scan_number=_as_int(row.get(scan_column)) if scan_column else None,
                 spectrum_id=str(row.get(spectrum_id_column)) if spectrum_id_column else None,
+                # The PSM's run, so it finds its spectrum in a multi-run table (#142)
+                experiment_name=_text_or_none(row.get(run_column)) if run_column else None,
                 usi=str(row.get(usi_column)) if usi_column else None,
                 precursor_mz=_as_float(row.get(precursor_mz_column)) if precursor_mz_column else None,
                 precursor_charge=_as_int(row.get(charge_column)) if charge_column else None,

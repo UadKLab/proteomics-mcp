@@ -61,6 +61,7 @@ from proteomics_mcp.core.dataset import (
 from proteomics_mcp.core.instanovo_export import export_table_to_instanovo
 from proteomics_mcp.core.sdrf import load_sdrf_summary, retrieve_pride_sdrf
 from proteomics_mcp.core.scoring import score_candidate_spectrum
+from proteomics_mcp.core.runs import SPECTRA_RUN_COLUMNS, candidate_run, run_name, spectra_run_names
 from proteomics_mcp.core.acquisition import normalized_collision_energy
 from proteomics_mcp.core.spectrum_loader import bruker_d_to_feather, load_spectrum_from_table, mgf_to_feather, mzml_to_feather, retrieve_spectrum_from_usi
 from proteomics_mcp.core.visualization import (
@@ -495,93 +496,85 @@ def _reports_table_loading(func: Any) -> Any:
     return wrapper
 
 
+# Retention-time columns a spectrum table may have, in the order they are tried when none is named (#146)
+RT_SOURCE_FIELDS = ("rt", "retention_time", "retention_time_seconds", "RT")
+RT_UNITS = {"seconds": 1.0, "minutes": 60.0}
+_SPECTRA_METADATA_COLUMNS = ("filter_string", "scan_resolution", "collision_energy", "isolation_target_mz", "precursor_mz", "precursor_charge")
+
+
 def enrich_frame_with_spectra_metadata(
     frame: pd.DataFrame,
     *,
     spectra_path: str,
-    rt_source_field: str = "rt",
+    rt_source_field: str | None = None,
+    rt_unit: str = "seconds",
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Join each candidate to its spectrum by run and scan number, and add the spectrum's metadata.
+
+    Every candidate row is kept; rows that do not match keep their own values and are counted by reason (#146). The
+    run is matched as everywhere else (core.runs, #142): the spectrum table's experiment_name, source_name or
+    source_file, against the candidate's run_key. rt_source_field names the retention-time column (default: the first
+    of RT_SOURCE_FIELDS the table has), in rt_unit ("seconds" or "minutes").
+    """
+    if rt_unit not in RT_UNITS:
+        raise ValueError(f"rt_unit must be one of {', '.join(RT_UNITS)}; got {rt_unit!r}.")
     available_columns = set(pyarrow_feather.read_table(spectra_path, columns=[]).schema.names)
+    if "scan_number" not in available_columns:
+        raise ValueError("Spectrum Feather must contain scan_number for metadata enrichment.")
+    run_columns = [column for column in SPECTRA_RUN_COLUMNS if column in available_columns]
+    if not run_columns:
+        raise ValueError(
+            f"The spectrum table needs a run column to match runs: one of {', '.join(SPECTRA_RUN_COLUMNS)}. "
+            f"Its columns: {', '.join(sorted(available_columns)[:20])}."
+        )
+    if rt_source_field is not None and rt_source_field not in available_columns:
+        raise ValueError(f"rt_source_field {rt_source_field!r} is not a column of the spectrum table.")
+    rt_column = rt_source_field or next((column for column in RT_SOURCE_FIELDS if column in available_columns), None)
     spectra = pd.read_feather(
         spectra_path,
-        columns=[
-            column
-            for column in [
-                "source_file",
-                "source_name",
-                "scan_number",
-                rt_source_field,
-                "filter_string",
-                "scan_resolution",
-                "collision_energy",
-                "isolation_target_mz",
-                "precursor_mz",
-                "precursor_charge",
-            ]
-            if column in available_columns
-        ],
+        columns=[*run_columns, "scan_number", *([rt_column] if rt_column else []), *(c for c in _SPECTRA_METADATA_COLUMNS if c in available_columns)],
     )
-    if "scan_number" not in spectra.columns:
-        raise ValueError("Spectrum Feather must contain scan_number for metadata enrichment.")
+    spectra_runs, run_column = spectra_run_names(spectra)
+    if spectra_runs is None:
+        raise ValueError(f"The spectrum table's run columns ({', '.join(run_columns)}) are empty.")
+    spectra = spectra.assign(__run=spectra_runs, __scan=pd.to_numeric(spectra["scan_number"], errors="coerce"))
+    spectra = spectra.dropna(subset=["__run", "__scan"]).copy()
+    spectra["__scan"] = spectra["__scan"].astype(int)
+    spectra = spectra.drop_duplicates(subset=["__run", "__scan"], keep="first")
 
-    run_source = None
-    if "source_file" in spectra.columns:
-        run_source = spectra["source_file"].map(lambda value: Path(str(value)).stem if pd.notna(value) else None)
-    elif "source_name" in spectra.columns:
-        run_source = spectra["source_name"].map(lambda value: Path(str(value)).stem if pd.notna(value) else None)
-    else:
-        raise ValueError("Spectrum Feather must contain source_file or source_name for run matching.")
+    enriched = frame.copy().reset_index(drop=True)
+    candidate_runs = enriched["run_key"].map(run_name) if "run_key" in enriched.columns else pd.Series([None] * len(enriched), dtype=object)
+    candidate_scans = pd.to_numeric(enriched.get("scan_number"), errors="coerce") if "scan_number" in enriched.columns else pd.Series([float("nan")] * len(enriched))
+    no_run = candidate_runs.isna()
+    no_scan = ~no_run & candidate_scans.isna()
+    joinable = ~no_run & ~no_scan
+    keys = pd.DataFrame({"__run": candidate_runs[joinable], "__scan": candidate_scans[joinable].astype("int64")}, index=enriched.index[joinable])
 
-    spectra = spectra.copy()
-    spectra["run_key"] = run_source
-    spectra = spectra.dropna(subset=["run_key", "scan_number"]).copy()
-    spectra["scan_number"] = pd.to_numeric(spectra["scan_number"], errors="coerce")
-    spectra = spectra.dropna(subset=["scan_number"]).copy()
-    spectra["scan_number"] = spectra["scan_number"].astype(int)
-    spectra = spectra.drop_duplicates(subset=["run_key", "scan_number"], keep="first")
-
-    enriched = frame.copy()
-    enriched["scan_number"] = pd.to_numeric(enriched.get("scan_number"), errors="coerce")
-    enriched = enriched.dropna(subset=["run_key", "scan_number"]).copy()
-    enriched["scan_number"] = enriched["scan_number"].astype(int)
-
-    rt_column = rt_source_field if rt_source_field in spectra.columns else None
-    join_columns = ["run_key", "scan_number"] + [
-        column
-        for column in [
-            rt_column,
-            "filter_string",
-            "scan_resolution",
-            "collision_energy",
-            "isolation_target_mz",
-            "precursor_mz",
-            "precursor_charge",
-        ]
-        if column and column in spectra.columns
-    ]
-    joined = enriched.merge(
-        spectra[join_columns].rename(
-            columns={
-                rt_source_field: "retention_time_seconds",
-                "precursor_mz": "mzml_precursor_mz",
-                "precursor_charge": "mzml_precursor_charge",
-            }
-        ),
-        on=["run_key", "scan_number"],
-        how="left",
-        validate="many_to_one",
-        suffixes=("", "__mzml"),
+    renamed = spectra.drop(columns=[c for c in (*run_columns, "scan_number") if c in spectra.columns]).rename(
+        columns={**({rt_column: "__rt"} if rt_column else {}), "precursor_mz": "mzml_precursor_mz", "precursor_charge": "mzml_precursor_charge"}
     )
+    matched = keys.reset_index().merge(renamed, on=["__run", "__scan"], how="inner", validate="many_to_one").set_index("index")
+    metadata_columns = [c for c in matched.columns if c not in ("__run", "__scan")]
+    joined = enriched.join(matched[metadata_columns], rsuffix="__mzml")
+    if "scan_number" in joined.columns:
+        joined["scan_number"] = candidate_scans.astype("Int64")
 
-    for column in ["retention_time_seconds", "scan_resolution", "collision_energy", "isolation_target_mz", "mzml_precursor_mz", "mzml_precursor_charge"]:
+    factor = RT_UNITS[rt_unit]
+    if "__rt" in joined.columns:
+        joined["__rt"] = pd.to_numeric(joined["__rt"], errors="coerce") * factor
+        if "retention_time_seconds" in joined.columns:
+            own = pd.to_numeric(joined["retention_time_seconds"], errors="coerce")
+            joined["retention_time_seconds"] = own.where(own.notna(), joined["__rt"])
+        else:
+            joined["retention_time_seconds"] = joined["__rt"]
+        joined = joined.drop(columns=["__rt"])
+
+    for column in ["scan_resolution", "collision_energy", "isolation_target_mz", "mzml_precursor_mz", "mzml_precursor_charge", "filter_string"]:
         alt = f"{column}__mzml"
         if alt not in joined.columns:
             continue
-        if column in joined.columns:
-            joined[column] = joined[column].where(joined[column].notna(), joined[alt])
-            joined.drop(columns=[alt], inplace=True)
-        else:
-            joined.rename(columns={alt: column}, inplace=True)
+        joined[column] = joined[column].where(joined[column].notna(), joined[alt])
+        joined = joined.drop(columns=[alt])
 
     # Minimal de novo exports often omit precursor fields. Retain supplied values
     # where present, but recover them from the matched MS2 metadata otherwise.
@@ -593,21 +586,47 @@ def enrich_frame_with_spectra_metadata(
         else:
             joined[candidate_column] = joined[mzml_column]
 
-    rt_seconds = pd.to_numeric(joined["retention_time_seconds"], errors="coerce") if "retention_time_seconds" in joined.columns else pd.Series(dtype=float)
+    rt_seconds = pd.to_numeric(joined["retention_time_seconds"], errors="coerce") if "retention_time_seconds" in joined.columns else pd.Series([float("nan")] * len(joined))
     if "retention_time_minutes" in joined.columns:
-        joined["retention_time_minutes"] = pd.to_numeric(joined["retention_time_minutes"], errors="coerce").where(
-            pd.to_numeric(joined["retention_time_minutes"], errors="coerce").notna(),
-            rt_seconds / 60.0,
-        )
+        own_minutes = pd.to_numeric(joined["retention_time_minutes"], errors="coerce")
+        joined["retention_time_minutes"] = own_minutes.where(own_minutes.notna(), rt_seconds / 60.0)
     else:
         joined["retention_time_minutes"] = rt_seconds / 60.0
-    matched_rows = int(rt_seconds.notna().sum())
+
+    matched_mask = joined.index.isin(matched.index)
+    no_spectrum = joinable & ~matched_mask
+    spectra_run_set = set(spectra["__run"].unique())
+    missing_runs = candidate_runs[no_spectrum & ~candidate_runs.isin(spectra_run_set)].value_counts()
+    warnings = []
+    if not matched_mask.any() and len(joined):
+        warnings.append(
+            f"No candidate matched a spectrum: {int(no_run.sum())} without a run, {int(no_scan.sum())} without a scan number, "
+            f"{int(no_spectrum.sum())} whose run and scan are not in the spectrum table (its runs, from {run_column}: "
+            f"{', '.join(sorted(spectra_run_set)[:5])})."
+        )
+    rt_values = pd.to_numeric(joined.loc[matched_mask, "retention_time_seconds"], errors="coerce").dropna() if "retention_time_seconds" in joined.columns else pd.Series(dtype=float)
+    if len(rt_values) >= 20:
+        latest = float(rt_values.max())
+        if rt_unit == "seconds" and latest < 300:
+            warnings.append(f"The latest retention time is {latest:.1f} s, under 5 min: if {rt_column!r} is in minutes, pass rt_unit='minutes'.")
+        if rt_unit == "minutes" and latest > 36000:
+            warnings.append(f"The latest retention time is {latest / 3600:.1f} h: if {rt_column!r} is in seconds, pass rt_unit='seconds'.")
     return joined, {
         "total_rows": int(len(joined)),
-        "matched_rows": matched_rows,
-        "unmatched_rows": int(len(joined) - matched_rows),
+        "matched_rows": int(matched_mask.sum()),
+        "unmatched_rows": int(len(joined) - matched_mask.sum()),
+        "unmatched_reasons": {
+            "no_run": int(no_run.sum()),
+            "no_scan_number": int(no_scan.sum()),
+            "no_spectrum_for_run_and_scan": int(no_spectrum.sum()),
+        },
+        "runs_not_in_spectra": {str(run): int(count) for run, count in missing_runs.head(10).items()},
+        "rows_with_retention_time": int(len(rt_values)),
         "spectra_path": spectra_path,
-        "rt_source_field": rt_source_field,
+        "spectra_run_column": run_column,
+        "rt_source_field": rt_column,
+        "rt_unit": rt_unit,
+        "warnings": warnings,
     }
 
 
@@ -961,7 +980,8 @@ def build_id_dashboard_tool(
     adapter: str = "instanovo",
     scored_path: str | None = None,
     top_n: int | None = None,
-    rt_source_field: str = "rt",
+    rt_source_field: str | None = None,
+    rt_unit: str = "seconds",
     confidence_field: str | None = "confidence",
     mz_field: str = "precursor_mz",
     limit: int | None = None,
@@ -969,7 +989,7 @@ def build_id_dashboard_tool(
 ) -> dict[str, Any]:
     frame = _top_n_frame(_load_candidate_frame(path, adapter, limit=limit, scored_path=scored_path, **adapter_options), top_n)
     if spectra_path:
-        enriched, join_summary = enrich_frame_with_spectra_metadata(frame, spectra_path=spectra_path, rt_source_field=rt_source_field)
+        enriched, join_summary = enrich_frame_with_spectra_metadata(frame, spectra_path=spectra_path, rt_source_field=rt_source_field, rt_unit=rt_unit)
         rt_field_for_summary: str | None = "retention_time_minutes"
     else:
         enriched = frame
@@ -1068,7 +1088,13 @@ def build_prediction_batch_tool(
     work_rows["precursor_charge"] = pd.to_numeric(work_rows["precursor_charge"], errors="coerce")
     work_rows = work_rows.dropna(subset=["peptidoform", "precursor_charge"]).copy()
     if work_rows.empty:
-        raise ValueError("No candidates have a usable precursor charge. Supply precursor_charge upstream or provide spectra_path for metadata enrichment.")
+        join_note = ""
+        if metadata_join is not None and metadata_join["matched_rows"] == 0:
+            join_note = " " + " ".join(metadata_join["warnings"])
+        raise ValueError(
+            "No candidates have a usable precursor charge. Supply precursor_charge upstream or provide spectra_path for metadata enrichment."
+            + join_note
+        )
     work_rows["precursor_charge"] = work_rows["precursor_charge"].astype(int)
     if config.predictor_backend == "koina":
         # Each spectrum's own NCE where it states one (from the spectra table), else the argument or config (#128)
@@ -1635,7 +1661,7 @@ def score_from_prediction_batch_tool(
                 spectra_path,
                 scan_number=candidate.scan_number,
                 spectrum_id=candidate.spectrum_id,
-                experiment_name=candidate.experiment_name,
+                experiment_name=candidate_run(candidate.experiment_name, candidate.spectrum_id),
                 **_spectrum_position(candidate),
             )
             result = score_candidate_spectrum(
@@ -2183,7 +2209,7 @@ def score_candidates_tool(
                     spectra_path,
                     scan_number=candidate.scan_number,
                     spectrum_id=candidate.spectrum_id,
-                    experiment_name=candidate.experiment_name,
+                    experiment_name=candidate_run(candidate.experiment_name, candidate.spectrum_id),
                     **_spectrum_position(candidate),
                 )
             else:
