@@ -100,9 +100,9 @@ FIGURE4_SUBSET_ROWS = 100  # the deposited FragPipe subset (#42, #47): the first
 FIGURE4_RUN = "20180905_QX4_JoMu_SA_EASY12-7_uPAC_500ng_ArabidopsisiRT-F5"
 FIGURE4_PRIDE = "PXD014877"
 FIGURE4_RT_TOLERANCE_MINUTES = 1e-5  # FragPipe prints Retention in seconds to 4 decimals
-# sha256 of the Figure 4 MGF (the 100 PRIDE spectra with their retention times, 2026-10-26): PRIDE serving other
+# sha256 of the Figure 4 MGF (the 100 PRIDE spectra with their retention times, full precision, 2026-10-26): PRIDE serving other
 # spectra, or another --figure4-mgf, fails the build's checks
-FIGURE4_MGF_SHA256 = "74fc02df6b5c7628b981bca3746c374a3088fe4db1f10f5c29845fb71432683f"
+FIGURE4_MGF_SHA256 = "e1d2ee5b8632f36b4ae8291196735b4ef7939c045ff6ffba57d2c3ee8ceaf059"
 # Where the Figure 4 build lands in the Zenodo deposit (deposit/ in the output folder; scripts/build_zenodo_package.py)
 DEPOSIT_ARABIDOPSIS = "processed/arabidopsis"
 DEPOSIT_INTERACTIVE = "figure_assets/interactive"
