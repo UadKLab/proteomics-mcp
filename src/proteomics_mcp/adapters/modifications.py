@@ -240,6 +240,17 @@ def normalize_peptidoform_to_unimod_style(peptidoform: str | None) -> str | None
     return text
 
 
+def unresolved_modification_tokens(peptidoform: str | None) -> list[str]:
+    """Modification tokens of a normalized peptidoform that are neither a UNIMOD accession nor a mass shift.
+
+    normalize_peptidoform_to_unimod_style keeps such tokens as written ("[Foo]"); a mass that matches no UNIMOD entry
+    stays a mass ("[+123.4567]") and still scores, so it is not listed.
+    """
+    if not peptidoform:
+        return []
+    return [token for token in re.findall(r"\[([^\]]+)\]", str(peptidoform)) if not token.strip().upper().startswith("UNIMOD:") and _parse_mass_token(token) is None]
+
+
 def matching_parenthesis(text: str, start: int) -> int | None:
     """Index of the ")" that closes the "(" at text[start], allowing nesting such as "(Oxidation (M))"."""
     depth = 0
