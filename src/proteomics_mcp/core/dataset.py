@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from proteomics_mcp.adapters.modifications import bracket_modification_tokens
+from proteomics_mcp.adapters.modifications import bracket_modification_tokens, normalize_peptidoform_to_unimod_style, unresolved_modification_tokens
 from proteomics_mcp.adapters.table_io import read_candidate_table
 from proteomics_mcp.core.html_safety import script_json, to_script_json
 from proteomics_mcp.core.html_safety import text as escape_text
@@ -1118,6 +1118,16 @@ def _strip_modifications(sequence: str | None) -> str:
     return "".join(ch for ch in re.sub(r"\[[^\]]*\]", "", bracket_modification_tokens(sequence)) if "A" <= ch <= "Z")
 
 
+def _normalized_peptidoform(value: str | None) -> str | None:
+    """A peptidoform in UNIMOD notation, as the adapters write it; unparsable input is returned as given."""
+    if value is None:
+        return None
+    try:
+        return normalize_peptidoform_to_unimod_style(value) or value
+    except Exception:
+        return value
+
+
 def summarize_prediction_accuracy(
     frame: pd.DataFrame,
     *,
@@ -1128,6 +1138,9 @@ def summarize_prediction_accuracy(
     reliability_bin_count: int = 10,
 ) -> dict[str, Any]:
     """Compare each PSM's predicted peptidoform to a ground-truth target column.
+
+    Prediction and target are both normalized to UNIMOD notation before they are compared (#124), so a target written
+    by a search engine as ALPM[+15.9949]HIR equals the prediction ALPM[UNIMOD:35]HIR.
 
     Returns three correctness levels (exact, stripped sequence, I/L-equivalent),
     a reliability diagram, a coverage-vs-precision sweep, accuracy by charge /
@@ -1147,12 +1160,15 @@ def summarize_prediction_accuracy(
         raise ValueError(f"Target field '{target_field}' is not present on the frame.") from exc
 
     valid_mask = pred_raw.notna() & target_raw.notna()
+    pred_norm = pred_raw.map(_normalized_peptidoform)
+    target_norm = target_raw.map(_normalized_peptidoform)
     work = pd.DataFrame(
         {
-            "prediction": pred_raw,
-            "target": target_raw,
-            "pred_stripped": pred_raw.map(_strip_modifications),
-            "target_stripped": target_raw.map(_strip_modifications),
+            "prediction": pred_norm,
+            "target": target_norm,
+            "target_as_written": target_raw,
+            "pred_stripped": pred_norm.map(_strip_modifications),
+            "target_stripped": target_norm.map(_strip_modifications),
         }
     )[valid_mask].copy()
     work["pred_il"] = work["pred_stripped"].str.replace("I", "L", regex=False)
@@ -1180,6 +1196,10 @@ def summarize_prediction_accuracy(
     overview = {
         "psm_count": n,
         "skipped_missing_pred_or_target": int((~valid_mask).sum()),
+        # How many targets were written in another modification notation, and how many keep a token that is neither
+        # a UNIMOD name/accession nor a mass, compared as written (#124)
+        "targets_renotated": int((work["target"] != work["target_as_written"]).sum()),
+        "targets_with_unresolved_modifications": int(work["target"].map(lambda value: bool(unresolved_modification_tokens(value))).sum()),
         "exact_accuracy": float(work["correct_exact"].mean()) if n else None,
         "stripped_sequence_accuracy": float(work["correct_seq"].mean()) if n else None,
         "il_equivalent_accuracy": float(work["correct_il"].mean()) if n else None,

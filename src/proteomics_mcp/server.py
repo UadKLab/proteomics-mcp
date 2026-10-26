@@ -513,7 +513,10 @@ if MCPServer is not None:
         reliability_bin_count: int = 10,
         limit: int | None = None,
     ) -> dict[str, Any]:
-        """Summarize prediction correctness, calibration, and operating points against a target sequence field."""
+        """Summarize prediction correctness, calibration, and operating points against a target sequence field.
+
+        Prediction and target are both normalised to UNIMOD notation before they are compared, so a target written as
+        ALPM[+15.9949]HIR equals the prediction ALPM[UNIMOD:35]HIR."""
         return summarize_prediction_accuracy_tool(
             path=path,
             target_field=target_field,

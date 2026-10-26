@@ -67,6 +67,8 @@ Supported adapters:
 
   `peptide_column` is required. The other keys are `scan_column`, `spectrum_id_column`, `usi_column`, `charge_column`, `precursor_mz_column`, `score_column`, `next_beam_column`, `next_beam_margin_column`, `next_score_column`, `next_score_margin_column`, `token_log_probabilities_column`, `score_type` (`confidence_0_1`, `posterior_error_probability`, `evalue`, `score_unscaled` or `unknown`, the default) and `source_engine` (default `generic`). The mapping is rejected for the named adapters.
 
+  The peptide column is normalised like the built-in adapters' (#124): masses, names and parenthesised masses become UNIMOD accessions, so `ALPM[+15.9949]HIR`, `ALPM(+15.99)HIR` and `ALPM[Oxidation]HIR` all load as `ALPM[UNIMOD:35]HIR`. The column as written stays in `source_columns`. A modification that is neither a UNIMOD name or accession nor a mass shift is kept as written, with a warning on the PSM. `source_engine` only labels the rows and does not choose a parser.
+
 Canonical PSM fields include identity/provenance, peptidoform, precursor values, native score and optional 0-1 confidence, de novo beam confidence when genuinely available, token evidence, and preserved upstream `source_columns`. Modifications are converted to inline UNIMOD notation. For multi-run data, match spectra using raw-file stem plus scan number rather than scan number alone.
 
 Spectrum lookup (`load_spectrum_from_table`, and the scoring tools) never silently substitutes another spectrum:
