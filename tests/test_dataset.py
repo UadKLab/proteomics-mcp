@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+import pytest
 
 from proteomics_mcp.core.dataset import (
     build_dashboard_summary,
@@ -1300,3 +1302,37 @@ def test_dashboard_and_accuracy_html_escape_untrusted_strings(tmp_path):
     html = render_prediction_accuracy_html(result, title=IMG_ONERROR, output_path=tmp_path / "accuracy.html")
     _assert_no_injected_markup(html)
     assert "<title>&lt;img src=x" in html
+
+
+def test_binning_counts_the_maximum_when_the_range_comes_from_the_data():
+    """The last bin is closed when the edges come from the data (numpy.histogram's convention): before, the values at
+    the maximum fell outside every half-open bin, e.g. 1 of 100 PSMs in the Figure 4 spectral-angle histogram."""
+    frame = pd.DataFrame({"value": [0.1, 0.3, 0.7]})
+    binned = bin_numeric_distribution(frame, field="value", bin_count=20)
+    assert sum(row["count"] for row in binned["bins"]) == 3
+    assert binned["bin_edges"][-1] == 0.7 and binned["bins"][-1]["count"] == 1
+
+    figure4_extremes = pd.DataFrame({"value": [0.2025552246253021, 0.9617314508392228]})
+    assert sum(row["count"] for row in bin_numeric_distribution(figure4_extremes, field="value", bin_count=20)["bins"]) == 2
+
+    ties = pd.DataFrame({"value": [0.5, 1.0, 1.0, 1.0]})  # e.g. many PSMs with matched fraction 1.0
+    assert bin_numeric_distribution(ties, field="value", bin_count=10)["bins"][-1]["count"] == 3
+    assert bin_numeric_distribution(ties, field="value", bin_count=10, value_range=(0.0, 1.0))["bins"][-1]["count"] == 3
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_binning_counts_every_finite_value(seed):
+    rng = np.random.default_rng(seed)
+    values = np.concatenate([rng.normal(size=200) * rng.uniform(1e-6, 1e6), [np.nan, np.inf, -np.inf]])
+    frame = pd.DataFrame({"x": values, "y": rng.uniform(0.0, 1.0, size=len(values))})
+    finite = int(np.isfinite(values).sum())
+    binned = bin_numeric_distribution(frame.replace([np.inf, -np.inf], np.nan), field="x", bin_count=int(rng.integers(1, 40)))
+    assert sum(row["count"] for row in binned["bins"]) == finite
+    cells = bin_2d_numeric_distribution(frame.replace([np.inf, -np.inf], np.nan), x_field="x", y_field="y", x_bin_count=7, y_bin_count=5)["cells"]
+    assert sum(cell["count"] for cell in cells) == finite
+
+
+def test_explicit_bin_edges_stay_half_open():
+    frame = pd.DataFrame({"value": [1.0, 2.0, 3.0]})
+    binned = bin_numeric_distribution(frame, field="value", bin_edges=[1.0, 2.0, 3.0])
+    assert [row["count"] for row in binned["bins"]] == [1, 1]  # 3.0 is outside [2, 3): the caller chose the edges
