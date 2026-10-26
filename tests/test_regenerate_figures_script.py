@@ -67,3 +67,24 @@ def test_figure2_strip_shows_the_engine_scores(script):
     assert "xcorr" in keys and "hyperscore" in keys and not any(key.startswith("log2_") for key in keys)
     assert set(script.PUBLISHED_AS) == {"xcorr", "hyperscore"} and all(key in script.CAUSES for key in keys)
     assert (script.EXPECTED["fig2"]["xcorr"], script.EXPECTED["fig2"]["hyperscore"]) == ("3.336", "59.5")
+
+
+def test_figure4_mgf_carries_the_retention_time(script, tmp_path):
+    """#135: the Figure 4 MGF takes each PRIDE spectrum's rt_seconds; spectra without one are reported."""
+    spectra = {7: {"mz": [100.0, 200.5], "intensity": [10.0, 20.0], "precursor_mz": 500.25, "precursor_charge": 2, "rt_seconds": 699.59159},
+               8: {"mz": [150.0], "intensity": [5.0], "precursor_mz": 600.0, "precursor_charge": None, "rt_seconds": None}}
+    mgf = tmp_path / "f4.mgf"
+    assert script.write_figure4_mgf([(7, 2), (8, 3)], spectra, mgf) == [8]
+    text = mgf.read_text()
+    assert "SCANS=7\nRTINSECONDS=699.5916\n" in text and "CHARGE=3+" in text and text.count("BEGIN IONS") == 2
+
+
+def test_regenerated_tables_keep_the_deposited_column_order(script, tmp_path):
+    import pandas as pd
+
+    deposited = tmp_path / "old.csv"
+    pd.DataFrame(columns=["candidate_id", "log2_xcorr", "spectral_angle"]).to_csv(deposited, index=False)
+    new = pd.DataFrame({"spectral_angle": [0.5], "xcorr": [1.2], "candidate_id": ["psm:0"]})
+    ordered, columns = script.deposited_column_order(new, deposited)
+    assert list(ordered.columns) == ["candidate_id", "spectral_angle", "xcorr"]
+    assert columns == {"removed": ["log2_xcorr"], "added": ["xcorr"]}

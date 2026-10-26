@@ -85,9 +85,25 @@ S2C_HOVER_MZ = 418.228  # y4+ | PSSK
 PAGE_WIDTH = {"Figure2": 527.33, "Figure3": 527.33, "Figure4": 543.81, "Suppl_figure2": 611.47, "Suppl_figure5": 1085.82}
 FIGURE4_PLOTS = {"A": "scatter_spectral_angle_vs_fragment_mass_error", "B": "hist_rt", "C": "hist_spectral_angle",
                  "D": "hist_matched_fraction", "E": "hist_explained_fraction"}
-FIGURE4_SUBSET_ROWS = 100  # the declared FragPipe subset: the first 100 PSMs of fragpipe_psm.tsv
+FIGURE4_SUBSET_ROWS = 100  # the deposited FragPipe subset (#42, #47): the first 100 PSMs of fragpipe_psm.tsv
 FIGURE4_RUN = "20180905_QX4_JoMu_SA_EASY12-7_uPAC_500ng_ArabidopsisiRT-F5"
 FIGURE4_PRIDE = "PXD014877"
+FIGURE4_RT_TOLERANCE_MINUTES = 1e-5  # FragPipe prints Retention in seconds to 4 decimals
+# sha256 of the Figure 4 MGF (the 100 PRIDE spectra with their retention times, 2026-10-26): PRIDE serving other
+# spectra, or another --figure4-mgf, fails the build's checks
+FIGURE4_MGF_SHA256 = "74fc02df6b5c7628b981bca3746c374a3088fe4db1f10f5c29845fb71432683f"
+# Where the Figure 4 build lands in the Zenodo deposit (deposit/ in the output folder; scripts/build_zenodo_package.py)
+DEPOSIT_ARABIDOPSIS = "processed/arabidopsis"
+DEPOSIT_INTERACTIVE = "figure_assets/interactive"
+FIGURE4_DEPOSIT = {
+    "spectra_mgf": f"{DEPOSIT_ARABIDOPSIS}/figure4_usi_spectra.mgf",  # new: the PRIDE spectra, so Figure 4 rebuilds from Zenodo alone
+    "scored_psms": f"{DEPOSIT_ARABIDOPSIS}/supplementary_scored_psms.csv",
+    "scored_peptides": f"{DEPOSIT_ARABIDOPSIS}/supplementary_scored_peptides.csv",
+    "plot_data": f"{DEPOSIT_ARABIDOPSIS}/figure4_dashboard_plot_data.json",
+    "dashboard_html": f"{DEPOSIT_INTERACTIVE}/Figure_3D_arabidopsis_fragpipe_score_aware_dashboard.html",
+    "psm_table_html": f"{DEPOSIT_INTERACTIVE}/Supplementary_Figure_3_fragpipe_scored_psm_table.html",
+    "peptide_table_html": f"{DEPOSIT_INTERACTIVE}/Supplementary_Figure_4_fragpipe_scored_peptide_table.html",
+}
 
 STRIP_METRICS = [  # Figure 2B: metric, label, printed format
     ("spectral_angle", "Spectral angle", "{:.3f}"), ("cosine_similarity", "Cosine", "{:.3f}"),
@@ -534,8 +550,10 @@ def fetch_usi_spectra(scans: list[tuple[int, int]], cache_dir: Path, timeout: fl
     for number, (scan, _) in enumerate(scans, 1):
         path = cache / f"{FIGURE4_RUN}.{scan}.json"
         if path.is_file():
-            spectra[scan] = json.loads(path.read_text())
-            continue
+            cached = json.loads(path.read_text())
+            if cached.get("rt_seconds") is not None:  # cached before #135 (PR #156): fetched again for its retention time
+                spectra[scan] = cached
+                continue
         usi = f"mzspec:{FIGURE4_PRIDE}:{FIGURE4_RUN}:scan:{scan}"
         for attempt in range(1, retries + 1):
             try:
@@ -553,34 +571,43 @@ def fetch_usi_spectra(scans: list[tuple[int, int]], cache_dir: Path, timeout: fl
     return spectra, missing
 
 
-def scan_start_seconds(spectrum: dict[str, Any]) -> float | None:
-    """PRIDE sends the retention time as MS:1000016 (scan start time, seconds); retrieve_usi_spectrum drops it (#135)."""
-    if spectrum.get("rt_seconds") is not None:
-        return float(spectrum["rt_seconds"])
-    for attribute in (spectrum.get("metadata") or {}).get("attributes") or []:
-        if attribute.get("accession") == "MS:1000016":
-            value = float(attribute["value"])
-            return value * 60 if str(attribute.get("unit_name") or attribute.get("unitName") or "").startswith("minute") else value
-    return None
+def write_figure4_mgf(scans: list[tuple[int, int]], spectra: dict[int, dict[str, Any]], mgf: Path) -> list[int]:
+    """The PRIDE spectra as one MGF, with their retention times (#135, PR #156); returns the scans without one."""
+    without_rt = []
+    with mgf.open("w", newline="\n") as handle:
+        for scan, charge in scans:
+            spectrum = spectra[scan]
+            handle.write(f"BEGIN IONS\nTITLE={FIGURE4_RUN}.{scan}.{scan}.{charge}\nSCANS={scan}\n")
+            if spectrum.get("rt_seconds") is None:
+                without_rt.append(scan)
+            else:
+                handle.write(f"RTINSECONDS={float(spectrum['rt_seconds']):.4f}\n")
+            handle.write(f"PEPMASS={spectrum['precursor_mz']}\nCHARGE={spectrum.get('precursor_charge') or charge}+\n")
+            handle.writelines(f"{mz:.6f} {intensity:.4f}\n" for mz, intensity in zip(spectrum["mz"], spectrum["intensity"]))
+            handle.write("END IONS\n")
+    return without_rt
 
 
-def batch_vs_direct_scores(candidates: Path, scored_csv: str, spectra: dict[int, dict[str, Any]], scans: list[tuple[int, int]]) -> dict[str, Any]:
-    """#137: the batch scores predictions passed in from its prediction step. Re-score every PSM with score_spectrum,
-    where the package predicts, and report rows whose metrics differ."""
+def batch_vs_direct_scores(candidates: Path, scored_csv: str, feather: Path) -> dict[str, Any]:
+    """#137: the batch scores the predictions of its prediction step. Re-score every PSM with score_spectrum, where the
+    package predicts, against the same spectrum table, and report rows whose metrics differ."""
     import pandas as pd
 
+    from proteomics_mcp.core.spectrum_loader import load_spectrum_from_table
     from proteomics_mcp.tools.workflows import load_candidates_tool, score_spectrum_tool
 
     scored = pd.read_csv(scored_csv).set_index("candidate_id")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         rows = {row["candidate_id"]: row for row in load_candidates_tool(str(candidates), adapter="fragpipe")}
-    keys = ("spectral_angle", "cosine_similarity", "pearson_correlation", "matched_ion_count", "total_predicted_ions", "explained_intensity_fraction")
+    keys = ("spectral_angle", "cosine_similarity", "pearson_correlation", "xcorr", "hyperscore", "matched_ion_count", "total_predicted_ions",
+            "explained_intensity_fraction")
     differing, compared, largest = [], 0, 0.0
     for candidate_id, row in rows.items():
-        if candidate_id not in scored.index or row.get("scan_number") not in spectra:
+        if candidate_id not in scored.index:
             continue
-        direct = score_spectrum_tool(row, spectra[row["scan_number"]], **PREDICTOR, tolerance=0.05, tolerance_unit="Da")
+        observed = load_spectrum_from_table(feather, scan_number=row["scan_number"]).model_dump()
+        direct = score_spectrum_tool(row, observed, **PREDICTOR, tolerance=0.05, tolerance_unit="Da")
         compared += 1
         batch = scored.loc[candidate_id]
         pairs = {k: (float(batch[k]), float(direct[k])) for k in keys if pd.notna(batch.get(k)) and direct.get(k) is not None}
@@ -591,17 +618,39 @@ def batch_vs_direct_scores(candidates: Path, scored_csv: str, spectra: dict[int,
     return {"compared": compared, "differing_above_1e-6": len(differing), "largest_abs_difference": largest, "examples": differing[:5]}
 
 
-def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path, browser: Browser | None) -> dict[str, Any]:
+def deposited_column_order(new: Any, deposited: Path) -> tuple[Any, dict[str, list[str]]]:
+    """The regenerated table with the deposited table's column order (new columns last), and the columns that differ."""
     import pandas as pd
 
+    old_columns = list(pd.read_csv(deposited, nrows=0).columns)
+    kept = [c for c in old_columns if c in new.columns]
+    added = [c for c in new.columns if c not in old_columns]
+    return new[kept + added], {"removed": [c for c in old_columns if c not in new.columns], "added": added}
+
+
+def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path, browser: Browser | None, deposit: Path) -> dict[str, Any]:
+    """Figure 4 from the 100 deposited FragPipe PSMs (#42, #47) and their PRIDE spectra by USI, with the tables and
+    interactive files of the deposit. The spectra go through one MGF, which the deposit carries, so `--figure4-mgf`
+    rebuilds the figure from the Zenodo files alone."""
+    import pandas as pd
+
+    from proteomics_mcp.core.dataset import summarize_candidate_inspection_frame
     from proteomics_mcp.tools.workflows import (
+        _load_candidate_frame,
         build_id_dashboard_tool,
         build_prediction_batch_tool,
         mgf_to_feather_tool,
+        render_peptide_table_tool,
+        render_psm_table_tool,
         score_from_prediction_batch_tool,
     )
 
-    status: dict[str, Any] = {"status": "PROVISIONAL", "reasons": []}
+    status: dict[str, Any] = {"status": "PROVISIONAL", "reasons": [], "notes": [
+        "PSMs: the 100 deposited FragPipe PSMs (the first 100 rows of fragpipe_psm.tsv, the subset of Supplementary Figures 3 "
+        "and 4), as decided for 0.2.0 (#42, #47); the published Figure 4 showed ~960 PSMs of an unrecorded selection",
+        "spectra: PRIDE's USI rendering of the scans (PXD014877), not the local mzML conversion; PRIDE serves fewer peaks than "
+        "the local files for 23 of 25 reference PSMs (#31). The MGF of these spectra is in the deposit",
+    ]}
     source = supplement / "processed/arabidopsis/fragpipe_psm.tsv"
     table = pd.read_csv(source, sep="\t", low_memory=False)
     subset = table.head(FIGURE4_SUBSET_ROWS)
@@ -609,27 +658,25 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
     scans = [(int(s.split(".")[-2]), int(c)) for s, c in zip(subset["Spectrum"], subset["Charge"])]
     if [s for s, _ in scans] != deposited["scan_number"].astype(int).tolist():
         raise SystemExit("the first 100 FragPipe PSMs are not the deposited Figure 4 subset")
-    spectra, missing = fetch_usi_spectra(scans, args.cache_dir, args.usi_timeout, args.usi_retries)
-    status["usi"] = {"requested": len(scans), "retrieved": len(spectra), "missing_scans": missing,
-                     "cache_sha256": {str(s): file_digest(args.cache_dir / "usi" / FIGURE4_PRIDE / f"{FIGURE4_RUN}.{s}.json") for s in sorted(spectra)}}
-    if missing:
-        status["status"] = "SKIPPED"
-        status["reasons"].append(f"PRIDE did not serve {len(missing)} of {len(scans)} spectra by USI")
-        return status
-    # The package's own MGF reader builds the spectrum table; the MGF holds the PRIDE spectra unchanged.
     work4 = work / "figure4"
     work4.mkdir(parents=True, exist_ok=True)
     mgf = work4 / f"{FIGURE4_RUN}.mgf"
-    with mgf.open("w") as handle:
-        for scan, charge in scans:
-            spectrum = spectra[scan]
-            rt = scan_start_seconds(spectrum)
-            handle.write(f"BEGIN IONS\nTITLE={FIGURE4_RUN}.{scan}.{scan}.{charge}\nSCANS={scan}\n")
-            if rt is not None:
-                handle.write(f"RTINSECONDS={rt:.4f}\n")
-            handle.write(f"PEPMASS={spectrum['precursor_mz']}\nCHARGE={spectrum.get('precursor_charge') or charge}+\n")
-            handle.writelines(f"{mz:.6f} {intensity:.4f}\n" for mz, intensity in zip(spectrum["mz"], spectrum["intensity"]))
-            handle.write("END IONS\n")
+    if args.figure4_mgf:
+        shutil.copyfile(args.figure4_mgf.expanduser(), mgf)
+        status["spectra"] = {"source": f"--figure4-mgf {args.figure4_mgf}"}
+    else:
+        spectra, missing = fetch_usi_spectra(scans, args.cache_dir, args.usi_timeout, args.usi_retries)
+        status["spectra"] = {"source": f"PRIDE USI ({FIGURE4_PRIDE})", "requested": len(scans), "retrieved": len(spectra), "missing_scans": missing,
+                             "cache_sha256": {str(s): file_digest(args.cache_dir / "usi" / FIGURE4_PRIDE / f"{FIGURE4_RUN}.{s}.json") for s in sorted(spectra)}}
+        if missing:
+            status["status"] = "SKIPPED"
+            status["reasons"].append(f"PRIDE did not serve {len(missing)} of {len(scans)} spectra by USI")
+            return status
+        without_rt = write_figure4_mgf(scans, spectra, mgf)
+        if without_rt:
+            status["reasons"].append(f"{len(without_rt)} PRIDE spectra came without a retention time (#135): {without_rt[:10]}")
+    status["spectra"]["mgf_sha256"] = file_digest(mgf)
+    # The package's own MGF reader builds the spectrum table; every score and retention time below comes from it.
     feather = work4 / f"{FIGURE4_RUN}.feather"
     mgf_to_feather_tool(str(mgf), str(feather))
     candidates = work4 / "psm.tsv"  # adapters derive candidate_id from the file name; the deposited subset uses "psm:<row>"
@@ -641,28 +688,57 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
     dashboard = build_id_dashboard_tool(path=str(candidates), adapter="fragpipe", scored_path=str(scored_csv), spectra_path=str(feather),
                                         output_prefix=str(work4 / "figure4"))
     enriched = pd.read_csv(dashboard["output_files"]["enriched_csv"], low_memory=False)
-    status["issue_137"] = batch_vs_direct_scores(candidates, scored_csv, spectra, scans)
-    # #146 assumes retention-time units: compare the dashboard's minutes with FragPipe's own retention time (seconds).
+    status["issue_137"] = batch_vs_direct_scores(candidates, scored_csv, feather)
     rt = enriched.set_index("scan_number")["retention_time_minutes"] if "retention_time_minutes" in enriched else pd.Series(dtype=float)
     fragpipe_rt = pd.Series(subset["Retention"].to_numpy() / 60, index=[s for s, _ in scans])
     common = rt.dropna().index.intersection(fragpipe_rt.index)
     status["retention_time_check"] = {"compared": len(common),
                                       "largest_abs_difference_minutes": float((rt.loc[common] - fragpipe_rt.loc[common]).abs().max()) if len(common) else None}
+    join = dashboard.get("metadata_join") or {}
     status["batch"] = {"prediction": {k: v for k, v in batch.items() if isinstance(v, (int, float, str))},
                        "scoring": {k: v for k, v in scored.items() if isinstance(v, (int, float, str))},
                        "dashboard_rows": len(enriched), "rows_with_spectral_angle": int(enriched["spectral_angle"].notna().sum()),
                        "rows_with_rt": int(enriched.get("retention_time_minutes", pd.Series(dtype=float)).notna().sum()),
-                       "metadata_join": dashboard.get("metadata_join")}
-    status["reasons"] += [
-        "#146: build_prediction_batch and build_id_dashboard run enrich_frame_with_spectra_metadata, which can drop rows "
-        "silently, counts matches from retention time and assumes retention-time units",
-        "the spectra are PRIDE's USI rendering of the scans, not the local mzML conversion used for the published figure; "
-        "PRIDE served fewer peaks than the local files for 23 of 25 reference PSMs (#31)",
-        "the published Figure 4 shows ~960 PSMs of an unrecorded selection; the deposited subset is the first 100 PSMs (#42, #47)",
-    ]
+                       "metadata_join": join}
+    # The deposit: the spectra, the scored PSM and peptide tables, the dashboard and the two interactive tables.
+    targets = {key: deposit / path for key, path in FIGURE4_DEPOSIT.items()}
+    for path in targets.values():
+        path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(mgf, targets["spectra_mgf"])
+    psms, status["scored_psms_columns"] = deposited_column_order(enriched, supplement / FIGURE4_DEPOSIT["scored_psms"])
+    psms.to_csv(targets["scored_psms"], index=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        inspection = summarize_candidate_inspection_frame(_load_candidate_frame(str(candidates), "fragpipe", scored_path=str(scored_csv)))
+    peptides, status["scored_peptides_columns"] = deposited_column_order(inspection.peptide_summary, supplement / FIGURE4_DEPOSIT["scored_peptides"])
+    peptides.to_csv(targets["scored_peptides"], index=False)
+    shutil.copyfile(dashboard["output_files"]["dashboard_html"], targets["dashboard_html"])
+    sdrf = supplement / DEPOSIT_ARABIDOPSIS / "sdrf.tsv"
+    table_options = {"path": str(candidates), "adapter": "fragpipe", "scored_path": str(scored_csv), "sdrf_path": str(sdrf) if sdrf.is_file() else None}
+    render_psm_table_tool(output_path=str(targets["psm_table_html"]), **table_options)
+    render_peptide_table_tool(output_path=str(targets["peptide_table_html"]), **table_options)
+
+    checks = {
+        "the spectra are the recorded ones (FIGURE4_MGF_SHA256)": status["spectra"]["mgf_sha256"] == FIGURE4_MGF_SHA256,
+        "100 PSMs scored": status["batch"]["rows_with_spectral_angle"] == FIGURE4_SUBSET_ROWS == len(enriched),
+        "every PSM joined to its spectrum (#146, PR #158)": join.get("matched_rows") == FIGURE4_SUBSET_ROWS and not join.get("unmatched_rows"),
+        "every PSM has the PRIDE retention time (#135, PR #156)": status["batch"]["rows_with_rt"] == FIGURE4_SUBSET_ROWS,
+        "retention times equal FragPipe's": status["retention_time_check"]["compared"] == FIGURE4_SUBSET_ROWS
+        and status["retention_time_check"]["largest_abs_difference_minutes"] <= FIGURE4_RT_TOLERANCE_MINUTES,
+        "batch scores equal score_spectrum (#137, PR #150)": status["issue_137"]["differing_above_1e-6"] == 0
+        and status["issue_137"]["compared"] == FIGURE4_SUBSET_ROWS,
+    }
+    status["checks"] = checks
+    status["reasons"] += [f"check failed: {name}" for name, passed in checks.items() if not passed]
+    if not status["reasons"]:
+        status["status"] = "REGENERATED"
     if browser:
         page = browser.page(Path(dashboard["output_files"]["dashboard_html"]), 1400)
         ids = page.evaluate("() => [...document.querySelectorAll('.js-plotly-plot')].map(e => e.id)")
+        plot_data = page.evaluate("() => Object.fromEntries([...document.querySelectorAll('.js-plotly-plot')]"
+                                  ".map(gd => [gd.id, JSON.parse(Plotly.Plots.graphJson(gd, false, 'keepdata'))]))")
+        targets["plot_data"].write_text(json.dumps(plot_data))
+        status["plot_data_ids"] = sorted(plot_data)
         for letter, plot in FIGURE4_PLOTS.items():
             match = next((i for i in ids if i == plot or i.endswith(plot) or plot in i), None)
             if not match:
@@ -673,6 +749,7 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
         page.close()
     status["files"] = {k: str(v) for k, v in dashboard["output_files"].items()}
     status["scored_csv"] = str(scored_csv)
+    status["deposit"] = {key: str(path.relative_to(deposit)) for key, path in targets.items() if path.is_file()}
     return status
 
 
@@ -726,18 +803,26 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
         removed5 = sorted(label for _, label in mirror_labels(results[key]["published"]) - mirror_labels(results[key]["new"]))
         lines.append(f"- {letter} ({PSMS[key]['title']}): " + (f"no longer matched: {', '.join(removed5)} (#74, #83)" if removed5 else "unchanged"))
     lines += ["", "No values are printed in Supplementary Figure 5.", "", f"## Figure 4 → {fig4.get('status')}", ""]
-    lines += [f"- {reason}" for reason in fig4.get("reasons", [])]
+    lines += [f"- {note}" for note in fig4.get("notes", [])]
+    lines += [f"- **{reason}**" for reason in fig4.get("reasons", [])]
+    lines += [f"- check: {name}: {'passed' if passed else 'FAILED'}" for name, passed in (fig4.get("checks") or {}).items()]
     if fig4.get("batch"):
-        lines += ["", f"Built from {fig4['usi']['retrieved']} PRIDE spectra; {fig4['batch']['rows_with_spectral_angle']} of "
-                  f"{fig4['batch']['dashboard_rows']} dashboard rows scored; {fig4['batch']['rows_with_rt']} with retention time."]
+        lines += ["", f"Built from {fig4['spectra']['source']} (MGF sha256 `{fig4['spectra']['mgf_sha256']}`); "
+                  f"{fig4['batch']['rows_with_spectral_angle']} of {fig4['batch']['dashboard_rows']} dashboard rows scored; "
+                  f"{fig4['batch']['rows_with_rt']} with retention time."]
         issue_137 = fig4.get("issue_137") or {}
         lines += ["", f"#137 check: {issue_137.get('compared')} PSMs re-scored with `score_spectrum` (the package predicts); "
                   f"{issue_137.get('differing_above_1e-6')} differ by more than 1e-6 from the batch scores, which score the batch's stored "
                   f"predictions (largest difference {issue_137.get('largest_abs_difference', 0):.1e})."]
         rt = fig4.get("retention_time_check") or {}
-        lines += ["", f"#146 check: the metadata join matched {fig4['batch']['metadata_join'].get('matched_rows')} of "
-                  f"{fig4['batch']['metadata_join'].get('total_rows')} rows; dashboard retention times vs FragPipe `Retention`: largest "
-                  f"difference {rt.get('largest_abs_difference_minutes', float('nan')):.4f} min over {rt.get('compared')} PSMs."]
+        join = fig4["batch"]["metadata_join"] or {}
+        lines += ["", f"#146 check: the metadata join matched {join.get('matched_rows')} rows, {join.get('unmatched_rows')} unmatched; "
+                  f"dashboard retention times vs FragPipe `Retention`: largest difference "
+                  f"{rt.get('largest_abs_difference_minutes') or float('nan'):.6f} min over {rt.get('compared')} PSMs."]
+        for key in ("scored_psms_columns", "scored_peptides_columns"):
+            columns = fig4.get(key) or {}
+            lines += ["", f"`{FIGURE4_DEPOSIT[key.removesuffix('_columns')].split('/')[-1]}` columns: removed {columns.get('removed') or 'none'}, "
+                      f"added {columns.get('added') or 'none'}."]
     lines += ["", "## Checks", "",
               f"- Verification against the expected 0.2.0 values: {'passed' if manifest['verification']['passed'] else 'FAILED: ' + '; '.join(manifest['verification']['problems'])}.",
               "- #137 (supplied predictions skip the fragment-charge rule): every spectrum panel is scored by `score_spectrum` with the "
@@ -775,6 +860,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--python", default="3.12", help="Python for the figure and MS2PIP comparison environments (4.1.2 has no 3.14 wheels)")
     parser.add_argument("--browser-channel", default="chrome", help="Playwright browser: chrome (local Google Chrome) or chromium")
     parser.add_argument("--skip-figure4", action="store_true", help="do not fetch PRIDE spectra or build Figure 4")
+    parser.add_argument("--figure4-mgf", type=Path, help="build Figure 4 from this MGF (the deposit's figure4_usi_spectra.mgf) instead of PRIDE")
     parser.add_argument("--usi-timeout", type=float, default=120.0, help="seconds per PRIDE USI request")
     parser.add_argument("--usi-retries", type=int, default=4)
     parser.add_argument("--no-verify", action="store_true", help="assemble even if the expected 0.2.0 values differ")
@@ -822,8 +908,8 @@ def main(argv: list[str] | None = None) -> int:
     out = args.out.expanduser().resolve()
     if REPO_ROOT in out.parents or out == REPO_ROOT:
         raise SystemExit("--out must be outside the repository")
-    panels, comparison, work = out / "panels", out / "comparison", out / "work"
-    for folder in (out, panels, comparison, work):
+    panels, comparison, work, deposit = out / "panels", out / "comparison", out / "work", out / "deposit"
+    for folder in (out, panels, comparison, work, deposit):
         folder.mkdir(parents=True, exist_ok=True)
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     ms2pip_version = version("ms2pip")
@@ -890,7 +976,7 @@ def main(argv: list[str] | None = None) -> int:
                                                                 "title.text": "", "showlegend": False, "margin": {"t": 30, "l": 30, "r": 30, "b": 70}},
                      size=(964, 518), hover_mz=S2C_HOVER_MZ)
         page.close()
-        fig4 = {"status": "SKIPPED", "reasons": ["--skip-figure4"]} if args.skip_figure4 else figure4(supplement, args, work, panels, browser)
+        fig4 = {"status": "SKIPPED", "reasons": ["--skip-figure4"]} if args.skip_figure4 else figure4(supplement, args, work, panels, browser, deposit)
     finally:
         browser.close()
 
@@ -932,7 +1018,7 @@ def main(argv: list[str] | None = None) -> int:
                        "warnings": results[key]["new"]["metrics"]["candidate"].get("warnings")} for key, spec in PSMS.items()},
         "inputs": inputs, "figure2_ms2pip": {v: {"metrics": {k: r["metrics"].get(k) for k, _, _ in STRIP_METRICS}, "versions": r.get("versions"),
                                                 "python": r.get("python"), "command": r.get("command")} for v, r in fig2_by_version.items()},
-        "verification": {"problems": problems, "passed": not problems}, "figure4": fig4,
+        "verification": {"problems": problems, "passed": not problems, "figure4": fig4.get("status")}, "figure4": fig4,
     }
     manifest["outputs"] = {str(p.relative_to(out)): file_digest(p) for p in sorted(out.rglob("*")) if p.is_file() and "work" not in p.relative_to(out).parts}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1, default=str))
