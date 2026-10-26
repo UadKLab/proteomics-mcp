@@ -110,7 +110,7 @@ PyPI never accepts a re-upload of a version, even after deletion. To withdraw a 
 
 ## History: manual upload of 0.1.8
 
-0.1.10 is the version cited in the manuscript; the figures were made with 0.1.8 (see [#55](https://github.com/UadKLab/proteomics-mcp/issues/55)). 0.1.8 was published once, by hand, before this workflow existed (decision 6 in [#1](https://github.com/UadKLab/proteomics-mcp/issues/1)). Details are in [#9](https://github.com/UadKLab/proteomics-mcp/issues/9).
+0.2.0 is the version cited in the manuscript: it carries the correctness fixes found in review, and the manuscript figures are regenerated with it (see [#33](https://github.com/UadKLab/proteomics-mcp/issues/33), [#147](https://github.com/UadKLab/proteomics-mcp/issues/147), [#149](https://github.com/UadKLab/proteomics-mcp/issues/149)). Before it, 0.1.10 was cited, and the original figures were made with 0.1.8 (see [#55](https://github.com/UadKLab/proteomics-mcp/issues/55)). 0.1.8 was published once, by hand, before this workflow existed (decision 6 in [#1](https://github.com/UadKLab/proteomics-mcp/issues/1)). Details are in [#9](https://github.com/UadKLab/proteomics-mcp/issues/9).
 
 - **What and when:** on 2026-10-12, @marcoreverenna uploaded the wheel and sdist attached to the GitHub release [`v0.1.8`](https://github.com/UadKLab/proteomics-mcp/releases/tag/v0.1.8) (tag → `ef7be33`) unchanged with `twine`, first to TestPyPI and then to PyPI.
 - **Credentials:** short-lived, account-scoped API tokens, because the projects did not exist yet. They were revoked after the upload.

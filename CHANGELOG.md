@@ -4,6 +4,8 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-26
+
 ### Changed
 
 - **XCorr and hyperscore are now Comet's and X! Tandem's** (metric profile `v2`). `xcorr` is the Comet 2026.01.1 XCorr and `hyperscore` the X! Tandem 2015.12.15.2 hyperscore as X! Tandem reports it (4·log10 H), both computed on the candidate's theoretical b/y ions and reimplemented step by step from the engines' source (`core/engine_scores.py`). Before, they were variants of our own (0.1 m/z bins against the predicted spectrum; ln n! plus logs of matched-intensity sums) that only looked like the engine scores. On the 25 reference payloads, the new scores equal the engines' own for all 250 Comet PSMs (10 ranks, targets and decoys) and all 25 X! Tandem PSMs (`tests/test_engine_scores.py`). New settings: `xcorr_preset` (`high_res`, default, or `low_res` for ion-trap spectra), `hyperscore_fragment_error` and `hyperscore_fragment_error_unit` (default 0.4 Da). **Breaking:** `log10_xcorr`, `log2_xcorr` and `log2_hyperscore` are gone (XCorr can be negative, and the hyperscore is already a logarithm); dataset and dashboard columns follow (`best_xcorr`, `xcorr_mean`, the SA-vs-XCorr scatter). Under `legacy_v1` the earlier variants are kept, renamed `xcorr_like`, `log10_xcorr_like`, `log2_xcorr_like`, `hyperscore_like` and `log2_hyperscore_like` ([#51](https://github.com/UadKLab/proteomics-mcp/issues/51)).
@@ -170,7 +172,8 @@ Releases 0.1.1–0.1.7 predate the public repository and were not published to P
 - [0.1.2](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/releases/v0.1.2.md)
 - [0.1.1](https://github.com/UadKLab/proteomics-mcp/blob/main/docs/releases/v0.1.1.md)
 
-[Unreleased]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.10...HEAD
+[Unreleased]: https://github.com/UadKLab/proteomics-mcp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.10...v0.2.0
 [0.1.10]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/UadKLab/proteomics-mcp/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/UadKLab/proteomics-mcp/releases/tag/v0.1.8
