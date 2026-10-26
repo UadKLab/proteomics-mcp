@@ -72,6 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--adapter", default="instanovo")
     p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--fixed-modifications", help='MaxQuant fixed modifications for --adapter maxquant, e.g. "Carbamidomethyl (C)"')
+    p.add_argument("--casanovo-version", help='Casanovo version for --adapter casanovo, e.g. "5.2.1": what its peptide score means')
     p.add_argument("--limit", type=int)
     p = sub.add_parser("inspect-psm-table")
     p.add_argument("--path", required=True)
@@ -130,7 +131,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--scored-path")
     p.add_argument("--top-n", type=int)
-    p.add_argument("--rt-source-field", default="rt")
+    p.add_argument("--rt-source-field", help="retention-time column of the spectra table (default: rt, retention_time, ... whichever it has)")
+    p.add_argument("--rt-unit", choices=["seconds", "minutes"], default="seconds")
     p.add_argument("--confidence-field", default="confidence")
     p.add_argument("--mz-field", default="precursor_mz")
     p.add_argument("--default-experiment-name", help="Raw-file stem to use when an InstaNovo export lacks run provenance.")
@@ -149,6 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--default-experiment-name", help="Raw-file stem to use when an InstaNovo export lacks run provenance.")
     p.add_argument("--limit", type=int)
     p.add_argument("--config")
+    p.add_argument("--collision-energy", type=float, help="collision energy for Koina predictions (default: the spectrum's Thermo NCE, else the config's koina_collision_energy)")
     p = sub.add_parser("inspect-prediction-batch")
     p.add_argument("--manifest-path", required=True)
     p = sub.add_parser("inspect-prediction-batch-status")
@@ -303,6 +306,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--backend")
     p.add_argument("--max-fragment-charge", type=int)
     p.add_argument("--config")
+    p.add_argument("--collision-energy", type=float, help="collision energy for Koina predictions (default: the spectrum's Thermo NCE, else the config's koina_collision_energy)")
     p = sub.add_parser("describe-predictor-model")
     p.add_argument("--model", required=True)
     p.add_argument("--backend", default="koina")
@@ -355,7 +359,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--annotation-max-isotope", type=int)
     p.add_argument("--annotation-max-ion-charge", type=int)
     p.add_argument("--annotation-neutral-losses", action="store_true")
+    p.add_argument(
+        "--score-predictions-as-given",
+        action="store_true",
+        help="Score --predicted-json without the fragment-charge limit; the result records it.",
+    )
     p.add_argument("--config")
+    p.add_argument("--collision-energy", type=float, help="collision energy for Koina predictions (default: the spectrum's Thermo NCE, else the config's koina_collision_energy)")
     p = sub.add_parser("score-candidates")
     p.add_argument("--candidates-path", required=True)
     p.add_argument("--spectra-path")
@@ -375,6 +385,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config")
     p.add_argument("--limit", type=int)
     p.add_argument("--status-path")
+    p.add_argument("--collision-energy", type=float, help="collision energy for Koina predictions (default: the spectrum's Thermo NCE, else the config's koina_collision_energy)")
     p = sub.add_parser("summarize-dataset")
     p.add_argument("--scored-path", required=True)
     p.add_argument("--output-prefix")
@@ -451,7 +462,8 @@ def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "load-candidates":
         print(json.dumps(load_candidates_tool(args.path, args.adapter, column_mapping_path=args.column_mapping_path,
-                                              fixed_modifications=args.fixed_modifications, limit=args.limit), indent=2))
+                                              fixed_modifications=args.fixed_modifications, casanovo_version=args.casanovo_version,
+                                              limit=args.limit), indent=2))
     elif args.command == "inspect-psm-table":
         print(
             json.dumps(
@@ -537,6 +549,7 @@ def main(argv: list[str] | None = None) -> None:
                     scored_path=args.scored_path,
                     top_n=args.top_n,
                     rt_source_field=args.rt_source_field,
+                    rt_unit=args.rt_unit,
                     confidence_field=args.confidence_field,
                     mz_field=args.mz_field,
                     default_experiment_name=args.default_experiment_name,
@@ -562,6 +575,7 @@ def main(argv: list[str] | None = None) -> None:
                     default_experiment_name=args.default_experiment_name,
                     limit=args.limit,
                     config_path=args.config,
+                    collision_energy=args.collision_energy,
                 ),
                 indent=2,
             )
@@ -814,6 +828,7 @@ def main(argv: list[str] | None = None) -> None:
                     args.backend,
                     max_fragment_charge=args.max_fragment_charge,
                     config_path=args.config,
+                    collision_energy=args.collision_energy,
                 ),
                 indent=2,
             )
@@ -889,7 +904,9 @@ def main(argv: list[str] | None = None) -> None:
                     annotation_max_isotope=args.annotation_max_isotope,
                     annotation_max_ion_charge=args.annotation_max_ion_charge,
                     annotation_neutral_losses=args.annotation_neutral_losses or None,
+                    score_predictions_as_given=args.score_predictions_as_given or None,
                     config_path=args.config,
+                    collision_energy=args.collision_energy,
                 ),
                 indent=2,
             )
@@ -914,6 +931,7 @@ def main(argv: list[str] | None = None) -> None:
                     annotation_max_ion_charge=args.annotation_max_ion_charge,
                     annotation_neutral_losses=args.annotation_neutral_losses or None,
                     config_path=args.config,
+                    collision_energy=args.collision_energy,
                     limit=args.limit,
                     status_path=args.status_path,
                 ),

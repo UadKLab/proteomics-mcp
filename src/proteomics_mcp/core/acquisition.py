@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 from proteomics_mcp.models.schemas import ObservedSpectrum, PredictedSpectrum
@@ -302,6 +303,39 @@ def scan_header(spectrum: ObservedSpectrum | dict[str, Any]) -> str | None:
             if value:
                 return str(value)
     return None
+
+
+# The activation and its normalized collision energy in a Thermo scan filter: "... Full ms2 498.7812@hcd28.00 [...]"
+_FILTER_NCE = re.compile(r"@(hcd|cid|etd|ethcd|etcid)(\d+(?:\.\d+)?)", re.IGNORECASE)
+_THERMO_FILTER_PREFIXES = ("FTMS", "ITMS", "ASTMS")
+_THERMO_INSTRUMENTS = ("thermo", "orbitrap", "exactive", "exploris", "eclipse", "lumos", "fusion", "ltq", "velos", "elite", "astral", "tribrid")
+
+
+def normalized_collision_energy(spectrum: ObservedSpectrum | dict[str, Any]) -> tuple[float | None, str]:
+    """The spectrum's normalized collision energy (NCE), when it is known to be one, and where it came from (#128).
+
+    Prosit and the other collision-energy-dependent Koina models take an NCE. Thermo instruments state it in the scan
+    filter ("@hcd28.00"), and Thermo mzML files carry the same number as the collision energy. Bruker timsTOF and SCIEX
+    report an absolute energy in eV, which is not an NCE, so it is never returned.
+    """
+    header = scan_header(spectrum)
+    if header:
+        match = _FILTER_NCE.search(header)
+        if match:
+            return float(match.group(2)), f"scan filter {match.group(0)}"
+    energy = _first_metadata_number(spectrum, "collision_energy", "normalized_collision_energy", "hcd_collision_energy")
+    if energy is None:
+        for attr in _attributes(spectrum):
+            if str(attr.get("accession") or "") in {"MS:1000045", "MS:1000138"} or "collision energy" in str(attr.get("name") or "").lower():
+                energy = _finite_float(attr.get("value"))
+                if energy is not None:
+                    break
+    if energy is None:
+        return None, "the spectrum states no collision energy"
+    model = (instrument_model(spectrum) or "").lower()
+    if (header and header.strip().upper().startswith(_THERMO_FILTER_PREFIXES)) or any(name in model for name in _THERMO_INSTRUMENTS):
+        return energy, "Thermo collision energy (an NCE)"
+    return None, f"collision energy {energy:g} is not known to be an NCE (not a Thermo spectrum); not used"
 
 
 def acquisition_metadata_summary(

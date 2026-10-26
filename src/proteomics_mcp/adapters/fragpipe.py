@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 
+from proteomics_mcp.adapters.table_io import describe_columns, read_candidate_table
 from proteomics_mcp.adapters.instanovo import _as_float, _as_int, normalize_peptidoform_to_instanovo_style
 from proteomics_mcp.adapters.modifications import (
     MASS_MATCH_TOLERANCE,
@@ -107,11 +108,11 @@ def _peptidoform_from_row(row: pd.Series) -> str | None:
 
 
 def load_fragpipe_psms(path: str | Path, *, limit: int | None = None) -> list[CandidatePSM]:
-    frame = pd.read_csv(path, sep="\t", nrows=limit)
+    frame = read_candidate_table(path, limit=limit)
     required = {"Spectrum", "Peptide"}
     missing = sorted(col for col in required if col not in frame.columns)
     if missing:
-        raise ValueError(f"Missing required FragPipe columns: {', '.join(missing)}")
+        raise ValueError(f"Missing required FragPipe columns: {', '.join(missing)}. Columns found: {describe_columns(frame)}.")
 
     candidates: list[CandidatePSM] = []
     for row_idx, row in frame.iterrows():

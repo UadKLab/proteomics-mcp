@@ -126,11 +126,9 @@ class SpectrumMetricResult:
     spectral_angle: float | None
     cosine_similarity: float | None
     pearson_correlation: float | None
+    # Comet XCorr and the X! Tandem hyperscore (core/engine_scores.py); None under legacy_v1, which fills the *_like fields
     xcorr: float | None
-    log10_xcorr: float | None
-    log2_xcorr: float | None
     hyperscore: float | None
-    log2_hyperscore: float | None
     matched_ion_count: int
     total_predicted_ions: int
     matched_ion_fraction: float | None
@@ -146,8 +144,21 @@ class SpectrumMetricResult:
     precursor_isotope_error: int | None = None
     precursor_mass_error_corrected_ppm: float | None = None
     precursor_mass_error_corrected_da: float | None = None
+    # legacy_v1 only: the 0.1.x variants (0.1 m/z bins against the predicted spectrum; ln n! + ln sums), kept so earlier
+    # scores reproduce. They are not the engines' scores.
+    xcorr_like: float | None = None
+    log10_xcorr_like: float | None = None
+    log2_xcorr_like: float | None = None
+    hyperscore_like: float | None = None
+    log2_hyperscore_like: float | None = None
     metric_profile: str = "v2"
     predictor_metadata: dict[str, Any] = field(default_factory=dict)
+    # What was scored (#137): the aligned predicted/observed intensities behind spectral angle, cosine and Pearson, the
+    # predicted ions left out with the reason, the number of values each metric was computed on, and the settings
+    scored_ions: list[dict[str, Any]] = field(default_factory=list)
+    excluded_predicted_ions: list[dict[str, Any]] = field(default_factory=list)
+    metric_n: dict[str, int] = field(default_factory=dict)
+    scoring_settings: dict[str, Any] = field(default_factory=dict)
     annotation_settings: dict[str, Any] = field(default_factory=dict)
     annotation_summary: dict[str, Any] = field(default_factory=dict)
     acquisition_provenance: dict[str, Any] = field(default_factory=dict)

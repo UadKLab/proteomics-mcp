@@ -49,9 +49,9 @@ def test_score_candidate_spectrum_returns_broad_metrics():
     assert result.spectral_angle is not None
     assert result.cosine_similarity is not None
     assert result.xcorr is not None
-    assert result.log2_xcorr is not None
-    assert result.hyperscore is not None
-    assert result.log2_hyperscore is not None
+    # X! Tandem rejects a spectrum with fewer than 15 peaks after conditioning, so there is no hyperscore here
+    assert result.hyperscore is None
+    assert result.xcorr_like is None and result.hyperscore_like is None
     assert result.precursor_signal_fraction == 0.5
     assert result.precursor_mass_error_ppm is not None
     assert result.annotation_summary["engine"] == "proteomics_mcp_terminal_ion_annotator"

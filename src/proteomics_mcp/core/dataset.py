@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from proteomics_mcp.adapters.modifications import bracket_modification_tokens
+from proteomics_mcp.adapters.modifications import bracket_modification_tokens, normalize_peptidoform_to_unimod_style, unresolved_modification_tokens
 from proteomics_mcp.adapters.table_io import read_candidate_table
 from proteomics_mcp.core.html_safety import script_json, to_script_json
 from proteomics_mcp.core.html_safety import text as escape_text
@@ -44,10 +44,12 @@ NUMERIC_COLUMNS = [
     "cosine_similarity",
     "pearson_correlation",
     "xcorr",
-    "log10_xcorr",
-    "log2_xcorr",
     "hyperscore",
-    "log2_hyperscore",
+    "xcorr_like",
+    "log10_xcorr_like",
+    "log2_xcorr_like",
+    "hyperscore_like",
+    "log2_hyperscore_like",
     "matched_ion_count",
     "total_predicted_ions",
     "matched_ion_fraction",
@@ -77,8 +79,8 @@ METRIC_COLUMNS = [
     "spectral_angle",
     "cosine_similarity",
     "pearson_correlation",
-    "log2_xcorr",
-    "log2_hyperscore",
+    "xcorr",
+    "hyperscore",
     "matched_ion_count",
     "matched_ion_fraction",
     "explained_intensity_fraction",
@@ -152,8 +154,8 @@ ID_PSM_COLUMNS = [
     "spectral_angle",
     "cosine_similarity",
     "pearson_correlation",
-    "log2_xcorr",
-    "log2_hyperscore",
+    "xcorr",
+    "hyperscore",
     "matched_ion_count",
     "matched_ion_fraction",
     "explained_intensity_fraction",
@@ -199,8 +201,8 @@ ID_PEPTIDE_COLUMNS = [
     "best_spectral_angle",
     "best_cosine_similarity",
     "best_pearson_correlation",
-    "best_log2_xcorr",
-    "best_log2_hyperscore",
+    "best_xcorr",
+    "best_hyperscore",
     "best_matched_ion_count",
     "best_matched_ion_fraction",
     "best_explained_intensity_fraction",
@@ -212,10 +214,10 @@ ID_PEPTIDE_COLUMNS = [
     "cosine_similarity_max",
     "pearson_correlation_mean",
     "pearson_correlation_max",
-    "log2_xcorr_mean",
-    "log2_xcorr_max",
-    "log2_hyperscore_mean",
-    "log2_hyperscore_max",
+    "xcorr_mean",
+    "xcorr_max",
+    "hyperscore_mean",
+    "hyperscore_max",
     "matched_ion_count_mean",
     "matched_ion_count_max",
     "matched_ion_fraction_mean",
@@ -238,8 +240,8 @@ OPTIONAL_PEPTIDE_COLUMNS = {
     "best_spectral_angle",
     "best_cosine_similarity",
     "best_pearson_correlation",
-    "best_log2_xcorr",
-    "best_log2_hyperscore",
+    "best_xcorr",
+    "best_hyperscore",
     "best_matched_ion_count",
     "best_matched_ion_fraction",
     "best_explained_intensity_fraction",
@@ -251,10 +253,10 @@ OPTIONAL_PEPTIDE_COLUMNS = {
     "cosine_similarity_max",
     "pearson_correlation_mean",
     "pearson_correlation_max",
-    "log2_xcorr_mean",
-    "log2_xcorr_max",
-    "log2_hyperscore_mean",
-    "log2_hyperscore_max",
+    "xcorr_mean",
+    "xcorr_max",
+    "hyperscore_mean",
+    "hyperscore_max",
     "matched_ion_count_mean",
     "matched_ion_count_max",
     "matched_ion_fraction_mean",
@@ -280,10 +282,12 @@ SCORING_ENRICHMENT_COLUMNS = [
     "cosine_similarity",
     "pearson_correlation",
     "xcorr",
-    "log10_xcorr",
-    "log2_xcorr",
     "hyperscore",
-    "log2_hyperscore",
+    "xcorr_like",
+    "log10_xcorr_like",
+    "log2_xcorr_like",
+    "hyperscore_like",
+    "log2_hyperscore_like",
     "matched_ion_count",
     "total_predicted_ions",
     "matched_ion_fraction",
@@ -891,8 +895,8 @@ def build_dashboard_summary(
         summary["histograms"]["matched_ion_fraction"] = bin_numeric_distribution(frame, field="matched_ion_fraction", bin_count=20)
     if "explained_intensity_fraction" in frame.columns and pd.to_numeric(frame["explained_intensity_fraction"], errors="coerce").notna().any():
         summary["histograms"]["explained_intensity_fraction"] = bin_numeric_distribution(frame, field="explained_intensity_fraction", bin_count=20)
-    if "log2_xcorr" in frame.columns and pd.to_numeric(frame["log2_xcorr"], errors="coerce").notna().any():
-        summary["histograms"]["log2_xcorr"] = bin_numeric_distribution(frame, field="log2_xcorr", bin_count=20)
+    if "xcorr" in frame.columns and pd.to_numeric(frame["xcorr"], errors="coerce").notna().any():
+        summary["histograms"]["xcorr"] = bin_numeric_distribution(frame, field="xcorr", bin_count=20)
     summary["charge_distribution"] = summarize_categorical_distribution(frame, field="precursor_charge")
     if quant_field:
         summary["histograms"]["quant"] = bin_numeric_distribution(frame, field=quant_field, bin_count=20)
@@ -930,12 +934,12 @@ def build_dashboard_summary(
                 y_field="pearson_correlation",
                 hover_fields=scatter_hover_fields,
             )
-    if "spectral_angle" in frame.columns and "log2_xcorr" in frame.columns:
-        if pd.to_numeric(frame["spectral_angle"], errors="coerce").notna().any() and pd.to_numeric(frame["log2_xcorr"], errors="coerce").notna().any():
-            summary["scatter_2d"]["spectral_angle_vs_log2_xcorr"] = scatter_2d_distribution(
+    if "spectral_angle" in frame.columns and "xcorr" in frame.columns:
+        if pd.to_numeric(frame["spectral_angle"], errors="coerce").notna().any() and pd.to_numeric(frame["xcorr"], errors="coerce").notna().any():
+            summary["scatter_2d"]["spectral_angle_vs_xcorr"] = scatter_2d_distribution(
                 frame,
                 x_field="spectral_angle",
-                y_field="log2_xcorr",
+                y_field="xcorr",
                 hover_fields=scatter_hover_fields,
             )
     if confidence_field_resolved and "matched_ion_count" in frame.columns:
@@ -1118,6 +1122,16 @@ def _strip_modifications(sequence: str | None) -> str:
     return "".join(ch for ch in re.sub(r"\[[^\]]*\]", "", bracket_modification_tokens(sequence)) if "A" <= ch <= "Z")
 
 
+def _normalized_peptidoform(value: str | None) -> str | None:
+    """A peptidoform in UNIMOD notation, as the adapters write it; unparsable input is returned as given."""
+    if value is None:
+        return None
+    try:
+        return normalize_peptidoform_to_unimod_style(value) or value
+    except Exception:
+        return value
+
+
 def summarize_prediction_accuracy(
     frame: pd.DataFrame,
     *,
@@ -1128,6 +1142,9 @@ def summarize_prediction_accuracy(
     reliability_bin_count: int = 10,
 ) -> dict[str, Any]:
     """Compare each PSM's predicted peptidoform to a ground-truth target column.
+
+    Prediction and target are both normalized to UNIMOD notation before they are compared (#124), so a target written
+    by a search engine as ALPM[+15.9949]HIR equals the prediction ALPM[UNIMOD:35]HIR.
 
     Returns three correctness levels (exact, stripped sequence, I/L-equivalent),
     a reliability diagram, a coverage-vs-precision sweep, accuracy by charge /
@@ -1147,12 +1164,15 @@ def summarize_prediction_accuracy(
         raise ValueError(f"Target field '{target_field}' is not present on the frame.") from exc
 
     valid_mask = pred_raw.notna() & target_raw.notna()
+    pred_norm = pred_raw.map(_normalized_peptidoform)
+    target_norm = target_raw.map(_normalized_peptidoform)
     work = pd.DataFrame(
         {
-            "prediction": pred_raw,
-            "target": target_raw,
-            "pred_stripped": pred_raw.map(_strip_modifications),
-            "target_stripped": target_raw.map(_strip_modifications),
+            "prediction": pred_norm,
+            "target": target_norm,
+            "target_as_written": target_raw,
+            "pred_stripped": pred_norm.map(_strip_modifications),
+            "target_stripped": target_norm.map(_strip_modifications),
         }
     )[valid_mask].copy()
     work["pred_il"] = work["pred_stripped"].str.replace("I", "L", regex=False)
@@ -1180,6 +1200,10 @@ def summarize_prediction_accuracy(
     overview = {
         "psm_count": n,
         "skipped_missing_pred_or_target": int((~valid_mask).sum()),
+        # How many targets were written in another modification notation, and how many keep a token that is neither
+        # a UNIMOD name/accession nor a mass, compared as written (#124)
+        "targets_renotated": int((work["target"] != work["target_as_written"]).sum()),
+        "targets_with_unresolved_modifications": int(work["target"].map(lambda value: bool(unresolved_modification_tokens(value))).sum()),
         "exact_accuracy": float(work["correct_exact"].mean()) if n else None,
         "stripped_sequence_accuracy": float(work["correct_seq"].mean()) if n else None,
         "il_equivalent_accuracy": float(work["correct_il"].mean()) if n else None,
@@ -1718,8 +1742,8 @@ def _summarize_group(group: pd.DataFrame, *, include_peptide_context: bool) -> d
         "best_spectral_angle": float(best["spectral_angle"]) if pd.notna(best.get("spectral_angle")) else None,
         "best_cosine_similarity": float(best["cosine_similarity"]) if pd.notna(best.get("cosine_similarity")) else None,
         "best_pearson_correlation": float(best["pearson_correlation"]) if pd.notna(best.get("pearson_correlation")) else None,
-        "best_log2_xcorr": float(best["log2_xcorr"]) if pd.notna(best.get("log2_xcorr")) else None,
-        "best_log2_hyperscore": float(best["log2_hyperscore"]) if pd.notna(best.get("log2_hyperscore")) else None,
+        "best_xcorr": float(best["xcorr"]) if pd.notna(best.get("xcorr")) else None,
+        "best_hyperscore": float(best["hyperscore"]) if pd.notna(best.get("hyperscore")) else None,
         "best_matched_ion_count": int(best["matched_ion_count"]) if pd.notna(best.get("matched_ion_count")) else None,
         "best_matched_ion_fraction": float(best["matched_ion_fraction"]) if pd.notna(best.get("matched_ion_fraction")) else None,
         "best_explained_intensity_fraction": float(best["explained_intensity_fraction"]) if pd.notna(best.get("explained_intensity_fraction")) else None,
@@ -2625,7 +2649,7 @@ def render_dashboard_bundle_html(summary: dict[str, Any], title: str, output_pat
     plot_spectral_angle = histogram_plot(histograms.get("spectral_angle") or {}, "Spectral angle", "hist_spectral_angle", "#B8336A")
     plot_matched_ion_fraction = histogram_plot(histograms.get("matched_ion_fraction") or {}, "Matched ion fraction", "hist_matched_fraction", "#9FD356")
     plot_explained_intensity_fraction = histogram_plot(histograms.get("explained_intensity_fraction") or {}, "Explained intensity fraction", "hist_explained_fraction", "#F3A712")
-    plot_log2_xcorr = histogram_plot(histograms.get("log2_xcorr") or {}, "log2 XCorr", "hist_log2_xcorr", "#068D9D")
+    plot_xcorr = histogram_plot(histograms.get("xcorr") or {}, "XCorr (Comet)", "hist_xcorr", "#068D9D")
     plot_confidence_vs_spectral_angle = scatter_plot(
         scatter_2d.get("confidence_vs_spectral_angle") or {},
         "Conf. vs SA",
@@ -2640,12 +2664,12 @@ def render_dashboard_bundle_html(summary: dict[str, Any], title: str, output_pat
         x_label="Spectral angle",
         y_label="Pearson correlation",
     )
-    plot_spectral_angle_vs_log2_xcorr = scatter_plot(
-        scatter_2d.get("spectral_angle_vs_log2_xcorr") or {},
+    plot_spectral_angle_vs_xcorr = scatter_plot(
+        scatter_2d.get("spectral_angle_vs_xcorr") or {},
         "SA vs XCorr",
-        "scatter_spectral_angle_vs_log2_xcorr",
+        "scatter_spectral_angle_vs_xcorr",
         x_label="Spectral angle",
-        y_label="log2 XCorr",
+        y_label="XCorr (Comet)",
     )
     plot_confidence_vs_matched_ion_count = scatter_plot(
         scatter_2d.get("confidence_vs_matched_ion_count") or {},
@@ -2854,10 +2878,10 @@ def render_dashboard_bundle_html(summary: dict[str, Any], title: str, output_pat
     add_plot(plot_spectral_angle, "plot plot-wide")
     add_plot(plot_matched_ion_fraction)
     add_plot(plot_explained_intensity_fraction)
-    add_plot(plot_log2_xcorr)
+    add_plot(plot_xcorr)
     add_plot(plot_confidence_vs_spectral_angle, "plot plot-wide")
     add_plot(plot_spectral_angle_vs_pearson)
-    add_plot(plot_spectral_angle_vs_log2_xcorr)
+    add_plot(plot_spectral_angle_vs_xcorr)
     add_plot(plot_confidence_vs_matched_ion_count)
     add_plot(plot_spectral_angle_vs_precursor_mass_error)
     add_plot(plot_spectral_angle_vs_fragment_mass_error)

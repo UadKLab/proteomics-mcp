@@ -25,11 +25,8 @@ Spectrum-level metrics:
 - spectral_angle
 - cosine_similarity
 - pearson_correlation
-- xcorr
-- log10_xcorr
-- log2_xcorr
-- hyperscore
-- log2_hyperscore
+- xcorr_like, log10_xcorr_like, log2_xcorr_like
+- hyperscore_like, log2_hyperscore_like
 - matched_ion_count
 - total_predicted_ions
 - matched_ion_fraction
@@ -55,10 +52,26 @@ The profile preserves the sidecar-style formulas where practical while normalizi
 spectral_angle, cosine_similarity and pearson_correlation compare observed and predicted intensities over the matched
 predicted ions only, so a candidate matching a single peak scores 1.0. Each predicted ion takes its nearest peak, even one
 another ion also takes, so a shared peak counts more than once in matched ions, explained intensity and the hyperscore.
+xcorr_like and hyperscore_like are the 0.1.x variants (named xcorr, log2_xcorr, hyperscore, log2_hyperscore there):
+xcorr_like bins observed and predicted intensities at 0.1 m/z and subtracts the mean over shifts of +-75 bins;
+hyperscore_like is ln(n!) + ln(sum of matched observed) + ln(sum of matched predicted). They are not the engines'
+scores; xcorr and hyperscore are null under this profile.
 Kept to reproduce scores from 0.1.10 and earlier; the default profile is v2 (method://metric_profile_v2).""",
     "method://metric_profile_v2": """Metric profile v2 (default).
 
-The same metrics as legacy_v1 (method://metric_profile_legacy_v1). spectral_angle, cosine_similarity and
+The metrics of legacy_v1 (method://metric_profile_legacy_v1), except that xcorr and hyperscore are the search
+engines' scores (#51), computed on the candidate's theoretical b/y ions, independent of the predictor:
+- xcorr: Comet 2026.01.1 XCorr (fast-XCorr preprocessing: sqrt intensities, 10 windows normalised to 50, the mean over
+  +-75 bins subtracted; each theoretical bin counted once; x0.005, 3 decimals). xcorr_preset "high_res" (default:
+  fragment_bin_tol 0.02, offset 0.0, flanking peaks) or "low_res" (1.0005, 0.4, M peak only) for ion-trap spectra.
+- hyperscore: the X! Tandem 2015.12.15.2 hyperscore as X! Tandem reports it, 4*log10(H), with
+  H = (sum of observed intensity x ion weight) x the two largest per-charge N_b! N_y!, on X! Tandem's conditioned
+  spectrum (isotope clean-up, parent region removed, m/z > 150, dynamic range 100, top 50 peaks; null with fewer than
+  15 peaks). hyperscore_fragment_error / _unit (default 0.4 Da, X! Tandem's default).
+validation/engine_scores/ in the repository reproduces both against the engines themselves. They are not the
+raw_score of a FragPipe (MSFragger hyperscore, a different definition) or Proteome Discoverer (Sequest HT XCorr) row.
+
+spectral_angle, cosine_similarity and
 pearson_correlation compare observed and predicted intensities over every predicted ion, with zero observed intensity
 for predicted ions that matched no peak, so unexplained predicted signal lowers the score. When no predicted ion
 matches, spectral_angle and cosine_similarity are 0.0 and pearson_correlation is null.
@@ -89,11 +102,17 @@ peptidoform, precursor_charge, fragments, predictor_name, predictor_version, mod
 
 Each fragment contains annotation, ion_type, ordinal, charge, mz, intensity, neutral_loss, isotope, metadata.""",
     "schema://spectrum_metric_result_v1": """SpectrumMetricResult fields:
-candidate, spectral_angle, cosine_similarity, pearson_correlation, xcorr, log10_xcorr, log2_xcorr, hyperscore, log2_hyperscore, matched_ion_count, total_predicted_ions, matched_ion_fraction, explained_intensity_fraction, precursor_signal_fraction, fragment and precursor mass-error summaries, matched_peaks, metric_profile, predictor_metadata, annotation_settings, annotation_summary, acquisition_provenance.
+candidate, spectral_angle, cosine_similarity, pearson_correlation, xcorr, log10_xcorr, log2_xcorr, hyperscore, log2_hyperscore, matched_ion_count, total_predicted_ions, matched_ion_fraction, explained_intensity_fraction, precursor_signal_fraction, fragment and precursor mass-error summaries, matched_peaks, metric_profile, predictor_metadata, scored_ions, excluded_predicted_ions, metric_n, scoring_settings, annotation_settings, annotation_summary, acquisition_provenance.
+
+What was scored: scored_ions lists every scored predicted ion with its predicted intensity (divided by the most intense scored ion) and the intensity of the observed peak it matched, 0 if none; these are the vectors spectral angle, cosine and Pearson compare. excluded_predicted_ions lists the predicted ions left out, each with its reason (fragment_charge_above_limit, invalid_mz, non_finite_intensity, non_positive_intensity, below_min_predicted_intensity). metric_n gives the number of values behind each metric. scoring_settings records the predictor, model version, collision energy sent and where it came from, tolerance and unit, metric profile, min_predicted_intensity, the fragment-charge rule and whether the prediction was scored as given.
+
+A prediction passed in (score_spectrum's predicted, or a prediction batch) goes through the same rules as one the package makes: under metric profile v2, fragments above max_fragment_charge, or above precursor charge - 1 when it is not set, are left out. Set score_predictions_as_given to score every fragment charge; the result records it. Batch scoring writes the per-ion detail to <prefix>_scored_ions.jsonl (score_candidates: <output>_scored_ions.jsonl) and the settings to the manifest.
 
 MCP score_spectrum also includes metric_summary, an agent-oriented grouping with match_quality, predicted_match_evidence, observed_annotation_evidence, mass_error, candidate, and acquisition fields. A backward-compatible ion_evidence group is retained as a merged view. Acquisition summary includes fragmentation_method, isolation_target_mz, retention_time_seconds/minutes, collision_energy, FAIMS compensation voltage, injection time, scan_header, scan_resolution, instrument_model, and detector_type when available from the scan header or fallbacks.""",
     "config://proteomics_mcp_v1": """Config file keys, JSON or TOML:
-predictor_backend, predictor_model, ms2pip_model (legacy alias), max_fragment_charge, koina_server_url, koina_timeout_seconds, koina_collision_energy, koina_fragmentation_type, koina_instrument_type, koina_batch_size, koina_cache_dir, tolerance, tolerance_unit, usi_backend, metric_profile, min_predicted_intensity, annotation_ion_types, annotation_max_isotope, annotation_max_ion_charge, annotation_neutral_losses.
+predictor_backend, predictor_model, ms2pip_model (legacy alias), max_fragment_charge, koina_server_url, koina_timeout_seconds, koina_collision_energy, koina_fragmentation_type, koina_instrument_type, koina_batch_size, koina_cache_dir, tolerance, tolerance_unit, usi_backend, metric_profile, min_predicted_intensity, score_predictions_as_given, annotation_ion_types, annotation_max_isotope, annotation_max_ion_charge, annotation_neutral_losses.
+
+Koina collision energy: a collision_energy tool argument, else the spectrum's own normalized collision energy when it states one (Thermo scan filter @hcd28.00 or a Thermo collision energy; never eV values from other vendors), else koina_collision_energy (30). The value used and its source are in predictor_metadata.
 
 If max_fragment_charge is omitted, MS2PIP predictions use charge <= precursor_charge - 1 where the selected/resolved model supports those ion types. For HCD/CID precursor charge > 2, the wrapper can resolve to HCDch2/CIDch2 to include charge-2 fragments. Koina-backed Prosit models additionally depend on collision energy, fragmentation type, instrument type, and the selected remote model identifier.
 
@@ -117,7 +136,7 @@ The generic adapter accepts user-specified column mappings for peptide, scan, sp
 Pass the mapping as column_mapping_path (MCP) or --column-mapping (CLI): a JSON file whose keys name the table's columns, for example
 {"peptide_column": "Sequence", "scan_column": "Scan", "charge_column": "Charge", "score_column": "Score", "score_type": "confidence_0_1"}.
 Every tool and command that takes adapter accepts it; it is required for adapter="generic" and rejected for other adapters.
-Keys: peptide_column (required), scan_column, spectrum_id_column, usi_column, charge_column, precursor_mz_column, score_column, next_beam_column, next_beam_margin_column, next_score_column, next_score_margin_column, token_log_probabilities_column, score_type (confidence_0_1, posterior_error_probability, evalue, score_unscaled, unknown; default unknown), source_engine (default "generic").
+Keys: peptide_column (required), scan_column, spectrum_id_column, run_column (alias experiment_name_column: the PSM's run, for multi-run spectra tables), usi_column, charge_column, precursor_mz_column, score_column, next_beam_column, next_beam_margin_column, next_score_column, next_score_margin_column, token_log_probabilities_column, score_type (confidence_0_1, posterior_error_probability, evalue, score_unscaled, unknown; default unknown), source_engine (default "generic").
 
 For multi-run local data, prefer joining by experiment_name/raw-file stem plus scan_number rather than scan_number alone.""",
     "method://supported_predictors": """Supported predictors:
