@@ -70,7 +70,7 @@ def test_figure2_strip_shows_the_engine_scores(script):
 
 
 def test_figure4_mgf_carries_the_retention_time(script, tmp_path):
-    """#135: the Figure 4 MGF takes each PRIDE spectrum's rt_seconds; spectra without one are reported."""
+    """#135: the Figure 4 MGF takes each PRIDE spectrum's rt_seconds at full precision; spectra without one are reported."""
     spectra = {7: {"mz": [100.0, 200.5], "intensity": [10.0, 20.0], "precursor_mz": 500.25, "precursor_charge": 2, "rt_seconds": 699.59159},
                8: {"mz": [150.0], "intensity": [5.0], "precursor_mz": 600.0, "precursor_charge": None, "rt_seconds": None}}
     mgf = tmp_path / "f4.mgf"
