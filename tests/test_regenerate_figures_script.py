@@ -76,7 +76,8 @@ def test_figure4_mgf_carries_the_retention_time(script, tmp_path):
     mgf = tmp_path / "f4.mgf"
     assert script.write_figure4_mgf([(7, 2), (8, 3)], spectra, mgf) == [8]
     text = mgf.read_text()
-    assert "SCANS=7\nRTINSECONDS=699.5916\n" in text and "CHARGE=3+" in text and text.count("BEGIN IONS") == 2
+    assert "SCANS=7\nRTINSECONDS=699.59159\n" in text and "CHARGE=3+" in text and text.count("BEGIN IONS") == 2
+    assert "\n200.5 20.0\n" in text  # full precision: what PRIDE served, not rounded
 
 
 def test_regenerated_tables_keep_the_deposited_column_order(script, tmp_path):

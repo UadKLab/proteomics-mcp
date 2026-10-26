@@ -593,7 +593,10 @@ def fetch_usi_spectra(scans: list[tuple[int, int]], cache_dir: Path, timeout: fl
 
 
 def write_figure4_mgf(scans: list[tuple[int, int]], spectra: dict[int, dict[str, Any]], mgf: Path) -> list[int]:
-    """The PRIDE spectra as one MGF, with their retention times (#135, PR #156); returns the scans without one."""
+    """The PRIDE spectra as one MGF, with their retention times (#135, PR #156); returns the scans without one.
+
+    Values are written at full precision (repr round-trips every float), so the MGF holds exactly what PRIDE served;
+    the package has no MGF writer."""
     without_rt = []
     with mgf.open("w", newline="\n") as handle:
         for scan, charge in scans:
@@ -602,9 +605,9 @@ def write_figure4_mgf(scans: list[tuple[int, int]], spectra: dict[int, dict[str,
             if spectrum.get("rt_seconds") is None:
                 without_rt.append(scan)
             else:
-                handle.write(f"RTINSECONDS={float(spectrum['rt_seconds']):.4f}\n")
-            handle.write(f"PEPMASS={spectrum['precursor_mz']}\nCHARGE={spectrum.get('precursor_charge') or charge}+\n")
-            handle.writelines(f"{mz:.6f} {intensity:.4f}\n" for mz, intensity in zip(spectrum["mz"], spectrum["intensity"]))
+                handle.write(f"RTINSECONDS={float(spectrum['rt_seconds'])!r}\n")
+            handle.write(f"PEPMASS={float(spectrum['precursor_mz'])!r}\nCHARGE={spectrum.get('precursor_charge') or charge}+\n")
+            handle.writelines(f"{float(mz)!r} {float(intensity)!r}\n" for mz, intensity in zip(spectrum["mz"], spectrum["intensity"]))
             handle.write("END IONS\n")
     return without_rt
 
