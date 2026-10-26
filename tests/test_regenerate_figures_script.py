@@ -107,3 +107,4 @@ def test_raster_panels_are_the_screenshots(script):
 def test_manifest_records_the_command_as_typed(script, monkeypatch):
     monkeypatch.setattr(script.sys, "argv", [str(script.REPO_ROOT / "scripts" / "regenerate_figures.py"), "--out", "/tmp/f", "--in-figure-environment"])
     assert script.user_command() == "uv run python scripts/regenerate_figures.py --out /tmp/f"
+    assert "\\" not in script.user_command()  # forward slashes on Windows too

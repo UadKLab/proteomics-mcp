@@ -4,7 +4,7 @@ import hashlib
 import importlib.util
 import json
 import zipfile
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -91,3 +91,26 @@ def test_provenance_records_versions_conversion_and_no_home_paths(script, tmp_pa
     assert "0.1.8 / 0.1.10" in provenance and "--out ~/figures" in provenance
     for path in [supplement / "PROVENANCE.md", *(supplement / "regeneration").rglob("*")]:
         assert str(Path.home()) not in path.read_text(), path
+
+
+def test_recorded_paths_use_forward_slashes_and_every_change_has_a_reason(script, tmp_path, monkeypatch):
+    """Paths are written with / on every platform (backslashes on Windows broke the reason lookup), and every file
+    in CHANGES.md says why it changed."""
+    archive = _deposit(tmp_path)
+    monkeypatch.setattr(script, "ZENODO_MD5", hashlib.md5(archive.read_bytes()).hexdigest())
+    out = tmp_path / "package"
+    assert script.main(["--figures", str(_figures(tmp_path)), "--zenodo-zip", str(archive), "--out", str(out)]) == 0
+
+    supplement = out / "supplement"
+    changes, manifest = (supplement / "CHANGES.md").read_text(), (supplement / "MANIFEST.sha256").read_text()
+    commands = (supplement / "PROVENANCE.md").read_text().split("```bash")[1].split("```")[0]
+    for name, text in (("CHANGES.md", changes), ("MANIFEST.sha256", manifest), ("PROVENANCE.md commands", commands)):
+        assert "\\" not in text, name
+    rows = [line.split("|")[1:-1] for line in changes.splitlines() if line.startswith("| `")]
+    assert rows and all(len(row) == 2 and row[1].strip() for row in rows), [row for row in rows if not row[-1].strip()]
+
+
+def test_home_directory_is_hidden_as_written_on_windows(script, monkeypatch):
+    monkeypatch.setattr(script.Path, "home", lambda: PureWindowsPath(r"C:\Users\me"))
+    text = json.dumps({"cwd": r"C:\Users\me\pmcp", "posix": "C:/Users/me/pmcp"}) + "\n" + r"C:\Users\me\pmcp"
+    assert "Users" not in script.sanitized(text)

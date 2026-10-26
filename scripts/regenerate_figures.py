@@ -33,7 +33,6 @@ import argparse
 import hashlib
 import io
 import json
-import os
 import platform
 import shlex
 import shutil
@@ -209,7 +208,7 @@ def package_versions() -> dict[str, str]:
 def user_command() -> str:
     """The command as run from the checkout, without the figure environment's re-run (--in-figure-environment)."""
     script = Path(sys.argv[0]).resolve()
-    shown = str(script.relative_to(REPO_ROOT)) if REPO_ROOT in script.parents else str(script)
+    shown = script.relative_to(REPO_ROOT).as_posix() if REPO_ROOT in script.parents else script.as_posix()
     return shlex.join(["uv", "run", "python", shown, *(a for a in sys.argv[1:] if a != "--in-figure-environment")])
 
 
@@ -802,7 +801,7 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
         page.close()
     status["files"] = {k: str(v) for k, v in dashboard["output_files"].items()}
     status["scored_csv"] = str(scored_csv)
-    status["deposit"] = {key: str(path.relative_to(deposit)) for key, path in targets.items() if path.is_file()}
+    status["deposit"] = {key: path.relative_to(deposit).as_posix() for key, path in targets.items() if path.is_file()}
     return status
 
 
@@ -1134,14 +1133,14 @@ def main(argv: list[str] | None = None) -> int:
         side_by_side(supplement / PUBLISHED_PDFS / f"{name}.pdf", out / f"{name}.png", comparison / f"{name}_published_vs_new.png",
                      label if name == "Figure4" else label.replace(" PROVISIONAL", ""))
 
-    inputs = {"zenodo_supplement": {"path": str(archive), "md5": file_digest(archive, "md5"), "sha256": file_digest(archive), "record": ZENODO_RECORD}}
+    inputs = {"zenodo_supplement": {"path": archive.as_posix(), "md5": file_digest(archive, "md5"), "sha256": file_digest(archive), "record": ZENODO_RECORD}}
     for key, spec in PSMS.items():
         for rel in (spec["table"], f"{EXAMPLES}/{spec['payload']}"):
             inputs[rel] = {"sha256": file_digest(supplement / rel)}
     manifest = {
         "started": started, "finished": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "command": user_command(), "interpreter": sys.executable, "cwd": os.getcwd(),
-        "package": {"proteomics-mcp": version("proteomics-mcp"), "source": str(Path(__import__("proteomics_mcp").__file__).parent)},
+        "command": user_command(), "interpreter": Path(sys.executable).as_posix(), "cwd": Path.cwd().as_posix(),
+        "package": {"proteomics-mcp": version("proteomics-mcp"), "source": Path(__import__("proteomics_mcp").__file__).parent.as_posix()},
         "git": git, "ms2pip": ms2pip_version, "python": platform.python_version(), "platform": platform.platform(), "versions": package_versions(),
         "figure_environment": {"pinned": FIGURE_ENVIRONMENT, "requirements": "work/requirements_figures.txt",
                                "requirements_sha256": file_digest(work / "requirements_figures.txt") if (work / "requirements_figures.txt").is_file() else None},
@@ -1169,7 +1168,7 @@ def main(argv: list[str] | None = None) -> int:
 
     installed = sorted({f"{d.metadata['Name']}=={d.version}" for d in distributions()}, key=str.lower)
     (regeneration / "environment.txt").write_text(f"# Python {platform.python_version()}, {platform.platform()}\n" + "\n".join(installed) + "\n")
-    manifest["outputs"] = {str(p.relative_to(out)): file_digest(p) for p in sorted(out.rglob("*")) if p.is_file() and "work" not in p.relative_to(out).parts}
+    manifest["outputs"] = {p.relative_to(out).as_posix(): file_digest(p) for p in sorted(out.rglob("*")) if p.is_file() and "work" not in p.relative_to(out).parts}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1, default=str))
     (out / "CHANGES.md").write_text(changes_markdown(results, fig2_by_version, ms2pip_version, fig4, manifest))
     log(f"done: {out}")

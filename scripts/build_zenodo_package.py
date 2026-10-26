@@ -111,7 +111,10 @@ The spectra behind the deposited identifications were converted from Thermo .raw
 
 def sanitized(text: str) -> str:
     """Paths of the machine that ran the regeneration, with the home directory written as ~."""
-    return text.replace(str(Path.home()), "~")
+    home = str(Path.home())
+    for written in (json.dumps(home)[1:-1], home, Path.home().as_posix()):  # as JSON writes it (\\ on Windows), as is, with /
+        text = text.replace(written, "~")
+    return text
 
 
 def provenance_markdown(figures: dict, release: str, build_command: str) -> str:
@@ -200,11 +203,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     supplement = extract_supplement(archive.expanduser(), out)
-    deposited = {str(p.relative_to(supplement)) for p in supplement.rglob("*") if p.is_file()}
+    deposited = {p.relative_to(supplement).as_posix() for p in supplement.rglob("*") if p.is_file()}
     changed: dict[str, list[str]] = {"replaced": [], "added": [], "same": []}
     staged = figures_dir / "deposit"
     for source in sorted(p for p in staged.rglob("*") if p.is_file()):
-        rel = str(source.relative_to(staged))
+        rel = source.relative_to(staged).as_posix()
         target = supplement / rel
         kind = "added" if rel not in deposited else "same" if file_digest(target) == file_digest(source) else "replaced"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -220,14 +223,14 @@ def main(argv: list[str] | None = None) -> int:
         text = path.read_text()
         if sanitized(text) != text:
             path.write_text(sanitized(text))
-            rewritten.append(str(path.relative_to(supplement)))
+            rewritten.append(path.relative_to(supplement).as_posix())
     build_command = "uv run python scripts/build_zenodo_package.py " + " ".join(sanitized(a) for a in (argv if argv is not None else sys.argv[1:]))
     (supplement / "PROVENANCE.md").write_text(provenance_markdown(figures, args.release, build_command))
     changed["added"].append("PROVENANCE.md")
     unchanged = sorted(deposited - set(changed["replaced"]) - set(changed["same"]))
     (supplement / "CHANGES.md").write_text(changes_markdown(changed, unchanged, figures))
     files = sorted(p for p in supplement.rglob("*") if p.is_file() and p.name != "MANIFEST.sha256")
-    (supplement / "MANIFEST.sha256").write_text("".join(f"{file_digest(p)}  {p.relative_to(supplement)}\n" for p in files))
+    (supplement / "MANIFEST.sha256").write_text("".join(f"{file_digest(p)}  {p.relative_to(supplement).as_posix()}\n" for p in files))
     if rewritten:
         print(f"home directory written as ~ in: {', '.join(rewritten)}")
     print(f"{out / 'supplement'}: {len(files) + 1} files; {len(changed['replaced'])} regenerated with changes, {len(changed['same'])} regenerated "
