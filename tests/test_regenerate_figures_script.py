@@ -59,3 +59,11 @@ def test_figure3a_labels_match_the_published_figure(script):
                                     tolerance=0.05, ion_types=script.FIG3A_ION_TYPES, max_isotope=2, neutral_losses=True)
     assert labels["annotated_peak_count"] == script.EXPECTED["fig3a"]["labelled_peaks"]
     assert hashlib.sha256(json.dumps(labels["annotations"]).encode()).hexdigest() == script.FIG3A_LABELS_SHA256
+
+
+def test_figure2_strip_shows_the_engine_scores(script):
+    """#51: the strip shows Comet XCorr and the X! Tandem hyperscore, compared in CHANGES.md with the 0.1.x variants."""
+    keys = [key for key, _, _ in script.STRIP_METRICS]
+    assert "xcorr" in keys and "hyperscore" in keys and not any(key.startswith("log2_") for key in keys)
+    assert set(script.PUBLISHED_AS) == {"xcorr", "hyperscore"} and all(key in script.CAUSES for key in keys)
+    assert (script.EXPECTED["fig2"]["xcorr"], script.EXPECTED["fig2"]["hyperscore"]) == ("3.336", "59.5")

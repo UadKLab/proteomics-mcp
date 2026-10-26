@@ -91,17 +91,21 @@ FIGURE4_PRIDE = "PXD014877"
 
 STRIP_METRICS = [  # Figure 2B: metric, label, printed format
     ("spectral_angle", "Spectral angle", "{:.3f}"), ("cosine_similarity", "Cosine", "{:.3f}"),
-    ("pearson_correlation", "Pearson", "{:.3f}"), ("log2_xcorr", "log2 XCorr", "{:.3f}"),
-    ("log2_hyperscore", "log2 Hyperscore", "{:.3f}"), ("matched_ion_count", "Matched ions (observed)", "{:d}"),
+    ("pearson_correlation", "Pearson", "{:.3f}"), ("xcorr", "XCorr (Comet)", "{:.3f}"),
+    ("hyperscore", "Hyperscore (X! Tandem)", "{:.1f}"), ("matched_ion_count", "Matched ions (observed)", "{:d}"),
     ("total_predicted_ions", "Matched ions (predicted)", "{:d}"), ("matched_ion_fraction", "Matched fraction", "pct"),
     ("explained_intensity_fraction", "Explained intensity", "pct"), ("precursor_signal_fraction", "Precursor signal", "pct"),
     ("fragment_mass_error_abs_mean_ppm", "Fragment abs ppm", "{:.3f}"), ("fragment_mass_error_abs_mean_da", "Fragment abs Da", "{:.3f}"),
     ("precursor_mass_error_ppm", "Precursor ppm", "{:.3f}"), ("precursor_mass_error_da", "Precursor Da", "{:.3f}"),
 ]
+# The published strip showed the 0.1.x variants in these places (#51): CHANGES.md compares the new scores with them.
+PUBLISHED_AS = {"xcorr": ("log2_xcorr", "log2 XCorr, 0.1.x variant"), "hyperscore": ("log2_hyperscore", "log2 Hyperscore, 0.1.x variant")}
 
 # What 0.2.0 must give (issue #147). A mismatch stops the run before anything is assembled.
 EXPECTED = {
-    "fig2": {"spectral_angle": "0.834", "pearson_correlation": "0.960", "log2_hyperscore": "5.677", "matched_ion_count": "18",
+    # xcorr and hyperscore: the values Comet 2026.01.1 (comet -p defaults) and X! Tandem 2015.12.15.2 (default input,
+    # 0.4 Da) report for this PSM, run from the BioContainers images pinned by digest in #154 (#51)
+    "fig2": {"spectral_angle": "0.834", "pearson_correlation": "0.960", "xcorr": "3.336", "hyperscore": "59.5", "matched_ion_count": "18",
              "total_predicted_ions": "18", "matched_ion_fraction": "100.0%", "explained_intensity_fraction": "47.1%",
              "precursor_mass_error_ppm": "-3.050", "ion_counts": {"x": 8, "precursor": 5},
              "fragment_mass_error_abs_mean_ppm": "2.796",  # MS2PIP 4.1.2, the figures' release
@@ -120,8 +124,8 @@ CAUSES = {  # metric -> issue/PR, for CHANGES.md
     "spectral_angle": "#72 (PR #99), #74 (PR #103), #83 (PR #106): metric profile v2",
     "cosine_similarity": "#72, #74, #83: metric profile v2",
     "pearson_correlation": "#72, #74, #83: metric profile v2",
-    "log2_xcorr": "#72, #74, #83: metric profile v2",
-    "log2_hyperscore": "#74 (PR #103), #83 (PR #106): fewer matched ions",
+    "xcorr": "#51 (PR #152): Comet's XCorr replaces the 0.1.x variant (log2 of a binned dot product)",
+    "hyperscore": "#51 (PR #152): X! Tandem's hyperscore replaces the 0.1.x variant (log2 of ln n! plus summed intensities)",
     "matched_ion_count": "#83 (PR #106): predicted ions below 0.1% of the strongest are not scored; #74 (PR #103)",
     "total_predicted_ions": "#83 (PR #106): predicted ions below 0.1% of the strongest are not scored",
     "matched_ion_fraction": "#83 (PR #106), #74 (PR #103)",
@@ -265,7 +269,7 @@ def verify(results: dict[str, dict[str, Any]], ms2pip_version: str, fig2_by_vers
     problems: list[str] = []
     fig2 = results["fig2"]["new"]["metrics"]
     specs = {key: spec for key, _, spec in STRIP_METRICS}
-    for key in ("spectral_angle", "pearson_correlation", "log2_hyperscore", "matched_ion_count", "total_predicted_ions",
+    for key in ("spectral_angle", "pearson_correlation", "xcorr", "hyperscore", "matched_ion_count", "total_predicted_ions",
                 "matched_ion_fraction", "explained_intensity_fraction", "precursor_mass_error_ppm"):
         got = printed(fig2.get(key), specs[key])
         if got != EXPECTED["fig2"][key]:
@@ -686,9 +690,11 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
              "| Value | Published | New | " + " | ".join(f"MS2PIP {v}" for v in sorted(fig2_by_version)) + " | Cause |",
              "|---|---|---|" + "---|" * len(fig2_by_version) + "---|"]
     for key, (label, spec) in specs.items():
-        old, new = printed(old2.get(key), spec), printed(new2.get(key), spec)
+        published_key, published_label = PUBLISHED_AS.get(key, (key, None))
+        old = printed(old2.get(published_key), "{:.3f}" if published_label else spec) + (f" ({published_label})" if published_label else "")
+        new = printed(new2.get(key), spec)
         others = [printed(fig2_by_version[v]["metrics"].get(key), spec) for v in sorted(fig2_by_version)]
-        changed = old != new or any(o != old for o in others)
+        changed = old != new or any(o != new for o in others)
         lines.append(f"| {label} | {old} | {'**' + new + '**' if old != new else new} | " + " | ".join(others) + f" | {CAUSES[key] if changed else '-'} |")
     old_counts = (old2.get("annotation_summary") or {}).get("ion_type_counts") or {}
     new_counts = (new2.get("annotation_summary") or {}).get("ion_type_counts") or {}
@@ -746,8 +752,10 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
               f"Pearson 0.962 → {printed(new2['pearson_correlation'], '{:.3f}')}, \"22 of 24 predicted b/y ions\" → "
               f"\"{new2['matched_ion_count']} of {new2['total_predicted_ions']}\", 91.7% → {printed(new2['matched_ion_fraction'], 'pct')} matched fraction, "
               f"48.0% → {printed(new2['explained_intensity_fraction'], 'pct')} explained intensity.",
-              f"- **Figure 2 legend:** every changed value in the table above (spectral angle, Pearson, log2 hyperscore, matched ions, "
-              "matched fraction, explained intensity, fragment ppm and Da, precursor ppm); state the MS2PIP version (#23).",
+              f"- **Figure 2 legend:** every changed value in the table above (spectral angle, Pearson, matched ions, matched fraction, "
+              "explained intensity, fragment ppm and Da, precursor ppm). The strip now shows Comet's XCorr "
+              f"({printed(new2.get('xcorr'), '{:.3f}')}) and X! Tandem's hyperscore ({printed(new2.get('hyperscore'), '{:.1f}')}) instead of "
+              f"log2 XCorr and log2 hyperscore (#51); name them so, and state MS2PIP {FIGURE_MS2PIP} (#23).",
               "- **§3.3 and Figure 3 legend:** write the peptide as `AQNSC[UNIMOD:4]PIC[UNIMOD:4]QK` (carbamidomethylated cysteines, "
               f"from the MaxQuant fixed modifications); ion vocabulary in panel B: {', '.join(sorted(ann_new['ion_type_counts']))} "
               "(no a+1 or d-alt; precursor ions now labelled).",
