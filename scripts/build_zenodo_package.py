@@ -5,8 +5,9 @@
 
 The package has the structure of the current deposit (record 23295902): every deposited file is copied unchanged,
 then the files the regeneration run staged in <figures>/deposit/ replace their deposited versions or are added. It
-adds the run's records (regeneration/manifest.json, regeneration/FIGURE_CHANGES.md), CHANGES.md (what changed against
-the previous version and why) and MANIFEST.sha256 (every file). Nothing is uploaded, and nothing is written inside the
+adds the run's records (regeneration/: its manifest, figure changes, environment and batch manifests, with the home
+directory written as ~), CHANGES.md (what changed against the previous version and why), PROVENANCE.md (versions,
+commands, the RAW -> mzML conversion) and MANIFEST.sha256 (every file). Nothing is uploaded, and nothing is written inside the
 repository. Exit codes: 0 done, 2 the regeneration run did not pass its checks, 4 the deposited supplement's checksum
 differs.
 """
@@ -37,13 +38,19 @@ REASONS = [
     ("figure_assets/pdfs/Suppl_figure5.pdf", "panels B and C: fewer matched ions under metric profile v2 (#74, #83)"),
     ("figure_assets/interactive/", "rebuilt from the Figure 4 build (#42, #47): scores under metric profile v2 (#72, #74, #83), xcorr and hyperscore "
      "columns (#51), retention times from PRIDE (#135)"),
+    ("processed/arabidopsis/figure4_scored_psms_full.csv", "new: the Figure 4 batch scoring output with every column of the 0.2.0 scoring "
+     "schema, next to the compact supplementary_scored_psms.csv (#137, #51)"),
+    ("processed/arabidopsis/figure4_scored_ions.jsonl", "new: for each Figure 4 PSM, the predicted and observed intensities behind its "
+     "scores and the predicted ions left out, with the reason (#137)"),
     ("processed/arabidopsis/figure4_usi_spectra.mgf", "new: the 100 PRIDE spectra of Figure 4 with their retention times, so the figure can be rebuilt "
      "from this deposit alone (`regenerate_figures.py --figure4-mgf`; #42, #135)"),
     ("processed/arabidopsis/", "rebuilt from the Figure 4 build (#42, #47): scores under metric profile v2 (#72, #74, #83), xcorr and hyperscore "
      "columns (#51), retention times from PRIDE (#135)"),
     ("figure_assets/examples/", "re-scored with 0.2.0: metric profile v2 (#72, #74, #83), Comet XCorr and X! Tandem hyperscore (#51), corrected "
      "C-terminal ions (#79), MaxQuant fixed modifications (#101); candidate ids follow the deposited table names (#42)"),
-    ("regeneration/", "new: the record of the regeneration run (package version and git SHA, MS2PIP 4.1.2, inputs, checks, every changed value)"),
+    ("regeneration/", "new: the record of the regeneration run: package version and git SHA, MS2PIP 4.1.2, inputs, checks, every changed "
+     "value, the environment (uv.lock, requirements, installed packages) and the Figure 4 prediction and scoring manifests"),
+    ("PROVENANCE.md", "new: versions, commands and the RAW -> mzML conversion behind this version"),
 ]
 # Deposited files the regeneration does not produce, with what a reader should know.
 NOT_REGENERATED = {
@@ -83,6 +90,51 @@ def extract_supplement(archive: Path, target: Path) -> Path:
         members = [m for m in bundle.namelist() if not m.startswith("__MACOSX/") and not m.endswith(".DS_Store")]
         bundle.extractall(target, members=members)
     return target / "supplement"
+
+
+RAW_CONVERSION = """\
+## RAW -> mzML conversion (deposited spectra)
+
+The spectra behind the deposited identifications were converted from Thermo .raw to mzML with:
+
+- CompOmics ThermoRawFileParser 2.0.0-dev, built from the `arm64` branch at commit `e00b388`
+  (<https://github.com/CompOmics/ThermoRawFileParser/tree/arm64>), on .NET 8, with Thermo CommonCore 8.0.42.
+- Licences: ThermoRawFileParser is Apache-2.0. The Thermo RawFileReader libraries it uses have their own licence
+  (<https://github.com/thermofisherlsms/RawFileReader/blob/main/License.doc>).
+- Citation: Hulstaert N, Shofstahl J, Sachsenberg T, Walzer M, Barsnes H, Martens L, Perez-Riverol Y.
+  ThermoRawFileParser: Modular, Scalable, and Cross-Platform RAW File Conversion. J Proteome Res. 2020;19(1):537-542.
+  PMID 31755270.
+"""
+
+
+def sanitized(text: str) -> str:
+    """Paths of the machine that ran the regeneration, with the home directory written as ~."""
+    return text.replace(str(Path.home()), "~")
+
+
+def provenance_markdown(figures: dict, release: str, build_command: str) -> str:
+    git, package = figures.get("git", {}), figures["package"]["proteomics-mcp"]
+    released = git.get("describe") == f"v{release}" and package == release and not git.get("dirty")
+    version_line = (f"proteomics-mcp **{release}**, built from the tag `v{release}` (commit `{git.get('sha')}`)." if released else
+                    f"proteomics-mcp **{release} rc**: a release candidate, proteomics-mcp {package} at `{git.get('describe')}` "
+                    f"(commit `{git.get('sha')}`{', with uncommitted changes' if git.get('dirty') else ''}). Regenerate from the "
+                    f"`v{release}` tag before uploading.")
+    fig4 = figures.get("figure4", {})
+    return "\n".join([
+        "# Provenance", "",
+        f"- **Package:** {version_line}",
+        f"- **MS2PIP:** {figures.get('ms2pip')} (model HCD), pinned in the figure environment only; the package requires `ms2pip>=4.1`.",
+        f"- **Python:** {figures.get('python')} ({sanitized(figures.get('platform', ''))}).",
+        "- **Environment:** `regeneration/uv.lock` (the checkout's lock file), `regeneration/requirements_figures.txt` (the lock with "
+        "MS2PIP and the figure tools pinned) and `regeneration/environment.txt` (every installed package).",
+        f"- **Figure 4 spectra:** PRIDE PXD014877 by USI, in `processed/arabidopsis/figure4_usi_spectra.mgf` "
+        f"(sha256 `{(fig4.get('spectra') or {}).get('mgf_sha256')}`).",
+        "- **Previous version:** Zenodo record " + ZENODO_RECORD + " reproduces proteomics-mcp 0.1.8 / 0.1.10; this version goes "
+        f"with {release}.", "",
+        "## Commands", "",
+        "```bash", sanitized(figures.get("command", "")).replace("python ", "uv run python ", 1), build_command, "```", "",
+        "Rebuild Figure 4 from this deposit alone: add `--figure4-mgf processed/arabidopsis/figure4_usi_spectra.mgf` to the first command.", "",
+        RAW_CONVERSION])
 
 
 def changes_markdown(changed: dict[str, list[str]], unchanged: list[str], figures: dict) -> str:
@@ -126,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True, help="new, empty folder outside the repository")
     parser.add_argument("--cache-dir", type=Path, help="the regeneration cache, which holds the deposited supplement.zip")
     parser.add_argument("--zenodo-zip", type=Path, help="the deposited supplement.zip (md5-checked)")
+    parser.add_argument("--release", default="0.2.0", help="the release this version of the supplement goes with")
     parser.add_argument("--allow-provisional", action="store_true", help="package a run whose checks or Figure 4 did not pass")
     args = parser.parse_args(argv)
 
@@ -160,10 +213,21 @@ def main(argv: list[str] | None = None) -> int:
     shutil.copyfile(figures_dir / "manifest.json", records / "manifest.json")
     shutil.copyfile(figures_dir / "CHANGES.md", records / "FIGURE_CHANGES.md")
     changed["added"] += ["regeneration/manifest.json", "regeneration/FIGURE_CHANGES.md"]
+    rewritten = []
+    for path in sorted(p for p in records.rglob("*") if p.suffix in {".json", ".md", ".txt"}):
+        text = path.read_text()
+        if sanitized(text) != text:
+            path.write_text(sanitized(text))
+            rewritten.append(str(path.relative_to(supplement)))
+    build_command = "uv run python scripts/build_zenodo_package.py " + " ".join(sanitized(a) for a in (argv if argv is not None else sys.argv[1:]))
+    (supplement / "PROVENANCE.md").write_text(provenance_markdown(figures, args.release, build_command))
+    changed["added"].append("PROVENANCE.md")
     unchanged = sorted(deposited - set(changed["replaced"]) - set(changed["same"]))
     (supplement / "CHANGES.md").write_text(changes_markdown(changed, unchanged, figures))
     files = sorted(p for p in supplement.rglob("*") if p.is_file() and p.name != "MANIFEST.sha256")
     (supplement / "MANIFEST.sha256").write_text("".join(f"{file_digest(p)}  {p.relative_to(supplement)}\n" for p in files))
+    if rewritten:
+        print(f"home directory written as ~ in: {', '.join(rewritten)}")
     print(f"{out / 'supplement'}: {len(files) + 1} files; {len(changed['replaced'])} regenerated with changes, {len(changed['same'])} regenerated "
           f"identical, {len(changed['added'])} added, {len(unchanged)} kept")
     return 0

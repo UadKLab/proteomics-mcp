@@ -41,7 +41,8 @@ def _figures(tmp_path: Path, status: str = "REGENERATED") -> Path:
     (staged / "figure_assets/pdfs/Figure2.pdf").write_text("new figure 2")
     (staged / "figure_assets/pdfs/Figure3.pdf").write_text("figure 3")
     (staged / "processed/arabidopsis/figure4_usi_spectra.mgf").write_text("BEGIN IONS\nEND IONS\n")
-    manifest = {"package": {"proteomics-mcp": "0.2.0"}, "git": {"describe": "v0.2.0", "sha": "abc"}, "ms2pip": "4.1.2",
+    manifest = {"package": {"proteomics-mcp": "0.1.10"}, "git": {"describe": "v0.1.10-9-gabc", "sha": "abc", "dirty": False}, "ms2pip": "4.1.2",
+                "python": "3.12.13", "command": f"python scripts/regenerate_figures.py --out {Path.home()}/figures",
                 "verification": {"problems": [], "passed": True}, "figure4": {"status": status, "checks": {"100 PSMs scored": True}},
                 "examples": {}}
     (figures / "manifest.json").write_text(json.dumps(manifest))
@@ -75,3 +76,18 @@ def test_package_refuses_a_provisional_run(script, tmp_path, monkeypatch):
     monkeypatch.setattr(script, "ZENODO_MD5", hashlib.md5(archive.read_bytes()).hexdigest())
     figures = _figures(tmp_path, status="PROVISIONAL")
     assert script.main(["--figures", str(figures), "--zenodo-zip", str(archive), "--out", str(tmp_path / "package")]) == 2
+
+
+def test_provenance_records_versions_conversion_and_no_home_paths(script, tmp_path, monkeypatch):
+    archive = _deposit(tmp_path)
+    monkeypatch.setattr(script, "ZENODO_MD5", hashlib.md5(archive.read_bytes()).hexdigest())
+    out = tmp_path / "package"
+    assert script.main(["--figures", str(_figures(tmp_path)), "--zenodo-zip", str(archive), "--out", str(out)]) == 0
+
+    supplement = out / "supplement"
+    provenance = (supplement / "PROVENANCE.md").read_text()
+    assert "**0.2.0 rc**" in provenance and "MS2PIP:** 4.1.2" in provenance and "3.12.13" in provenance
+    assert "ThermoRawFileParser 2.0.0-dev" in provenance and "e00b388" in provenance and "PMID 31755270" in provenance
+    assert "0.1.8 / 0.1.10" in provenance and "--out ~/figures" in provenance
+    for path in [supplement / "PROVENANCE.md", *(supplement / "regeneration").rglob("*")]:
+        assert str(Path.home()) not in path.read_text(), path
