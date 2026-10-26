@@ -72,6 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--adapter", default="instanovo")
     p.add_argument("--column-mapping", dest="column_mapping_path", help="JSON column mapping for --adapter generic")
     p.add_argument("--fixed-modifications", help='MaxQuant fixed modifications for --adapter maxquant, e.g. "Carbamidomethyl (C)"')
+    p.add_argument("--casanovo-version", help='Casanovo version for --adapter casanovo, e.g. "5.2.1": what its peptide score means')
     p.add_argument("--limit", type=int)
     p = sub.add_parser("inspect-psm-table")
     p.add_argument("--path", required=True)
@@ -456,7 +457,8 @@ def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "load-candidates":
         print(json.dumps(load_candidates_tool(args.path, args.adapter, column_mapping_path=args.column_mapping_path,
-                                              fixed_modifications=args.fixed_modifications, limit=args.limit), indent=2))
+                                              fixed_modifications=args.fixed_modifications, casanovo_version=args.casanovo_version,
+                                              limit=args.limit), indent=2))
     elif args.command == "inspect-psm-table":
         print(
             json.dumps(

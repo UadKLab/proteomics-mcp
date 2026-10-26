@@ -204,6 +204,7 @@ if MCPServer is not None:
         adapter: str = "instanovo",
         column_mapping_path: str | None = None,
         fixed_modifications: str | None = None,
+        casanovo_version: str | None = None,
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """Normalize an upstream candidate or identification table into the canonical PSM schema.
@@ -213,9 +214,12 @@ if MCPServer is not None:
         For adapter="maxquant", fixed_modifications lists MaxQuant's fixed modifications, e.g. "Carbamidomethyl (C)"
         (";"-separated; "" for none). Without it they are read from the parameters.txt or mqpar.xml next to msms.txt;
         if neither exists, each candidate carries a warning.
+        For adapter="casanovo", casanovo_version (e.g. "4.2.1") says what a peptide_score / search_engine_score[1]
+        column means: a mean of amino-acid scores before 5.0, a sequence probability from 5.0. Without it that score
+        gets no confidence. A log_probs column is read as a natural-log probability whatever the version.
         """
         return load_candidates_tool(path, adapter, column_mapping_path=column_mapping_path,
-                                    fixed_modifications=fixed_modifications, limit=limit)
+                                    fixed_modifications=fixed_modifications, casanovo_version=casanovo_version, limit=limit)
 
     @mcp.tool()
     def inspect_psm_table(

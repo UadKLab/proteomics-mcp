@@ -218,12 +218,15 @@ def _load_candidate_models(
     *,
     column_mapping_path: str | None = None,
     fixed_modifications: str | list[str] | None = None,
+    casanovo_version: str | None = None,
     **kwargs: Any,
 ) -> list[CandidatePSM]:
     if column_mapping_path and adapter != "generic":
         raise ValueError(f"column_mapping_path applies only to adapter='generic', not '{adapter}'.")
     if fixed_modifications is not None and adapter != "maxquant":
         raise ValueError(f"fixed_modifications applies only to adapter='maxquant', not '{adapter}'.")
+    if casanovo_version is not None and adapter != "casanovo":
+        raise ValueError(f"casanovo_version applies only to adapter='casanovo', not '{adapter}'.")
     if adapter == "generic":
         mapping = load_column_mapping(column_mapping_path) if column_mapping_path else {}
         kwargs = {**mapping, **{key: value for key, value in kwargs.items() if value is not None}}
@@ -239,7 +242,7 @@ def _load_candidate_models(
             default_experiment_name=kwargs.get("default_experiment_name"),
         )
     if adapter == "casanovo":
-        return load_casanovo_predictions(path, limit=kwargs.get("limit"))
+        return load_casanovo_predictions(path, limit=kwargs.get("limit"), casanovo_version=casanovo_version)
     if adapter == "fragpipe":
         return load_fragpipe_psms(path, limit=kwargs.get("limit"))
     if adapter == "maxquant":
