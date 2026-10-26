@@ -6,10 +6,13 @@ spectra come from the supplement's reference payloads, so the figures show the s
 Scoring uses the package defaults (metric profile v2) with the published tolerance and annotation settings, and the
 panels use the published render settings. Nothing is written inside the repository.
 
-Run from a checkout (the release candidate or the tag), with the extra tools the figure assembly needs:
+Run from a checkout (the release candidate or the tag):
 
-    uv run --with playwright==1.55.0 --with pypdf==6.21.1 --with pypdfium2==5.14.0 \
-        python scripts/regenerate_figures.py --out ~/pmcp/figures-v0.2.0 --cache-dir ~/pmcp/cache
+    uv run python scripts/regenerate_figures.py --out ~/pmcp/figures-v0.2.0 --cache-dir ~/pmcp/cache
+
+The figures use MS2PIP 4.1.2, as the published ones did (#23). The package itself does not pin MS2PIP, so the script
+runs itself again in a uv environment with this checkout, every other dependency at its uv.lock version, MS2PIP 4.1.2
+and the figure-assembly tools (FIGURE_ENVIRONMENT), unless it already runs in one.
 
 HTML panels (Figure 2B, Supplementary Figure 2, Figure 4) are captured with Playwright in the local Google Chrome
 (`--browser-channel chrome`) or Playwright's own Chromium (`--browser-channel chromium`). Exit codes: 0 done,
@@ -67,6 +70,8 @@ PSMS: dict[str, dict[str, Any]] = {
             "payload": "23_sbrodae_casanovo_top5/rank_3_scan_10031_FLYNTR_payload.json"},
 }
 PREDICTOR = {"predictor_backend": "ms2pip", "predictor_model": "HCD"}
+FIGURE_MS2PIP = "4.1.2"  # the release behind the published figures (#23); pinned here only, not in the package
+FIGURE_ENVIRONMENT = [f"ms2pip=={FIGURE_MS2PIP}", "playwright==1.55.0", "pypdf==6.21.1", "pypdfium2==5.14.0"]
 MIRROR_LABELS = 14  # the published mirror plots label the 14 most intense matched peaks
 ANNOTATED_LABELS = 18  # the published Figure 3 panels label the 18 most intense annotated peaks
 FIG3A_ION_TYPES = "a,b,c,x,y,z,z-dot,immonium,precursor"  # the ion families in the published Figure 3A legend
@@ -99,7 +104,8 @@ EXPECTED = {
     "fig2": {"spectral_angle": "0.834", "pearson_correlation": "0.960", "log2_hyperscore": "5.677", "matched_ion_count": "18",
              "total_predicted_ions": "18", "matched_ion_fraction": "100.0%", "explained_intensity_fraction": "47.1%",
              "precursor_mass_error_ppm": "-3.050", "ion_counts": {"x": 8, "precursor": 5},
-             "fragment_mass_error_abs_mean_ppm": {"4.1.2": "2.796", "4.2.0": "2.867"},
+             "fragment_mass_error_abs_mean_ppm": "2.796",  # MS2PIP 4.1.2, the figures' release
+             "fragment_mass_error_abs_mean_ppm_by_ms2pip": {"4.2.0": "2.867"},  # the --compare-ms2pip side-by-side
              "mirror_labels_removed": ["b11+", "b1+", "b2+", "b8+"]},
     "fig3a": {"labelled_peaks": 237},
     "fig3b": {"peptidoform": "AQNSC[UNIMOD:4]PIC[UNIMOD:4]QK", "labelled_peaks": 110, "precursor_abs_ppm_max": 0.05,
@@ -153,14 +159,16 @@ def printed(value: Any, spec: str) -> str:
     return spec.format(value)
 
 
+def installed_version(name: str) -> str:
+    try:
+        return version(name)
+    except PackageNotFoundError:
+        return "not installed"
+
+
 def package_versions() -> dict[str, str]:
-    versions = {}
-    for name in ("proteomics-mcp", "ms2pip", "matplotlib", "seaborn", "numpy", "pandas", "pyopenms", "playwright", "pypdf", "pypdfium2"):
-        try:
-            versions[name] = version(name)
-        except PackageNotFoundError:
-            versions[name] = "not installed"
-    return versions
+    names = ("proteomics-mcp", "ms2pip", "matplotlib", "seaborn", "numpy", "pandas", "pyopenms", "playwright", "pypdf", "pypdfium2")
+    return {name: installed_version(name) for name in names}
 
 
 def git_state() -> dict[str, Any]:
@@ -266,8 +274,13 @@ def verify(results: dict[str, dict[str, Any]], ms2pip_version: str, fig2_by_vers
     for ion, count in EXPECTED["fig2"]["ion_counts"].items():
         if counts.get(ion) != count:
             problems.append(f"Figure 2 ion tile {ion}: {counts.get(ion)}, expected {count}")
-    for ms2pip, metrics in {ms2pip_version: fig2, **fig2_by_version}.items():
-        want = EXPECTED["fig2"]["fragment_mass_error_abs_mean_ppm"].get(ms2pip)
+    if ms2pip_version != FIGURE_MS2PIP:
+        problems.append(f"MS2PIP {ms2pip_version}, expected {FIGURE_MS2PIP} for the figures (#23)")
+    got = printed(fig2.get("fragment_mass_error_abs_mean_ppm"), "{:.3f}")
+    if got != EXPECTED["fig2"]["fragment_mass_error_abs_mean_ppm"]:
+        problems.append(f"Figure 2 fragment abs ppm: {got}, expected {EXPECTED['fig2']['fragment_mass_error_abs_mean_ppm']}")
+    for ms2pip, metrics in fig2_by_version.items():
+        want = EXPECTED["fig2"]["fragment_mass_error_abs_mean_ppm_by_ms2pip"].get(ms2pip)
         got = printed(metrics.get("fragment_mass_error_abs_mean_ppm"), "{:.3f}")
         if want and got != want:
             problems.append(f"Figure 2 fragment abs ppm with MS2PIP {ms2pip}: {got}, expected {want}")
@@ -305,6 +318,33 @@ def verify(results: dict[str, dict[str, Any]], ms2pip_version: str, fig2_by_vers
     return problems
 
 
+# --- pinned environments -------------------------------------------------------------------------------------------------
+
+
+def pinned_environment(packages: list[str], python: str, workdir: Path, name: str) -> list[str]:
+    """`uv run` with this checkout, every other dependency at its uv.lock version, and `packages` (pins that replace or
+    add to the locked ones); returns the command prefix up to and including `python`."""
+    exported = subprocess.run(["uv", "export", "--frozen", "--no-hashes", "--no-emit-project", "--no-dev", "--no-header",
+                               "--python", python], cwd=REPO_ROOT, capture_output=True, text=True, check=True).stdout
+    replaced = tuple(f"{package.split('==')[0]}==" for package in packages)
+    lines = [line for line in exported.splitlines() if line.strip() and not line.lstrip().startswith(("#", *replaced))]
+    workdir.mkdir(parents=True, exist_ok=True)
+    requirements = workdir / f"requirements_{name}.txt"
+    requirements.write_text("\n".join([*lines, *packages, ""]))
+    return ["uv", "run", "--no-project", "--python", python, "--with-requirements", str(requirements), "--with", str(REPO_ROOT),
+            "--reinstall-package", "proteomics-mcp",  # build this checkout, never a cached build of another commit
+            "python"]
+
+
+def rerun_in_figure_environment(args: argparse.Namespace, argv: list[str]) -> int:
+    """Run this script again in the figure environment (MS2PIP FIGURE_MS2PIP and the assembly tools)."""
+    out = args.out.expanduser().resolve()
+    command = [*pinned_environment(FIGURE_ENVIRONMENT, args.python, out / "work", "figures"), str(Path(__file__).resolve()),
+               *argv, "--in-figure-environment"]
+    log(f"MS2PIP {installed_version('ms2pip')} installed; running in the figure environment (MS2PIP {FIGURE_MS2PIP}): {shlex.join(command)}")
+    return subprocess.run(command).returncode
+
+
 # --- MS2PIP comparison for Figure 2 -------------------------------------------------------------------------------------
 
 
@@ -312,14 +352,8 @@ def figure2_metrics_with(ms2pip: str, args: argparse.Namespace, workdir: Path) -
     """Figure 2 metrics in a separate environment with another MS2PIP release: the package from this checkout and every
     other dependency at its uv.lock version, so MS2PIP is the only difference."""
     out = workdir / f"figure2_ms2pip_{ms2pip}.json"
-    exported = subprocess.run(["uv", "export", "--frozen", "--no-hashes", "--no-emit-project", "--no-dev", "--no-header",
-                               "--python", args.compare_python], cwd=REPO_ROOT, capture_output=True, text=True, check=True).stdout
-    requirements = workdir / f"requirements_ms2pip_{ms2pip}.txt"
-    lines = [line for line in exported.splitlines() if line.strip() and not line.lstrip().startswith(("#", "ms2pip=="))]
-    requirements.write_text("\n".join([*lines, f"ms2pip=={ms2pip}", ""]))
-    command = ["uv", "run", "--no-project", "--python", args.compare_python, "--with-requirements", str(requirements), "--with", str(REPO_ROOT),
-               "--reinstall-package", "proteomics-mcp",  # build this checkout, never a cached build of another commit
-               "python", str(Path(__file__).resolve()), "--figure2-metrics-only", str(out), "--cache-dir", str(args.cache_dir)]
+    command = [*pinned_environment([f"ms2pip=={ms2pip}"], args.python, workdir, f"ms2pip_{ms2pip}"), str(Path(__file__).resolve()),
+               "--figure2-metrics-only", str(out), "--cache-dir", str(args.cache_dir)]
     if args.zenodo_zip:
         command += ["--zenodo-zip", str(args.zenodo_zip)]
     log(f"Figure 2 with MS2PIP {ms2pip}: {shlex.join(command)}")
@@ -729,14 +763,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out", type=Path, help="output folder (outside the repository)")
     parser.add_argument("--cache-dir", type=Path, required=True, help="downloads: the Zenodo supplement and PRIDE USI spectra")
     parser.add_argument("--zenodo-zip", type=Path, help="a local copy of the Zenodo supplement.zip (md5-checked); downloaded otherwise")
-    parser.add_argument("--compare-ms2pip", default="4.1.2,4.2.0", help="MS2PIP releases for the Figure 2 side-by-side ('' to skip)")
-    parser.add_argument("--compare-python", default="3.12", help="Python for the MS2PIP comparison environments (4.1.2 has no 3.14 wheels)")
+    parser.add_argument("--compare-ms2pip", default="4.2.0", help="other MS2PIP releases for the Figure 2 side-by-side ('' to skip)")
+    parser.add_argument("--python", default="3.12", help="Python for the figure and MS2PIP comparison environments (4.1.2 has no 3.14 wheels)")
     parser.add_argument("--browser-channel", default="chrome", help="Playwright browser: chrome (local Google Chrome) or chromium")
     parser.add_argument("--skip-figure4", action="store_true", help="do not fetch PRIDE spectra or build Figure 4")
     parser.add_argument("--usi-timeout", type=float, default=120.0, help="seconds per PRIDE USI request")
     parser.add_argument("--usi-retries", type=int, default=4)
     parser.add_argument("--no-verify", action="store_true", help="assemble even if the expected 0.2.0 values differ")
     parser.add_argument("--figure2-metrics-only", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--in-figure-environment", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not args.out and not args.figure2_metrics_only:
         parser.error("--out is required")
@@ -744,7 +779,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
     args = parse_args(argv)
+    if not args.figure2_metrics_only and not args.in_figure_environment:
+        return rerun_in_figure_environment(args, argv)
     args.cache_dir = args.cache_dir.expanduser().resolve()
     args.cache_dir.mkdir(parents=True, exist_ok=True)
     archive, supplement = zenodo_supplement(args.zenodo_zip and args.zenodo_zip.expanduser().resolve(), args.cache_dir)
@@ -875,6 +913,8 @@ def main(argv: list[str] | None = None) -> int:
         "command": shlex.join(["python", *sys.argv]), "interpreter": sys.executable, "cwd": os.getcwd(),
         "package": {"proteomics-mcp": version("proteomics-mcp"), "source": str(Path(__import__("proteomics_mcp").__file__).parent)},
         "git": git, "ms2pip": ms2pip_version, "python": platform.python_version(), "platform": platform.platform(), "versions": package_versions(),
+        "figure_environment": {"pinned": FIGURE_ENVIRONMENT, "requirements": "work/requirements_figures.txt",
+                               "requirements_sha256": file_digest(work / "requirements_figures.txt") if (work / "requirements_figures.txt").is_file() else None},
         "settings": {"metric_profile": "v2 (package default)", "tolerance": "0.05 Da", "predictor": PREDICTOR, "mirror_label_top_n": MIRROR_LABELS,
                      "annotated_label_top_n": ANNOTATED_LABELS, "figure3a_ion_types": FIG3A_ION_TYPES, "figure3b_ion_types": FIG3B_ION_TYPES},
         "psms": {key: {"table": spec["table"], "adapter": spec["adapter"], "peptidoform": results[key]["new"]["metrics"]["candidate"]["peptidoform"],

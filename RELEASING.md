@@ -105,15 +105,16 @@ When a release changes scientific output, regenerate the manuscript figures from
 
 ```bash
 git switch --detach vX.Y.Z
-uv run --with playwright==1.55.0 --with pypdf==6.21.1 --with pypdfium2==5.14.0 \
-  python scripts/regenerate_figures.py --out ~/pmcp/figures-vX.Y.Z --cache-dir ~/pmcp/cache
+uv run python scripts/regenerate_figures.py --out ~/pmcp/figures-vX.Y.Z --cache-dir ~/pmcp/cache
 ```
+
+- **Environment:** the figures use MS2PIP 4.1.2, the release behind the published ones (#23). The package does not pin MS2PIP. The script runs itself again in a uv environment (Python 3.12, `--python`) with this checkout, every other dependency at its `uv.lock` version, MS2PIP 4.1.2 and the assembly tools (Playwright, pypdf, pypdfium2), all listed in `FIGURE_ENVIRONMENT`. The environment's requirements file is in `work/requirements_figures.txt`, and its checksum is in `manifest.json`.
 
 - **Inputs:** the Zenodo supplement (record 23295902, md5-checked, downloaded into `--cache-dir` or given with `--zenodo-zip`) and, for Figure 4, PRIDE spectra by USI (cached per scan). The PSMs are resolved with the release's adapters; the observed spectra are those of the published reference payloads.
 - **Scoring and rendering:** the package defaults (metric profile `v2`), 0.05 Da, MS2PIP `HCD`, and the published render settings. HTML panels are captured with Playwright in the local Google Chrome (`--browser-channel chromium` for Playwright's own browser).
 - **Checks:** the run stops with exit code 3, before assembling anything, if a value differs from what the release must give (`EXPECTED` in the script).
 - **Outputs** (outside the repository; never committed): `Figure2/3/4.pdf`, `Suppl_figure2/5.pdf` and PNGs with the Zenodo file names, `panels/` (each panel as PDF and PNG, for layout touch-ups), `comparison/` (published left, new right), `CHANGES.md` (every changed value with its issue, and the manuscript text to update), and `manifest.json` (package version and git SHA, MS2PIP and Python versions, input checksums, command line, output checksums).
-- **MS2PIP:** Figure 2 is also scored with each release in `--compare-ms2pip` (default `4.1.2,4.2.0`), in a uv environment with the locked dependencies and only MS2PIP replaced.
+- **MS2PIP comparison:** Figure 2 is also scored with each release in `--compare-ms2pip` (default `4.2.0`, the locked release), in a uv environment with the locked dependencies and only MS2PIP replaced.
 
 ## Yanking a release
 

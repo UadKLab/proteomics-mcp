@@ -36,7 +36,15 @@ def test_out_is_required_unless_only_figure2_metrics(script):
     with pytest.raises(SystemExit):
         script.parse_args(["--cache-dir", "cache"])
     args = script.parse_args(["--cache-dir", "cache", "--out", "figures"])
-    assert args.compare_ms2pip == "4.1.2,4.2.0" and not args.skip_figure4
+    assert args.compare_ms2pip == "4.2.0" and not args.skip_figure4 and not args.in_figure_environment
+
+
+def test_figures_pin_ms2pip_412_in_their_own_environment_only(script):
+    """#23: the figures use MS2PIP 4.1.2; the pin lives in the figure environment, not in the package dependencies."""
+    assert script.FIGURE_MS2PIP == "4.1.2" and "ms2pip==4.1.2" in script.FIGURE_ENVIRONMENT
+    assert script.EXPECTED["fig2"]["fragment_mass_error_abs_mean_ppm"] == "2.796"
+    pyproject = (ROOT / "pyproject.toml").read_text()
+    assert "ms2pip==" not in pyproject
 
 
 def test_expected_values_cover_every_supplementary_figure5_panel(script):
