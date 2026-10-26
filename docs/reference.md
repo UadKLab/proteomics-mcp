@@ -124,6 +124,18 @@ koina_cache_dir = ".proteomics_mcp_cache/koina"
 
 JSON and TOML configuration files are accepted. Explicit tool arguments override configuration values.
 
+**Collision energy (#128).** Prosit and the other collision-energy-dependent Koina models take a normalised collision energy (NCE). Each prediction uses, in this order:
+
+1. the `collision_energy` argument of `predict_fragments`, `score_spectrum`, `score_candidates` or `build_prediction_batch` (CLI `--collision-energy`);
+2. otherwise the spectrum's own NCE, when it is known to be one: the Thermo scan filter (`…@hcd28.00`), or the collision energy of a Thermo spectrum, which is the NCE;
+3. otherwise `koina_collision_energy` from the configuration (30).
+
+Absolute energies in eV, as Bruker timsTOF and SCIEX report them, are not an NCE and are never used for step 2. `build_prediction_batch` takes each spectrum's value from the spectra table (`spectra_path`), and sends one Koina request per collision energy. The same peptide at two energies is two predictions.
+
+The result records the energy used and where it came from (`predictor_metadata.collision_energy`, `collision_energy_source`), as do prediction-batch rows.
+
+The NCE an instrument reports is not always the value at which Prosit predicts the spectrum best. Tools such as Oktoberfest calibrate it per run. To use a calibrated value, pass it as `collision_energy`.
+
 ## Spectrum-Level Evidence
 
 `score_spectrum` and `score_candidates` provide candidate-to-observed-spectrum evidence. The default tolerance is `0.05 Da`.

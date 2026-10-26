@@ -16,6 +16,11 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **Koina predictions use the spectrum's collision energy** ([#128](https://github.com/UadKLab/proteomics-mcp/issues/128)). They always used `koina_collision_energy` from the configuration (30), and nothing could set it per call, so spectra acquired at NCE 28 were scored against a prediction at 30.
+  - **Per call:** `predict_fragments`, `score_spectrum`, `score_candidates` and `build_prediction_batch` take a `collision_energy` argument (CLI `--collision-energy`).
+  - **From the spectrum:** without one, a Koina prediction uses the spectrum's own normalised collision energy when it states one: a Thermo scan filter (`@hcd28.00`), or a Thermo collision energy. Otherwise it falls back to the configuration. Absolute energies in eV (Bruker timsTOF, SCIEX) are never treated as an NCE.
+  - **Batches:** `build_prediction_batch` takes each spectrum's value from the spectra table, groups its Koina requests by collision energy, and keys predictions by it.
+  - **Recorded:** the energy used and its source are in `predictor_metadata` and in the prediction-batch rows.
 - **Modification notation is normalised in the generic adapter and in accuracy targets** ([#124](https://github.com/UadKLab/proteomics-mcp/issues/124)):
   - **Generic adapter:** it passed the peptide column through as written, so `M[+15.9949]`, `M(+15.99)` and `M[Oxidation]` stayed three different peptidoforms. Summaries split one modification into several keys, and `(+15.99)` got no precursor mass error. It now normalises like the built-in adapters, and warns about modifications it cannot resolve.
   - **`summarize_prediction_accuracy`:** it compared the target column as written. A correct prediction counted as wrong whenever the target used another notation, which is the usual case for search-engine targets. Prediction and target are now both normalised. The overview reports how many targets were rewritten (`targets_renotated`) and how many keep an unresolved modification (`targets_with_unresolved_modifications`).
