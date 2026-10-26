@@ -658,11 +658,10 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
     rebuilds the figure from the Zenodo files alone."""
     import pandas as pd
 
-    from proteomics_mcp.core.dataset import summarize_candidate_inspection_frame
     from proteomics_mcp.tools.workflows import (
-        _load_candidate_frame,
         build_id_dashboard_tool,
         build_prediction_batch_tool,
+        inspect_peptide_table_tool,
         mgf_to_feather_tool,
         render_peptide_table_tool,
         render_psm_table_tool,
@@ -733,8 +732,10 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
     psms.to_csv(targets["scored_psms"], index=False)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        inspection = summarize_candidate_inspection_frame(_load_candidate_frame(str(candidates), "fragpipe", scored_path=str(scored_csv)))
-    peptides, status["scored_peptides_columns"] = deposited_column_order(inspection.peptide_summary, supplement / FIGURE4_DEPOSIT["scored_peptides"])
+        inspected = inspect_peptide_table_tool(path=str(candidates), adapter="fragpipe", scored_path=str(scored_csv), limit=len(subset))
+    peptides, status["scored_peptides_columns"] = deposited_column_order(pd.DataFrame(inspected["peptide_preview"]),
+                                                                         supplement / FIGURE4_DEPOSIT["scored_peptides"])
+    status["scored_peptides_rows"] = len(peptides)
     peptides.to_csv(targets["scored_peptides"], index=False)
     shutil.copyfile(dashboard["output_files"]["dashboard_html"], targets["dashboard_html"])
     sdrf = supplement / DEPOSIT_ARABIDOPSIS / "sdrf.tsv"
