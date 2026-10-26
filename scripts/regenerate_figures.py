@@ -900,7 +900,7 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
     old_counts = (old2.get("annotation_summary") or {}).get("ion_type_counts") or {}
     new_counts = (new2.get("annotation_summary") or {}).get("ion_type_counts") or {}
     diff = {k: (old_counts.get(k), new_counts.get(k)) for k in sorted(set(old_counts) | set(new_counts)) if old_counts.get(k) != new_counts.get(k)}
-    lines += ["", f"Observed ion series tile: " + ", ".join(f"{k}:{o} → {n}" for k, (o, n) in diff.items()) + " (#79, PR #104: w-ion masses).", ""]
+    lines += ["", "Observed ion series tile: " + ", ".join(f"{k}:{o} → {n}" for k, (o, n) in diff.items()) + " (#79, PR #104: w-ion masses).", ""]
     removed = sorted(label for _, label in mirror_labels(results["fig2"]["published"]) - mirror_labels(results["fig2"]["new"]))
     lines += [f"Panel A: matched peaks {', '.join(removed)} are no longer matched (grey instead of blue); the 14 labelled peaks are "
               "unchanged. Their predicted ions fall below the 0.1% cut-off (#83, PR #106). Unchanged: confidence 100.0%, raw score "
@@ -954,7 +954,7 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
               "- Figure 3A: its 237 peak labels equal those of 0.1.10, the version of the published figure (checked in this run "
               "against `FIG3A_LABELS_SHA256`)."]
     lines += ["", "## Manuscript text and captions", "",
-              f"- **§2.5 Matching and metrics:** add that each observed peak explains at most one predicted ion (closest first), and "
+              "- **§2.5 Matching and metrics:** add that each observed peak explains at most one predicted ion (closest first), and "
               "that predicted ions below 0.1% of the most intense predicted ion are not scored (metric profile v2, the default); "
               "spectral angle, cosine and Pearson compare every scored predicted ion, unmatched ones with zero observed intensity.",
               f"- **§3.2:** spectral angle 0.833 → {printed(new2['spectral_angle'], '{:.3f}')}, cosine {printed(new2['cosine_similarity'], '{:.3f}')}, "
