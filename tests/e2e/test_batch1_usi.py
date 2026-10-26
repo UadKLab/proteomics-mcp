@@ -133,6 +133,26 @@ def test_usi_spectra_carry_precursor_mz(retrieved, report):
     assert not missing, f"{len(missing)} of {len(retrieved)} USI spectra have no precursor_mz"
 
 
+# Not strict: a development build of 0.2.0 still reports version 0.1.10 and already has the fix
+@pytest.mark.xfail(INSTALLED < Version("0.2.0"), strict=False, reason="#135 (fixed in 0.2.0): USI spectra have no rt_seconds")
+def test_usi_spectra_carry_the_retention_time_of_the_reference(retrieved, report):
+    """PRIDE's scan start time, read as seconds, equals the retention time the mzML gave the reference payload (#135)."""
+    differences, missing = {}, []
+    for name, (usi, (is_error, spectrum)) in retrieved.items():
+        if is_error:
+            continue
+        reference = json.loads(next(REPO_EXAMPLES.glob(f"*/{name}")).read_text())["observed"].get("rt_seconds")
+        if spectrum.get("rt_seconds") is None:
+            missing.append(usi)
+        elif reference is not None:
+            differences[usi] = abs(spectrum["rt_seconds"] - reference)
+    worst = max(differences.values(), default=None)
+    status = "pass" if not missing and worst is not None and worst < 0.01 else "fail (#135)"
+    report("usi", "rt_seconds present and equal to the reference", status, {"missing": len(missing), "max_abs_delta_s": worst})
+    assert not missing, f"{len(missing)} of {len(retrieved)} USI spectra have no rt_seconds"
+    assert worst is not None and worst < 0.01, worst
+
+
 @pytest.mark.parametrize(("folder", "path"), CASES, ids=[p.name.removesuffix("_payload.json") for _, p in CASES])
 def test_usi_metrics_with_stored_prediction(retrieved, tool, report, legacy_metrics, folder, path):
     """Step b (scoring engine): only where peaks match; predictions taken from the payload."""

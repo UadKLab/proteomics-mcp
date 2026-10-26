@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from proteomics_mcp.adapters.instanovo import _as_float, _as_int, _parse_float_list, _token_summary
+from proteomics_mcp.adapters.modifications import normalize_peptidoform_to_unimod_style, unresolved_modification_tokens
 from proteomics_mcp.adapters.table_io import read_candidate_table
 from proteomics_mcp.models.schemas import CandidatePSM
 
@@ -23,6 +24,13 @@ def _confidence_from_score(value: float | None, score_type: str) -> float | None
     raise ValueError(f"Unsupported score_type: {score_type}")
 
 
+def _text_or_none(value: Any) -> str | None:
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def load_generic_candidates(
     path: str | Path,
     *,
@@ -37,12 +45,17 @@ def load_generic_candidates(
     charge_column: str | None = None,
     precursor_mz_column: str | None = None,
     spectrum_id_column: str | None = None,
+    run_column: str | None = None,
+    experiment_name_column: str | None = None,
     usi_column: str | None = None,
     token_log_probabilities_column: str | None = None,
     source_engine: str = "generic",
     limit: int | None = None,
 ) -> list[CandidatePSM]:
     frame = read_candidate_table(path, limit=limit)
+    if run_column and experiment_name_column and run_column != experiment_name_column:
+        raise ValueError("run_column and experiment_name_column name the same field; give one of them.")
+    run_column = run_column or experiment_name_column
     missing = [
         col
         for col in [
@@ -54,6 +67,7 @@ def load_generic_candidates(
             charge_column,
             precursor_mz_column,
             spectrum_id_column,
+            run_column,
             usi_column,
             token_log_probabilities_column,
         ]
@@ -66,6 +80,14 @@ def load_generic_candidates(
         peptide = str(row[peptide_column]).strip()
         if not peptide or peptide.lower() == "nan":
             continue
+        # The same modification notation as the built-in adapters: masses, names and parenthesised masses become
+        # UNIMOD accessions (#124); the column as written stays in source_columns
+        peptidoform = normalize_peptidoform_to_unimod_style(peptide) or peptide
+        warnings = [
+            f"Modification [{token}] in {peptide!r} is neither a UNIMOD name or accession nor a mass shift; kept as written, "
+            "so this PSM gets no precursor mass error and its peptidoform may not match other engines'."
+            for token in unresolved_modification_tokens(peptidoform)
+        ]
         raw_score = _as_float(row.get(score_column)) if score_column else None
         next_beam_col = next_beam_column or next_score_column
         next_beam_margin_col = next_beam_margin_column or next_score_margin_column
@@ -74,14 +96,16 @@ def load_generic_candidates(
         if next_beam_margin is None and raw_score is not None and next_beam is not None:
             next_beam_margin = raw_score - next_beam
         token_log_probs = _parse_float_list(row.get(token_log_probabilities_column)) if token_log_probabilities_column else None
-        token_data = _token_summary(peptide, token_log_probs)
+        token_data = _token_summary(peptidoform, token_log_probs)
         candidates.append(
             CandidatePSM(
                 candidate_id=f"{Path(path).stem}:{row_idx}",
                 source_engine=source_engine,
-                peptidoform=peptide,
+                peptidoform=peptidoform,
                 scan_number=_as_int(row.get(scan_column)) if scan_column else None,
                 spectrum_id=str(row.get(spectrum_id_column)) if spectrum_id_column else None,
+                # The PSM's run, so it finds its spectrum in a multi-run table (#142)
+                experiment_name=_text_or_none(row.get(run_column)) if run_column else None,
                 usi=str(row.get(usi_column)) if usi_column else None,
                 precursor_mz=_as_float(row.get(precursor_mz_column)) if precursor_mz_column else None,
                 precursor_charge=_as_int(row.get(charge_column)) if charge_column else None,
@@ -93,6 +117,7 @@ def load_generic_candidates(
                 confidence=_confidence_from_score(raw_score, score_type),
                 confidence_type=score_type,
                 source_columns={str(k): row[k] for k in row.index},
+                warnings=warnings,
                 **token_data,
             )
         )

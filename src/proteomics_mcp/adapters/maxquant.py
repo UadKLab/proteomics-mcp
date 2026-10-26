@@ -9,6 +9,7 @@ from typing import Any
 
 import pandas as pd
 
+from proteomics_mcp.adapters.table_io import describe_columns, read_candidate_table
 from proteomics_mcp.adapters.instanovo import _as_float, _as_int, normalize_peptidoform_to_instanovo_style
 from proteomics_mcp.adapters.modifications import build_peptidoform, matching_parenthesis
 from proteomics_mcp.core.annotation import peptidoform_neutral_mass
@@ -211,11 +212,11 @@ def load_maxquant_psms(
     Each peptidoform's mass is checked against MaxQuant's "Mass" column (when present); a difference above
     MASS_TOLERANCE_DA adds a warning to that candidate.
     """
-    frame = pd.read_csv(path, sep="\t", nrows=limit)
+    frame = read_candidate_table(path, limit=limit)
     required = {"Raw file", "Scan number", "Modified sequence", "Charge", "m/z"}
     missing = sorted(col for col in required if col not in frame.columns)
     if missing:
-        raise ValueError(f"Missing required MaxQuant columns: {', '.join(missing)}")
+        raise ValueError(f"Missing required MaxQuant columns: {', '.join(missing)}. Columns found: {describe_columns(frame)}.")
 
     table_warnings: list[str] = []
     if fixed_modifications is not None:

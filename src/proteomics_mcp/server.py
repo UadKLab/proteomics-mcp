@@ -513,7 +513,10 @@ if MCPServer is not None:
         reliability_bin_count: int = 10,
         limit: int | None = None,
     ) -> dict[str, Any]:
-        """Summarize prediction correctness, calibration, and operating points against a target sequence field."""
+        """Summarize prediction correctness, calibration, and operating points against a target sequence field.
+
+        Prediction and target are both normalised to UNIMOD notation before they are compared, so a target written as
+        ALPM[+15.9949]HIR equals the prediction ALPM[UNIMOD:35]HIR."""
         return summarize_prediction_accuracy_tool(
             path=path,
             target_field=target_field,
@@ -653,13 +656,18 @@ if MCPServer is not None:
         column_mapping_path: str | None = None,
         scored_path: str | None = None,
         top_n: int | None = None,
-        rt_source_field: str = "rt",
+        rt_source_field: str | None = None,
+        rt_unit: str = "seconds",
         confidence_field: str | None = "confidence",
         mz_field: str = "precursor_mz",
         default_experiment_name: str | None = None,
         limit: int | None = None,
     ) -> dict[str, Any]:
-        """Build a full HTML dashboard bundle from a normalized ID table, with optional spectra metadata and scored enrichment."""
+        """Build a full HTML dashboard bundle from a normalized ID table, with optional spectra metadata and scored enrichment.
+
+        With spectra_path, candidates are joined to spectra by run and scan number; metadata_join in the result counts the
+        matches and the unmatched rows by reason. rt_source_field names the spectra table's retention-time column
+        (default: rt, retention_time, retention_time_seconds or RT, whichever it has), in rt_unit ("seconds" or "minutes")."""
         return build_id_dashboard_tool(
             path=path,
             spectra_path=spectra_path,
@@ -669,6 +677,7 @@ if MCPServer is not None:
             scored_path=scored_path,
             top_n=top_n,
             rt_source_field=rt_source_field,
+            rt_unit=rt_unit,
             confidence_field=confidence_field,
             mz_field=mz_field,
             default_experiment_name=default_experiment_name,
@@ -690,8 +699,11 @@ if MCPServer is not None:
         default_experiment_name: str | None = None,
         limit: int | None = None,
         config_path: str | None = None,
+        collision_energy: float | None = None,
     ) -> dict[str, Any]:
-        """Build a reusable fragment-prediction batch with manifest, fragment, mapping, failure, and status artifacts."""
+        """Build a reusable fragment-prediction batch with manifest, fragment, mapping, failure, and status artifacts.
+
+        Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
         return build_prediction_batch_tool(
             path=path,
             output_prefix=_resolve(output_prefix),
@@ -706,6 +718,7 @@ if MCPServer is not None:
             default_experiment_name=default_experiment_name,
             limit=limit,
             config_path=config_path,
+            collision_energy=collision_energy,
         )
 
     @mcp.tool()
@@ -763,9 +776,12 @@ if MCPServer is not None:
         backend: str | None = None,
         max_fragment_charge: int | None = None,
         config_path: str | None = None,
+        collision_energy: float | None = None,
     ) -> dict[str, Any]:
-        """Predict fragment ions and intensities for one peptidoform and precursor charge."""
-        return predict_fragments_tool(peptidoform, charge, model, backend, max_fragment_charge=max_fragment_charge, config_path=config_path)
+        """Predict fragment ions and intensities for one peptidoform and precursor charge.
+
+        Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
+        return predict_fragments_tool(peptidoform, charge, model, backend, max_fragment_charge=max_fragment_charge, config_path=config_path, collision_energy=collision_energy)
 
     @mcp.tool()
     def retrieve_usi_spectrum(usi: str, backend: str = "pride", timeout_seconds: float = 15.0) -> dict[str, Any]:
@@ -854,12 +870,15 @@ if MCPServer is not None:
         annotation_neutral_losses: bool | None = None,
         score_predictions_as_given: bool | None = None,
         config_path: str | None = None,
+        collision_energy: float | None = None,
     ) -> dict[str, Any]:
         """Score one candidate against one observed spectrum, optionally using a supplied predicted spectrum.
 
         A supplied prediction goes through the same rules as one the package makes: fragments above the fragment-charge
         limit (max_fragment_charge, or precursor charge - 1) are left out, unless score_predictions_as_given. The result
-        lists the scored ions, the ions left out with the reason, and the settings in effect."""
+        lists the scored ions, the ions left out with the reason, and the settings in effect.
+
+        Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
         return score_spectrum_tool(
             candidate,
             observed,
@@ -876,6 +895,7 @@ if MCPServer is not None:
             annotation_neutral_losses=annotation_neutral_losses,
             score_predictions_as_given=score_predictions_as_given,
             config_path=config_path,
+            collision_energy=collision_energy,
         )
 
     @mcp.tool()
@@ -913,8 +933,11 @@ if MCPServer is not None:
         limit: int | None = None,
         status_path: str | None = None,
         config_path: str | None = None,
+        collision_energy: float | None = None,
     ) -> dict[str, Any]:
-        """Score many candidates directly against local spectra or USI targets without a reusable prediction batch."""
+        """Score many candidates directly against local spectra or USI targets without a reusable prediction batch.
+
+        Koina predictions use collision_energy when given; otherwise the spectrum's own normalized collision energy when it states one (a Thermo scan filter such as @hcd28.00), otherwise koina_collision_energy from the config (30). eV values from other vendors are not used."""
         return score_candidates_tool(
             candidates_path=candidates_path,
             spectra_path=spectra_path,
@@ -934,6 +957,7 @@ if MCPServer is not None:
             limit=limit,
             status_path=_resolve(status_path),
             config_path=config_path,
+            collision_energy=collision_energy,
         )
 
     @mcp.tool()
