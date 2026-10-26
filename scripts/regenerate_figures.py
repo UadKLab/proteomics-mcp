@@ -677,6 +677,8 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
         "and 4), as decided for 0.2.0 (#42, #47); the published Figure 4 showed ~960 PSMs of an unrecorded selection",
         "spectra: PRIDE's USI rendering of the scans (PXD014877), not the local mzML conversion; PRIDE serves fewer peaks than "
         "the local files for 23 of 25 reference PSMs (#31). The MGF of these spectra is in the deposit",
+        "histograms: the published dashboard left out the PSMs at each histogram's maximum (1-2 per panel); fixed in #169, and "
+        "checked here: every histogram panel counts all PSMs",
     ]}
     source = supplement / "processed/arabidopsis/fragpipe_psm.tsv"
     table = pd.read_csv(source, sep="\t", low_memory=False)
@@ -773,6 +775,15 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
                                   ".map(gd => [gd.id, JSON.parse(Plotly.Plots.graphJson(gd, false, 'keepdata'))]))")
         targets["plot_data"].write_text(json.dumps(plot_data))
         status["plot_data_ids"] = sorted(plot_data)
+        # #169: each histogram panel counts every PSM, including those at its maximum
+        counted = {letter: sum(sum(v for v in (trace.get("y") or []) if isinstance(v, (int, float))) for trace in plot_data[plot_id]["data"])
+                   for letter, plot in FIGURE4_PLOTS.items() if plot.startswith("hist_")
+                   for plot_id in [next(i for i in plot_data if i == plot or i.endswith(plot))]}
+        status["histogram_counts"] = counted
+        checks["every histogram panel counts all 100 PSMs (#169)"] = all(count == FIGURE4_SUBSET_ROWS for count in counted.values())
+        if not checks["every histogram panel counts all 100 PSMs (#169)"]:
+            status["status"] = "PROVISIONAL"
+            status["reasons"].append(f"check failed: every histogram panel counts all 100 PSMs (#169): {counted}")
         for letter, plot in FIGURE4_PLOTS.items():
             match = next((i for i in ids if i == plot or i.endswith(plot) or plot in i), None)
             if not match:
