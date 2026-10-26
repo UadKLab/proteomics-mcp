@@ -17,6 +17,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **Unexpected errors stay hidden from the client:** the package allowed `mcp` 2.0.x, which passes the message of any exception to the client, internal paths included; only errors the agent can act on should reach it (#27). It now requires `mcp>=2.1`, the first release that hides them, and the lock pins 2.3.0. The test that checks this asserted nothing on 2.0.x: it skipped ([#164](https://github.com/UadKLab/proteomics-mcp/issues/164)).
 - **Casanovo scores are read by what the column holds, not by their sign** ([#157](https://github.com/UadKLab/proteomics-mcp/issues/157)). The `casanovo` adapter treated a negative score as a log-probability and a score in [0, 1] as a probability. Casanovo's own peptide score is neither: up to 5.1 it is shifted below 0 when the peptide does not fit the precursor m/z, so those candidates, which Casanovo marks as least trustworthy, got high confidence (−0.2 → 0.82). In 4.x it is a mean of amino-acid scores, not a probability.
   - `log_probs` is read as a natural-log probability only. Values above 0 are refused with a message, and 0 now means a probability of 1, not 0.
   - Casanovo's own score is read from `peptide_score` or `search_engine_score[1]`. It becomes a confidence (`casanovo_sequence_probability`) only for Casanovo 5.x and only when the precursor fits; the new `casanovo_version` option (CLI `--casanovo-version`) gives the version. A precursor mismatch, or a missing version, adds a warning to the candidate.
