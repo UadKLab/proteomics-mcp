@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -86,6 +87,22 @@ def test_rescoring_reproduces_stored_metrics(tool, cli, report, tmp_path, legacy
     assert max(cli_deltas.values(), default=0) <= RESCORE_ATOL, cli_deltas
 
 
+# The payloads' annotation_summary was made by 0.1.10, which gave every C-terminal ion (x, y, z, w) the wrong residue and so
+# computed w-ion masses with the wrong side chain. Since #79 the payloads annotated with w ions explain these peaks.
+ANNOTATION_AFTER_79 = {
+    "17_maxquant_top5": {"annotated_peak_count": 85, "annotated_intensity_fraction": 0.5384146178553108},
+    "18_fragpipe_top5": {"annotated_peak_count": 269, "annotated_intensity_fraction": 0.7871843852206718},
+    "19_proteome_discoverer_top5": {"annotated_peak_count": 249, "annotated_intensity_fraction": 0.8008164203413881},
+}
+
+
+def _c_terminal_residues_fixed(annotation: dict, peptidoform: str) -> bool:
+    """Whether the installed package gives a y ion the residue it starts with (#79), read from its y-ion matches."""
+    residues = re.sub(r"\[[^\]]*\]|-", "", peptidoform)
+    y_ions = [match for match in annotation["matches"] if match.get("ion_type") == "y" and match.get("residue")]
+    return bool(y_ions) and all(match["residue"] == residues[len(residues) - match["ordinal"]] for match in y_ions)
+
+
 @pytest.mark.parametrize("name", PAYLOADS, ids=IDS)
 def test_annotation_and_score_summary(tool, report, name):
     payload = _load(name)
@@ -97,6 +114,8 @@ def test_annotation_and_score_summary(tool, report, name):
         "neutral_losses": settings["annotation_neutral_losses"]})
     assert not is_error, annotation
     stored = payload["metrics"]["annotation_summary"]
+    if _c_terminal_residues_fixed(annotation, payload["predicted"]["peptidoform"]):
+        stored = ANNOTATION_AFTER_79.get(name.split("/")[0], stored)
     same = (annotation["annotated_peak_count"] == stored["annotated_peak_count"]
             and abs(annotation["annotated_intensity_fraction"] - stored["annotated_intensity_fraction"]) <= 1e-12)
     is_error, summary = tool("summarize_score_metrics", {"score_result": payload["metrics"]})
@@ -180,7 +199,8 @@ def test_render_spectra_batch_reads_gzip_json_lines(tool, report, tmp_path):
 def test_default_profile_scores_a_single_matched_peak_below_one(tool, report):
     """The default metric profile end to end (#72): keep only the observed peak matched to the strongest predicted ion.
 
-    Under v2 the spectral angle is 1 - 2*arccos(p_max / ||p||)/pi; under legacy_v1 it would be 1.0.
+    Under v2 the spectral angle is 1 - 2*arccos(p_max / ||p||)/pi, where ||p|| is over the scored predicted ions: since #83,
+    those at least min_predicted_intensity times the strongest. Under legacy_v1 it would be 1.0.
     """
     import math
 
@@ -197,7 +217,9 @@ def test_default_profile_scores_a_single_matched_peak_below_one(tool, report):
     assert not is_error, result
     if result.get("metric_profile") != "v2":
         pytest.skip(f"installed package defaults to metric profile {result.get('metric_profile')!r}")
-    norm = math.sqrt(sum(f["intensity"] ** 2 for f in fragments))
+    cutoff = result.get("annotation_settings", {}).get("min_predicted_intensity") or 0.0
+    scored = [f["intensity"] for f in fragments if f["intensity"] > 0 and f["intensity"] >= cutoff * fragments[strongest]["intensity"]]
+    norm = math.sqrt(sum(intensity ** 2 for intensity in scored))
     expected = 1 - 2 * math.acos(fragments[strongest]["intensity"] / norm) / math.pi
     report("spectra", "default profile: one matched peak (#72)", "pass" if abs(result["spectral_angle"] - expected) < 1e-9 else "fail",
            {"spectral_angle": result["spectral_angle"], "expected": expected, "matched_ion_count": result["matched_ion_count"]})
