@@ -163,3 +163,5 @@ uv run proteomics-mcp --help
 ```
 
 Tests that download MS2PIP models are marked `network`; deselect them when offline with `uv run pytest -m "not network"`.
+
+`uv run pytest --cov` adds line and branch coverage, measured as in CI: one test job runs it and fails if coverage drops below `fail_under` in `pyproject.toml`. The per-module table is in that job's summary.

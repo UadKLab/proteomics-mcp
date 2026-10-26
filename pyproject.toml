@@ -57,7 +57,7 @@ Documentation = "https://uadklab.github.io/proteomics-mcp/"
 Changelog = "https://github.com/UadKLab/proteomics-mcp/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "pytest-cov>=5"]
 
 [project.scripts]
 proteomics-mcp = "proteomics_mcp.cli:main"
@@ -78,3 +78,13 @@ markers = [
   "network: needs network access, e.g. MS2PIP model download on first use; deselect with -m \"not network\"",
   "e2e: end-to-end verification of the installed package on public data (tests/e2e); deselected unless -m mentions e2e",
 ]
+
+# pytest --cov measures this; CI runs it on one test leg and fails below fail_under (#166)
+[tool.coverage.run]
+source_pkgs = ["proteomics_mcp"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 84
+sort = "cover"
+skip_empty = true

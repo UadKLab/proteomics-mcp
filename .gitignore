@@ -25,3 +25,8 @@ data/
 
 # Local presentation/slide assets not intended for distribution.
 presentation/
+
+# pytest --cov (#166)
+.coverage
+.coverage.*
+htmlcov/
