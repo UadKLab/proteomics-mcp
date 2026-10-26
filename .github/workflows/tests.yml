@@ -57,6 +57,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # One leg measures coverage of the installed package; it fails below fail_under in pyproject.toml (#166)
+      COVERAGE: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -77,7 +80,9 @@ jobs:
           else
             py="$RUNNER_TEMP/wheel-env/bin/python"
           fi
-          uv pip install --python "$py" dist/*.whl pytest
+          extra=""
+          if [ "$COVERAGE" = true ]; then extra="pytest-cov"; fi
+          uv pip install --python "$py" dist/*.whl pytest $extra
           echo "WHEEL_PY=$py" >> "$GITHUB_ENV"
           # Remove the source tree so nothing can be imported from it by accident.
           rm -rf src
@@ -85,7 +90,20 @@ jobs:
       - name: Run tests against the installed package
         env:
           PROTEOMICS_MCP_TEST_INSTALLED: "1"
-        run: '"$WHEEL_PY" -m pytest -o pythonpath= -rs'
+        run: |
+          if [ "$COVERAGE" = true ]; then
+            "$WHEEL_PY" -m pytest -o pythonpath= -rs --cov --cov-report=term
+          else
+            "$WHEEL_PY" -m pytest -o pythonpath= -rs
+          fi
+
+      - name: Coverage summary
+        if: always() && env.COVERAGE == 'true'
+        run: |
+          {
+            echo "## Coverage of the installed package (Python ${{ matrix.python-version }})"
+            "$WHEEL_PY" -m coverage report --format=markdown --fail-under=0 | sed 's|[^ |]*site-packages/||'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: MCP stdio smoke test
         run: '"$WHEEL_PY" scripts/smoke_mcp.py --manifest manifest.json'

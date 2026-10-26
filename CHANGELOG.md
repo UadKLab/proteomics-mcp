@@ -78,6 +78,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Added
 
+- **Test coverage in CI** ([#166](https://github.com/UadKLab/proteomics-mcp/issues/166)): the Ubuntu / Python 3.12 test job measures line and branch coverage of the installed package, writes the per-module report to the job summary and fails below `fail_under` (84%; the suite is at 84.6%). `pytest-cov` is in the `dev` extra, so `uv run pytest --cov` measures the same locally.
 - Built-in masses for amidation, dimethyl, GG, iTRAQ4plex, ammonia loss, TMT6plex/10plex/11plex and TMTpro, so they resolve without downloading the Unimod catalogue.
 - **Isotope-corrected precursor error:** `precursor_isotope_error` (0, 1 or 2) and `precursor_mass_error_corrected_ppm` / `precursor_mass_error_corrected_da` report the error relative to the 13C isotope peak closest to the observed m/z. Before, a precursor selected on its second isotope peak showed an error of hundreds of ppm ([#73](https://github.com/UadKLab/proteomics-mcp/issues/73)).
 - **Per-candidate `warnings`:** problems found while reading a row that may make its peptidoform or scores wrong. MaxQuant candidates are checked against MaxQuant's `Mass` column; a difference above 0.01 Da is reported there ([#101](https://github.com/UadKLab/proteomics-mcp/issues/101)).
