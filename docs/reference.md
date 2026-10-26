@@ -103,6 +103,8 @@ Required: a peptide/peptidoform and a spectrum locator (`usi`, `spectrum_id`, or
 
 USI spectra come from the provider's own processing of the raw file, so they can differ from a local mzML or MGF conversion of the same scan. For the 25 reference PSMs in `examples/` (PXD044934, PXD014877, PXD010595), PRIDE returned the same peaks as the local conversions for 2 PSMs. For the other 23 it returned 1–33 fewer peaks; the missing peaks were the only difference, and every remaining peak had the same m/z and intensity. Scores computed from a USI spectrum can therefore differ from scores computed from a local file. Record which source each result used.
 
+A USI spectrum's retention time (`rt_seconds`) is the provider's scan start time (`MS:1000016`). When the attribute carries a unit (second, minute or millisecond), it is converted to seconds. PRIDE sends no unit and its values are seconds, so a value without a unit is read as seconds; `metadata.rt_source` says which applied. For the 25 reference PSMs, the PRIDE value equals the retention time of the local mzML conversion. A unit the package does not know leaves `rt_seconds` empty rather than guessing.
+
 ## Fragment Prediction
 
 Prediction backends:

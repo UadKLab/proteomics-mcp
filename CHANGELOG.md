@@ -16,6 +16,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **USI spectra carry their retention time:** `retrieve_usi_spectrum` (and every tool that reads a USI) left `rt_seconds` empty although PRIDE sends the scan start time (`MS:1000016`). It is now read, in seconds, converting from minutes or milliseconds when the provider gives a unit; PRIDE gives none and sends seconds. For the 25 reference PSMs it equals the retention time of the local mzML conversions. `metadata.rt_source` records how it was read ([#135](https://github.com/UadKLab/proteomics-mcp/issues/135)).
 - **Koina predictions use the spectrum's collision energy** ([#128](https://github.com/UadKLab/proteomics-mcp/issues/128)). They always used `koina_collision_energy` from the configuration (30), and nothing could set it per call, so spectra acquired at NCE 28 were scored against a prediction at 30.
   - **Per call:** `predict_fragments`, `score_spectrum`, `score_candidates` and `build_prediction_batch` take a `collision_energy` argument (CLI `--collision-energy`).
   - **From the spectrum:** without one, a Koina prediction uses the spectrum's own normalised collision energy when it states one: a Thermo scan filter (`@hcd28.00`), or a Thermo collision energy. Otherwise it falls back to the configuration. Absolute energies in eV (Bruker timsTOF, SCIEX) are never treated as an NCE.
