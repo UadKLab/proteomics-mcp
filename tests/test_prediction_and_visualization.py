@@ -413,10 +413,7 @@ def test_render_mirror_spectrum_exposes_fragment_sequence_toggle(tmp_path):
         cosine_similarity=0.0,
         pearson_correlation=0.0,
         xcorr=0.0,
-        log10_xcorr=0.0,
-        log2_xcorr=0.0,
         hyperscore=0.0,
-        log2_hyperscore=0.0,
         matched_ion_count=1,
         total_predicted_ions=1,
         matched_ion_fraction=1.0,
@@ -514,10 +511,7 @@ def test_render_html_contains_metric_tiles_when_metrics_present(tmp_path):
         cosine_similarity=0.8,
         pearson_correlation=0.7,
         xcorr=10.0,
-        log10_xcorr=1.0,
-        log2_xcorr=3.321928094887362,
         hyperscore=4.2,
-        log2_hyperscore=2.070389327891398,
         matched_ion_count=1,
         total_predicted_ions=2,
         matched_ion_fraction=0.5,
@@ -567,9 +561,9 @@ def test_render_html_contains_metric_tiles_when_metrics_present(tmp_path):
     assert "higher is better" not in html
     assert "rank-supporting" not in html
     assert "carryover window" not in html
-    assert "log2 XCorr" in html
+    assert "XCorr" in html and "Comet" in html
     assert "cross-correlation-like" not in html
-    assert "log2 Hyperscore" in html
+    assert "Hyperscore" in html and "X! Tandem" in html
     assert "Matched ions" in html
     assert "1 / 2" in html
     assert "Annotated peaks" not in html
@@ -700,10 +694,7 @@ def test_render_html_falls_back_to_precursor_target_metadata(tmp_path):
         cosine_similarity=0.8,
         pearson_correlation=0.7,
         xcorr=10.0,
-        log10_xcorr=1.0,
-        log2_xcorr=3.321928094887362,
         hyperscore=4.2,
-        log2_hyperscore=2.070389327891398,
         matched_ion_count=1,
         total_predicted_ions=2,
         matched_ion_fraction=0.5,

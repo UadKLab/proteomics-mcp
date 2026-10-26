@@ -25,11 +25,8 @@ Spectrum-level metrics:
 - spectral_angle
 - cosine_similarity
 - pearson_correlation
-- xcorr
-- log10_xcorr
-- log2_xcorr
-- hyperscore
-- log2_hyperscore
+- xcorr_like, log10_xcorr_like, log2_xcorr_like
+- hyperscore_like, log2_hyperscore_like
 - matched_ion_count
 - total_predicted_ions
 - matched_ion_fraction
@@ -55,10 +52,26 @@ The profile preserves the sidecar-style formulas where practical while normalizi
 spectral_angle, cosine_similarity and pearson_correlation compare observed and predicted intensities over the matched
 predicted ions only, so a candidate matching a single peak scores 1.0. Each predicted ion takes its nearest peak, even one
 another ion also takes, so a shared peak counts more than once in matched ions, explained intensity and the hyperscore.
+xcorr_like and hyperscore_like are the 0.1.x variants (named xcorr, log2_xcorr, hyperscore, log2_hyperscore there):
+xcorr_like bins observed and predicted intensities at 0.1 m/z and subtracts the mean over shifts of +-75 bins;
+hyperscore_like is ln(n!) + ln(sum of matched observed) + ln(sum of matched predicted). They are not the engines'
+scores; xcorr and hyperscore are null under this profile.
 Kept to reproduce scores from 0.1.10 and earlier; the default profile is v2 (method://metric_profile_v2).""",
     "method://metric_profile_v2": """Metric profile v2 (default).
 
-The same metrics as legacy_v1 (method://metric_profile_legacy_v1). spectral_angle, cosine_similarity and
+The metrics of legacy_v1 (method://metric_profile_legacy_v1), except that xcorr and hyperscore are the search
+engines' scores (#51), computed on the candidate's theoretical b/y ions, independent of the predictor:
+- xcorr: Comet 2026.01.1 XCorr (fast-XCorr preprocessing: sqrt intensities, 10 windows normalised to 50, the mean over
+  +-75 bins subtracted; each theoretical bin counted once; x0.005, 3 decimals). xcorr_preset "high_res" (default:
+  fragment_bin_tol 0.02, offset 0.0, flanking peaks) or "low_res" (1.0005, 0.4, M peak only) for ion-trap spectra.
+- hyperscore: the X! Tandem 2015.12.15.2 hyperscore as X! Tandem reports it, 4*log10(H), with
+  H = (sum of observed intensity x ion weight) x the two largest per-charge N_b! N_y!, on X! Tandem's conditioned
+  spectrum (isotope clean-up, parent region removed, m/z > 150, dynamic range 100, top 50 peaks; null with fewer than
+  15 peaks). hyperscore_fragment_error / _unit (default 0.4 Da, X! Tandem's default).
+validation/engine_scores/ in the repository reproduces both against the engines themselves. They are not the
+raw_score of a FragPipe (MSFragger hyperscore, a different definition) or Proteome Discoverer (Sequest HT XCorr) row.
+
+spectral_angle, cosine_similarity and
 pearson_correlation compare observed and predicted intensities over every predicted ion, with zero observed intensity
 for predicted ions that matched no peak, so unexplained predicted signal lowers the score. When no predicted ion
 matches, spectral_angle and cosine_similarity are 0.0 and pearson_correlation is null.

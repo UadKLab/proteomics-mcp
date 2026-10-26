@@ -119,10 +119,8 @@ def summarize_score_metrics_tool(score_result: dict[str, Any]) -> dict[str, Any]
             "cosine_similarity": score_result.get("cosine_similarity"),
             "pearson_correlation": score_result.get("pearson_correlation"),
             "xcorr": score_result.get("xcorr"),
-            "log10_xcorr": score_result.get("log10_xcorr"),
-            "log2_xcorr": score_result.get("log2_xcorr"),
             "hyperscore": score_result.get("hyperscore"),
-            "log2_hyperscore": score_result.get("log2_hyperscore"),
+            **{key: score_result[key] for key in _LEGACY_SEARCH_SCORE_FIELDS if score_result.get(key) is not None},
         },
         "predicted_match_evidence": {
             "matched_ion_count": score_result.get("matched_ion_count"),
@@ -343,6 +341,16 @@ def _read_csv_if_exists(path: str | None) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+_LEGACY_SEARCH_SCORE_FIELDS = ("xcorr_like", "log10_xcorr_like", "log2_xcorr_like", "hyperscore_like", "log2_hyperscore_like")
+
+
+def _legacy_search_score_columns(result: Any) -> dict[str, Any]:
+    """The 0.1.x XCorr/hyperscore variants, as columns only when metric profile legacy_v1 filled them."""
+    if result.metric_profile != "legacy_v1":
+        return {}
+    return {field: getattr(result, field) for field in _LEGACY_SEARCH_SCORE_FIELDS}
+
+
 def _config_scoring_settings(config: Any) -> dict[str, Any]:
     """Scoring settings shared by every row of a batch (#137)."""
     return {
@@ -353,6 +361,9 @@ def _config_scoring_settings(config: Any) -> dict[str, Any]:
         "max_fragment_charge": config.max_fragment_charge,
         "fragment_charge_rule": "explicit max_fragment_charge" if config.max_fragment_charge is not None else "charge <= precursor_charge - 1",
         "score_predictions_as_given": config.score_predictions_as_given,
+        "xcorr_preset": None if config.metric_profile == "legacy_v1" else config.xcorr_preset,
+        "hyperscore_fragment_error": None if config.metric_profile == "legacy_v1" else config.hyperscore_fragment_error,
+        "hyperscore_fragment_error_unit": None if config.metric_profile == "legacy_v1" else config.hyperscore_fragment_error_unit,
     }
 
 
@@ -1732,6 +1743,9 @@ def score_from_prediction_batch_tool(
                 min_predicted_intensity=config.min_predicted_intensity,
                 max_fragment_charge=config.max_fragment_charge,
                 score_predictions_as_given=config.score_predictions_as_given,
+                xcorr_preset=config.xcorr_preset,
+                hyperscore_fragment_error=config.hyperscore_fragment_error,
+                hyperscore_fragment_error_unit=config.hyperscore_fragment_error_unit,
                 annotation_ion_types=config.annotation_ion_types,
                 annotation_max_isotope=config.annotation_max_isotope,
                 annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -1768,10 +1782,8 @@ def score_from_prediction_batch_tool(
                     "cosine_similarity": result.cosine_similarity,
                     "pearson_correlation": result.pearson_correlation,
                     "xcorr": result.xcorr,
-                    "log10_xcorr": result.log10_xcorr,
-                    "log2_xcorr": result.log2_xcorr,
                     "hyperscore": result.hyperscore,
-                    "log2_hyperscore": result.log2_hyperscore,
+                    **_legacy_search_score_columns(result),
                     "matched_ion_count": result.matched_ion_count,
                     "total_predicted_ions": result.total_predicted_ions,
                     "matched_ion_fraction": result.matched_ion_fraction,
@@ -1876,7 +1888,7 @@ def score_from_prediction_batch_tool(
         "batch_seconds": time.time() - started,
         "scoring_settings": _config_scoring_settings(config),
         "metric_groups": {
-            "match_quality": ["spectral_angle", "cosine_similarity", "pearson_correlation", "xcorr", "log10_xcorr", "log2_xcorr", "hyperscore", "log2_hyperscore"],
+            "match_quality": ["spectral_angle", "cosine_similarity", "pearson_correlation", "xcorr", "hyperscore"],
             "predicted_match_evidence": ["matched_ion_count", "total_predicted_ions", "matched_ion_fraction", "explained_intensity_fraction"],
             "observed_annotation_evidence": ["precursor_signal_fraction", "annotated_peak_count", "ion_type_counts", "annotated_intensity_fraction"],
             "mass_error": ["fragment_mass_error_mean_ppm", "fragment_mass_error_abs_mean_ppm", "fragment_mass_error_mean_da", "fragment_mass_error_abs_mean_da", "precursor_mass_error_ppm", "precursor_mass_error_da", "precursor_isotope_error", "precursor_mass_error_corrected_ppm", "precursor_mass_error_corrected_da"],
@@ -1934,8 +1946,8 @@ def inspect_scored_batch_tool(manifest_path: str) -> dict[str, Any]:
         "spectral_angle_summary": _series_summary(scored, "spectral_angle"),
         "matched_ion_count_summary": _series_summary(scored, "matched_ion_count"),
         "explained_intensity_summary": _series_summary(scored, "explained_intensity_fraction"),
-        "log2_xcorr_summary": _series_summary(scored, "log2_xcorr"),
-        "log2_hyperscore_summary": _series_summary(scored, "log2_hyperscore"),
+        "xcorr_summary": _series_summary(scored, "xcorr"),
+        "hyperscore_summary": _series_summary(scored, "hyperscore"),
         "run_counts": {str(k): int(v) for k, v in run_counts.items()},
         "failure_type_counts": {str(k): int(v) for k, v in failure_counts.items()},
         "preview": {
@@ -2195,6 +2207,9 @@ def score_spectrum_tool(
         min_predicted_intensity=config.min_predicted_intensity,
         max_fragment_charge=config.max_fragment_charge,
         score_predictions_as_given=config.score_predictions_as_given,
+        xcorr_preset=config.xcorr_preset,
+        hyperscore_fragment_error=config.hyperscore_fragment_error,
+        hyperscore_fragment_error_unit=config.hyperscore_fragment_error_unit,
         annotation_ion_types=config.annotation_ion_types,
         annotation_max_isotope=config.annotation_max_isotope,
         annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -2296,6 +2311,9 @@ def score_candidates_tool(
                 min_predicted_intensity=config.min_predicted_intensity,
                 max_fragment_charge=config.max_fragment_charge,
                 score_predictions_as_given=config.score_predictions_as_given,
+                xcorr_preset=config.xcorr_preset,
+                hyperscore_fragment_error=config.hyperscore_fragment_error,
+                hyperscore_fragment_error_unit=config.hyperscore_fragment_error_unit,
                 annotation_ion_types=config.annotation_ion_types,
                 annotation_max_isotope=config.annotation_max_isotope,
                 annotation_max_ion_charge=config.annotation_max_ion_charge,
@@ -2331,10 +2349,8 @@ def score_candidates_tool(
                     "cosine_similarity": result.cosine_similarity,
                     "pearson_correlation": result.pearson_correlation,
                     "xcorr": result.xcorr,
-                    "log10_xcorr": result.log10_xcorr,
-                    "log2_xcorr": result.log2_xcorr,
                     "hyperscore": result.hyperscore,
-                    "log2_hyperscore": result.log2_hyperscore,
+                    **_legacy_search_score_columns(result),
                     "matched_ion_count": result.matched_ion_count,
                     "total_predicted_ions": result.total_predicted_ions,
                     "matched_ion_fraction": result.matched_ion_fraction,
@@ -2429,7 +2445,7 @@ def score_candidates_tool(
         "status_path": str(resolved_status_path) if resolved_status_path is not None else None,
         "rows_preview": rows[:20],
         "metric_groups": {
-            "match_quality": ["spectral_angle", "cosine_similarity", "pearson_correlation", "xcorr", "log10_xcorr", "log2_xcorr", "hyperscore", "log2_hyperscore"],
+            "match_quality": ["spectral_angle", "cosine_similarity", "pearson_correlation", "xcorr", "hyperscore"],
             "predicted_match_evidence": ["matched_ion_count", "total_predicted_ions", "matched_ion_fraction", "explained_intensity_fraction"],
             "observed_annotation_evidence": ["precursor_signal_fraction", "annotated_peak_count", "ion_type_counts", "annotated_intensity_fraction"],
             "ion_evidence": ["matched_ion_count", "total_predicted_ions", "matched_ion_fraction", "explained_intensity_fraction", "precursor_signal_fraction", "annotated_peak_count", "ion_type_counts", "annotated_intensity_fraction"],
