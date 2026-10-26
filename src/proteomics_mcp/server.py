@@ -1208,6 +1208,10 @@ if MCPServer is not None:
     @mcp.resource("method://id_table_inspection_v1")
     def id_table_inspection_v1() -> str:
         return SCHEMAS["method://id_table_inspection_v1"]
+
+    @mcp.resource("method://spectrum_conversion_v1")
+    def spectrum_conversion_v1() -> str:
+        return SCHEMAS["method://spectrum_conversion_v1"]
 else:
     mcp = None
 
