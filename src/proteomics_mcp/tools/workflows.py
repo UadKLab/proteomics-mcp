@@ -7,6 +7,7 @@ import gzip
 import inspect
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -61,6 +62,7 @@ from proteomics_mcp.core.instanovo_export import export_table_to_instanovo
 from proteomics_mcp.core.sdrf import load_sdrf_summary, retrieve_pride_sdrf
 from proteomics_mcp.core.scoring import score_candidate_spectrum
 from proteomics_mcp.core.runs import SPECTRA_RUN_COLUMNS, candidate_run, run_name, spectra_run_names
+from proteomics_mcp.core.acquisition import normalized_collision_energy
 from proteomics_mcp.core.spectrum_loader import bruker_d_to_feather, load_spectrum_from_table, mgf_to_feather, mzml_to_feather, retrieve_spectrum_from_usi
 from proteomics_mcp.core.visualization import (
     build_spectrum_payload,
@@ -348,6 +350,7 @@ def _prediction_batch_key(
     predictor_backend: str,
     model: str,
     max_fragment_charge: int | None,
+    collision_energy: float | None = None,
 ) -> str:
     payload = {
         "peptidoform": peptidoform,
@@ -356,23 +359,55 @@ def _prediction_batch_key(
         "model": model,
         "max_fragment_charge": max_fragment_charge,
     }
+    if collision_energy is not None and not (isinstance(collision_energy, float) and math.isnan(collision_energy)):
+        # Koina predictions depend on it: the same peptide at two collision energies is two predictions (#128)
+        payload["collision_energy"] = round(float(collision_energy), 4)
     return hashlib.sha1(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
-def _predict_fragment_spectrum(config: Any, peptidoform: str, precursor_charge: int) -> PredictedSpectrum:
-    return predict_fragments(
+def _resolve_collision_energy(config: Any, argument: float | None, spectrum: Any = None) -> tuple[float, str]:
+    """The collision energy a Koina prediction uses, and where it came from (#128).
+
+    An explicit argument wins; otherwise the spectrum's own value when it is known to be a normalized collision energy
+    (a Thermo scan filter "@hcd28.00" or a Thermo collision energy); otherwise the config's koina_collision_energy.
+    Absolute energies in eV (Bruker timsTOF, SCIEX) are never used as an NCE.
+    """
+    if argument is not None:
+        return float(argument), "collision_energy argument"
+    if spectrum is not None:
+        nce, why = normalized_collision_energy(spectrum)
+        if nce is not None:
+            return nce, f"spectrum: {why}"
+    else:
+        why = "no spectrum"
+    return float(config.koina_collision_energy), f"config koina_collision_energy ({why})"
+
+
+def _predict_fragment_spectrum(
+    config: Any,
+    peptidoform: str,
+    precursor_charge: int,
+    *,
+    collision_energy: float | None = None,
+    collision_energy_source: str | None = None,
+) -> PredictedSpectrum:
+    energy = config.koina_collision_energy if collision_energy is None else collision_energy
+    predicted = predict_fragments(
         peptidoform,
         precursor_charge,
         backend=config.predictor_backend,
         model=config.predictor_model,
         max_fragment_charge=config.max_fragment_charge,
         koina_server_url=config.koina_server_url,
-        koina_collision_energy=config.koina_collision_energy,
+        koina_collision_energy=energy,
         koina_fragmentation_type=config.koina_fragmentation_type,
         koina_instrument_type=config.koina_instrument_type,
         koina_timeout_seconds=config.koina_timeout_seconds,
         koina_cache_dir=config.koina_cache_dir,
     )
+    if config.predictor_backend == "koina":
+        predicted.metadata["collision_energy_source"] = collision_energy_source or "config koina_collision_energy"
+    return predicted
 
 
 def _top_n_frame(frame: pd.DataFrame, top_n: int | None) -> pd.DataFrame:
@@ -1020,6 +1055,7 @@ def build_prediction_batch_tool(
     top_n: int | None = None,
     limit: int | None = None,
     config_path: str | None = None,
+    collision_energy: float | None = None,
     **adapter_options: Any,
 ) -> dict[str, Any]:
     started = time.time()
@@ -1060,6 +1096,22 @@ def build_prediction_batch_tool(
             + join_note
         )
     work_rows["precursor_charge"] = work_rows["precursor_charge"].astype(int)
+    if config.predictor_backend == "koina":
+        # Each spectrum's own NCE where it states one (from the spectra table), else the argument or config (#128)
+        spectrum_fields = [column for column in ("filter_string", "collision_energy") if column in frame.columns]
+        resolved = [
+            _resolve_collision_energy(
+                config,
+                collision_energy,
+                {"metadata": {column: frame.at[index, column] for column in spectrum_fields if pd.notna(frame.at[index, column])}} if spectrum_fields else None,
+            )
+            for index in work_rows.index
+        ]
+        work_rows["collision_energy"] = [energy for energy, _ in resolved]
+        work_rows["collision_energy_source"] = [source for _, source in resolved]
+    else:
+        work_rows["collision_energy"] = None
+        work_rows["collision_energy_source"] = None
     work_rows["prediction_id"] = work_rows.apply(
         lambda row: "pred:" + _prediction_batch_key(
             peptidoform=str(row["peptidoform"]),
@@ -1067,6 +1119,7 @@ def build_prediction_batch_tool(
             predictor_backend=config.predictor_backend,
             model=config.predictor_model,
             max_fragment_charge=config.max_fragment_charge,
+            collision_energy=row["collision_energy"],
         ),
         axis=1,
     )
@@ -1137,18 +1190,27 @@ def build_prediction_batch_tool(
                     for index in indices
                 ]
                 if config.predictor_backend == "koina":
-                    predicted_batch = predict_fragments_koina_batch(
-                        requests,
-                        model=config.predictor_model,
-                        max_fragment_charge=config.max_fragment_charge,
-                        server_url=config.koina_server_url,
-                        collision_energy=config.koina_collision_energy,
-                        fragmentation_type=config.koina_fragmentation_type,
-                        instrument_type=config.koina_instrument_type,
-                        timeout_seconds=config.koina_timeout_seconds,
-                        batch_size=config.koina_batch_size,
-                        cache_dir=config.koina_cache_dir,
-                    )
+                    # One Koina batch per collision energy, so requests at different energies still batch (#128)
+                    by_energy: dict[float, list[int]] = {}
+                    for position, index in enumerate(indices):
+                        by_energy.setdefault(float(unique_rows.iloc[index]["collision_energy"]), []).append(position)
+                    predicted_batch = [None] * len(indices)
+                    for energy, positions in by_energy.items():
+                        group = predict_fragments_koina_batch(
+                            [requests[position] for position in positions],
+                            model=config.predictor_model,
+                            max_fragment_charge=config.max_fragment_charge,
+                            server_url=config.koina_server_url,
+                            collision_energy=energy,
+                            fragmentation_type=config.koina_fragmentation_type,
+                            instrument_type=config.koina_instrument_type,
+                            timeout_seconds=config.koina_timeout_seconds,
+                            batch_size=config.koina_batch_size,
+                            cache_dir=config.koina_cache_dir,
+                        )
+                        for position, spectrum in zip(positions, group, strict=True):
+                            spectrum.metadata["collision_energy_source"] = unique_rows.iloc[indices[position]]["collision_energy_source"]
+                            predicted_batch[position] = spectrum
                 else:
                     predicted_batch = predict_fragments_ms2pip_batch(
                         requests,
@@ -1207,6 +1269,8 @@ def build_prediction_batch_tool(
                     "max_fragment_charge": metadata.get("max_fragment_charge", config.max_fragment_charge),
                     "fragment_charge_rule": metadata.get("fragment_charge_rule"),
                     "available_fragment_charges": metadata.get("available_fragment_charges"),
+                    "collision_energy": metadata.get("collision_energy"),
+                    "collision_energy_source": metadata.get("collision_energy_source"),
                     "fragment_count": fragment_count,
                     "prediction_status": "ok",
                     "prediction_seconds": elapsed,
@@ -1884,6 +1948,7 @@ def predict_fragments_tool(
     backend: str | None = None,
     max_fragment_charge: int | None = None,
     config_path: str | None = None,
+    collision_energy: float | None = None,
 ) -> dict[str, Any]:
     config = load_config(
         config_path,
@@ -1894,7 +1959,8 @@ def predict_fragments_tool(
             "max_fragment_charge": max_fragment_charge,
         },
     )
-    return _predict_fragment_spectrum(config, peptidoform, charge).model_dump()
+    energy, source = _resolve_collision_energy(config, collision_energy)
+    return _predict_fragment_spectrum(config, peptidoform, charge, collision_energy=energy, collision_energy_source=source).model_dump()
 
 
 def describe_predictor_model_tool(
@@ -2019,6 +2085,7 @@ def score_spectrum_tool(
     annotation_max_ion_charge: int | None = None,
     annotation_neutral_losses: bool | None = None,
     config_path: str | None = None,
+    collision_energy: float | None = None,
 ) -> dict[str, Any]:
     config = load_config(
         config_path,
@@ -2039,7 +2106,8 @@ def score_spectrum_tool(
     observed_model = _model_from_argument(ObservedSpectrum, observed, "observed")
     if predicted is None:
         charge = candidate_model.precursor_charge or observed_model.precursor_charge or 2
-        predicted_model = _predict_fragment_spectrum(config, candidate_model.peptidoform, charge)
+        energy, source = _resolve_collision_energy(config, collision_energy, observed_model)
+        predicted_model = _predict_fragment_spectrum(config, candidate_model.peptidoform, charge, collision_energy=energy, collision_energy_source=source)
     else:
         fragments = [_model_from_argument(PredictedFragment, fragment, "predicted.fragments[]") for fragment in predicted.get("fragments", [])]
         predicted_model = PredictedSpectrum(
@@ -2087,6 +2155,7 @@ def score_candidates_tool(
     limit: int | None = None,
     status_path: str | None = None,
     config_path: str | None = None,
+    collision_energy: float | None = None,
     **adapter_options: Any,
 ) -> dict[str, Any]:
     started = time.time()
@@ -2146,7 +2215,8 @@ def score_candidates_tool(
             else:
                 raise ValueError("Candidate has no USI and no spectra_path was supplied.")
             charge = candidate.precursor_charge or observed.precursor_charge or 2
-            predicted = _predict_fragment_spectrum(config, candidate.peptidoform, charge)
+            energy, source = _resolve_collision_energy(config, collision_energy, observed)
+            predicted = _predict_fragment_spectrum(config, candidate.peptidoform, charge, collision_energy=energy, collision_energy_source=source)
             result = score_candidate_spectrum(
                 candidate=candidate,
                 observed=observed,

@@ -95,6 +95,8 @@ MCP score_spectrum also includes metric_summary, an agent-oriented grouping with
     "config://proteomics_mcp_v1": """Config file keys, JSON or TOML:
 predictor_backend, predictor_model, ms2pip_model (legacy alias), max_fragment_charge, koina_server_url, koina_timeout_seconds, koina_collision_energy, koina_fragmentation_type, koina_instrument_type, koina_batch_size, koina_cache_dir, tolerance, tolerance_unit, usi_backend, metric_profile, min_predicted_intensity, annotation_ion_types, annotation_max_isotope, annotation_max_ion_charge, annotation_neutral_losses.
 
+Koina collision energy: a collision_energy tool argument, else the spectrum's own normalized collision energy when it states one (Thermo scan filter @hcd28.00 or a Thermo collision energy; never eV values from other vendors), else koina_collision_energy (30). The value used and its source are in predictor_metadata.
+
 If max_fragment_charge is omitted, MS2PIP predictions use charge <= precursor_charge - 1 where the selected/resolved model supports those ion types. For HCD/CID precursor charge > 2, the wrapper can resolve to HCDch2/CIDch2 to include charge-2 fragments. Koina-backed Prosit models additionally depend on collision energy, fragmentation type, instrument type, and the selected remote model identifier.
 
 CLI options and explicit MCP tool arguments override config-file values when explicitly provided.""",

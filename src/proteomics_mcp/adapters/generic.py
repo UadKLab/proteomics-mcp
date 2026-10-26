@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from proteomics_mcp.adapters.instanovo import _as_float, _as_int, _parse_float_list, _token_summary
+from proteomics_mcp.adapters.modifications import normalize_peptidoform_to_unimod_style, unresolved_modification_tokens
 from proteomics_mcp.adapters.table_io import read_candidate_table
 from proteomics_mcp.models.schemas import CandidatePSM
 
@@ -79,6 +80,14 @@ def load_generic_candidates(
         peptide = str(row[peptide_column]).strip()
         if not peptide or peptide.lower() == "nan":
             continue
+        # The same modification notation as the built-in adapters: masses, names and parenthesised masses become
+        # UNIMOD accessions (#124); the column as written stays in source_columns
+        peptidoform = normalize_peptidoform_to_unimod_style(peptide) or peptide
+        warnings = [
+            f"Modification [{token}] in {peptide!r} is neither a UNIMOD name or accession nor a mass shift; kept as written, "
+            "so this PSM gets no precursor mass error and its peptidoform may not match other engines'."
+            for token in unresolved_modification_tokens(peptidoform)
+        ]
         raw_score = _as_float(row.get(score_column)) if score_column else None
         next_beam_col = next_beam_column or next_score_column
         next_beam_margin_col = next_beam_margin_column or next_score_margin_column
@@ -87,12 +96,12 @@ def load_generic_candidates(
         if next_beam_margin is None and raw_score is not None and next_beam is not None:
             next_beam_margin = raw_score - next_beam
         token_log_probs = _parse_float_list(row.get(token_log_probabilities_column)) if token_log_probabilities_column else None
-        token_data = _token_summary(peptide, token_log_probs)
+        token_data = _token_summary(peptidoform, token_log_probs)
         candidates.append(
             CandidatePSM(
                 candidate_id=f"{Path(path).stem}:{row_idx}",
                 source_engine=source_engine,
-                peptidoform=peptide,
+                peptidoform=peptidoform,
                 scan_number=_as_int(row.get(scan_column)) if scan_column else None,
                 spectrum_id=str(row.get(spectrum_id_column)) if spectrum_id_column else None,
                 # The PSM's run, so it finds its spectrum in a multi-run table (#142)
@@ -108,6 +117,7 @@ def load_generic_candidates(
                 confidence=_confidence_from_score(raw_score, score_type),
                 confidence_type=score_type,
                 source_columns={str(k): row[k] for k in row.index},
+                warnings=warnings,
                 **token_data,
             )
         )

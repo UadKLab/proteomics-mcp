@@ -324,6 +324,50 @@ def test_usi_aggregator_uses_other_backends_when_one_times_out(monkeypatch):
     assert response["intensity"] == [20.0]
 
 
+def test_usi_spectrum_carries_the_scan_start_time_in_seconds(monkeypatch):
+    """PRIDE sends MS:1000016 scan start time without a unit, in seconds (#135)."""
+    from pyteomics import usi as pyteomics_usi
+
+    response = _recorded_proxi_response()
+    monkeypatch.setattr(pyteomics_usi, "proxi", lambda *_, **__: response)
+
+    spectrum = retrieve_spectrum_from_usi(response["usi"])
+
+    assert spectrum.rt_seconds == pytest.approx(3271.90011818123)
+    assert "read as seconds" in spectrum.metadata["rt_source"]
+
+
+@pytest.mark.parametrize(
+    ("unit", "expected"),
+    [({"unitAccession": "UO:0000031", "unitName": "minute"}, 54.53166863635383 * 60),
+     ({"unitName": "second"}, 54.53166863635383),
+     ({"unitAccession": "UO:0000028"}, 0.05453166863635383)],
+)
+def test_usi_scan_start_time_uses_the_unit_when_given(monkeypatch, unit, expected):
+    from pyteomics import usi as pyteomics_usi
+
+    response = _recorded_proxi_response()
+    response["attributes"] = [a for a in response["attributes"] if a.get("accession") != "MS:1000016"]
+    response["attributes"].append({"accession": "MS:1000016", "name": "scan start time", "value": 54.53166863635383, **unit})
+    monkeypatch.setattr(pyteomics_usi, "proxi", lambda *_, **__: response)
+
+    assert retrieve_spectrum_from_usi(response["usi"]).rt_seconds == pytest.approx(expected)
+
+
+def test_usi_scan_start_time_in_an_unknown_unit_is_not_guessed(monkeypatch):
+    from pyteomics import usi as pyteomics_usi
+
+    response = _recorded_proxi_response()
+    response["attributes"] = [a for a in response["attributes"] if a.get("accession") != "MS:1000016"]
+    response["attributes"].append({"accession": "MS:1000016", "name": "scan start time", "value": 3.2, "unitName": "hour"})
+    monkeypatch.setattr(pyteomics_usi, "proxi", lambda *_, **__: response)
+
+    spectrum = retrieve_spectrum_from_usi(response["usi"])
+
+    assert spectrum.rt_seconds is None
+    assert "unknown unit" in spectrum.metadata["rt_source"]
+
+
 def test_usi_precursor_falls_back_to_the_isolation_target(monkeypatch):
     from pyteomics import usi as pyteomics_usi
 
