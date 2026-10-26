@@ -32,9 +32,10 @@ REASONS = [
     ("figure_assets/pdfs/Figure2.pdf", "metric profile v2: spectral angle, cosine and Pearson over all scored predicted ions, one peak per ion, "
      "the 0.1% predicted-ion cut-off (#72, #74, #83); Comet XCorr and X! Tandem hyperscore instead of the 0.1.x variants (#51); MS2PIP 4.1.2 (#23)"),
     ("figure_assets/pdfs/Figure3.pdf", "3B: carbamidomethylated cysteines from the MaxQuant fixed modifications (#101) and corrected w-ion masses (#79); 3A unchanged"),
-    ("figure_assets/pdfs/Figure4.pdf", "rebuilt from the 100 deposited FragPipe PSMs (#42, #47) and their PRIDE spectra with retention times (#135); "
-     "every PSM joined to its spectrum (#146); every histogram counts all 100 PSMs, where the published one left out the PSMs at "
-     "each maximum (#169); scores as above"),
+    ("figure_assets/pdfs/Figure4.pdf", "rebuilt from the first 100 PSMs in the deposited FragPipe PSM table, retained in "
+     "source-file order (#42, #47), and their PRIDE spectra with retention times (#135); every PSM joined to its spectrum "
+     "(#146); every histogram counts all 100 PSMs, where the published one left out the PSMs at each maximum (#169); "
+     "scores as above"),
     ("figure_assets/pdfs/Suppl_figure2.pdf", "panel B: peaks of predicted ions below the 0.1% cut-off are no longer matched (#83)"),
     ("figure_assets/pdfs/Suppl_figure5.pdf", "panels B and C: fewer matched ions under metric profile v2 (#74, #83)"),
     ("figure_assets/interactive/", "rebuilt from the Figure 4 build (#42, #47): scores under metric profile v2 (#72, #74, #83), xcorr and hyperscore "

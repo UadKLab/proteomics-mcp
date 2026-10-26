@@ -96,7 +96,7 @@ S2C_HOVER_MZ = 418.228  # y4+ | PSSK
 PAGE_WIDTH = {"Figure2": 527.33, "Figure3": 527.33, "Figure4": 543.81, "Suppl_figure2": 611.47, "Suppl_figure5": 1085.82}
 FIGURE4_PLOTS = {"A": "scatter_spectral_angle_vs_fragment_mass_error", "B": "hist_rt", "C": "hist_spectral_angle",
                  "D": "hist_matched_fraction", "E": "hist_explained_fraction"}
-FIGURE4_SUBSET_ROWS = 100  # the deposited FragPipe subset (#42, #47): the first 100 PSMs of fragpipe_psm.tsv
+FIGURE4_SUBSET_ROWS = 100  # the Figure 4 subset (#42, #47): the first 100 PSMs in the deposited FragPipe PSM table, retained in source-file order
 FIGURE4_RUN = "20180905_QX4_JoMu_SA_EASY12-7_uPAC_500ng_ArabidopsisiRT-F5"
 FIGURE4_PRIDE = "PXD014877"
 FIGURE4_RT_TOLERANCE_MINUTES = 1e-5  # FragPipe prints Retention in seconds to 4 decimals
@@ -664,9 +664,9 @@ def deposited_column_order(new: Any, deposited: Path) -> tuple[Any, dict[str, li
 
 
 def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path, browser: Browser | None, deposit: Path) -> dict[str, Any]:
-    """Figure 4 from the 100 deposited FragPipe PSMs (#42, #47) and their PRIDE spectra by USI, with the tables and
-    interactive files of the deposit. The spectra go through one MGF, which the deposit carries, so `--figure4-mgf`
-    rebuilds the figure from the Zenodo files alone."""
+    """Figure 4 from the first 100 PSMs in the deposited FragPipe PSM table, retained in source-file order (#42, #47),
+    and their PRIDE spectra by USI, with the tables and interactive files of the deposit. The spectra go through one
+    MGF, which the deposit carries, so `--figure4-mgf` rebuilds the figure from the Zenodo files alone."""
     import pandas as pd
 
     from proteomics_mcp.tools.workflows import (
@@ -680,8 +680,9 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
     )
 
     status: dict[str, Any] = {"status": "PROVISIONAL", "reasons": [], "notes": [
-        "PSMs: the 100 deposited FragPipe PSMs (the first 100 rows of fragpipe_psm.tsv, the subset of Supplementary Figures 3 "
-        "and 4), as decided for 0.2.0 (#42, #47); the published Figure 4 showed ~960 PSMs of an unrecorded selection",
+        "PSMs: the first 100 PSMs in the deposited FragPipe PSM table, retained in source-file order (fragpipe_psm.tsv, "
+        "the subset of Supplementary Figures 3 and 4), as decided for 0.2.0 (#42, #47); the published Figure 4 showed "
+        "~960 PSMs of an unrecorded selection",
         "spectra: PRIDE's USI rendering of the scans (PXD014877), not the local mzML conversion; PRIDE serves fewer peaks than "
         "the local files for 23 of 25 reference PSMs (#31). The MGF of these spectra is in the deposit",
         "histograms: the published dashboard left out the PSMs at each histogram's maximum (1-2 per panel); fixed in #169, and "
