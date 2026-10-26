@@ -63,16 +63,6 @@ def _safe_float(value: Any) -> float | None:
     return out if math.isfinite(out) else None
 
 
-def _probability_from_score(value: float | None) -> float | None:
-    if value is None:
-        return None
-    if 0.0 <= value <= 1.0:
-        return value
-    if value <= 0.0:
-        return max(0.0, min(1.0, math.exp(value)))
-    return None
-
-
 def _probability_from_log_probability(value: float | None) -> float | None:
     """Sequence probability from an InstaNovo log-probability.
 

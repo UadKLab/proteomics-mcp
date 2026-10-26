@@ -17,6 +17,10 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **Casanovo scores are read by what the column holds, not by their sign** ([#157](https://github.com/UadKLab/proteomics-mcp/issues/157)). The `casanovo` adapter treated a negative score as a log-probability and a score in [0, 1] as a probability. Casanovo's own peptide score is neither: up to 5.1 it is shifted below 0 when the peptide does not fit the precursor m/z, so those candidates, which Casanovo marks as least trustworthy, got high confidence (−0.2 → 0.82). In 4.x it is a mean of amino-acid scores, not a probability.
+  - `log_probs` is read as a natural-log probability only. Values above 0 are refused with a message, and 0 now means a probability of 1, not 0.
+  - Casanovo's own score is read from `peptide_score` or `search_engine_score[1]`. It becomes a confidence (`casanovo_sequence_probability`) only for Casanovo 5.x and only when the precursor fits; the new `casanovo_version` option (CLI `--casanovo-version`) gives the version. A precursor mismatch, or a missing version, adds a warning to the candidate.
+  - The manuscript's supplement table (`casanovo_predictions.csv`, log-probabilities) loads exactly as before: 9,033 candidates, the same confidences.
 - **One run-matching rule** for the metadata join (`build_prediction_batch`, `build_id_dashboard`), the spectrum lookup (`score_candidates`, `score_from_prediction_batch`) and the converters ([#142](https://github.com/UadKLab/proteomics-mcp/issues/142)):
   - The spectrum table's run is its `experiment_name`, `source_name` or `source_file`. Before, the join accepted only `source_file`/`source_name` and the lookup only `source_file`, so spectra tables in the InstaNovo layout were refused.
   - A PSM's run is its `experiment_name`, otherwise the run part of its spectrum id (`<run>:<scan>`). Before, the lookup used `experiment_name` only, which the generic adapter never filled. Scoring a multi-run table with repeated scan numbers then failed for every PSM whose scan was in several runs, although each had its run.
