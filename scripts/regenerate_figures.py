@@ -753,6 +753,78 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
     return status
 
 
+# --- the deposit's reference examples ----------------------------------------------------------------------------------
+
+# Each deposited example folder: the identification table and adapter its five PSMs come from (as in PSMS).
+EXAMPLE_SETS = {
+    "17_maxquant_top5": {"adapter": "maxquant", "table": "processed/proteome_tools/maxquant_msms.txt"},
+    "18_fragpipe_top5": {"adapter": "fragpipe", "table": "processed/arabidopsis/fragpipe_psm.tsv"},
+    "19_proteome_discoverer_top5": {"adapter": "proteome_discoverer", "table": "processed/sbrodae/proteome_discoverer_PSMs.xlsx"},
+    "22_hela_instanovo_top5": {"adapter": "instanovo", "table": "processed/hela/instanovo_labelled_kpreds.csv"},
+    "23_sbrodae_casanovo_top5": {"adapter": "casanovo", "table": "processed/sbrodae/casanovo_predictions.csv", "by": "candidate_id"},
+}
+EXAMPLE_HTML = {"annotated": {"ion_types": "all", "max_isotope": 2, "neutral_losses": False}}  # as in examples/README.md
+
+
+def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """Re-score the deposit's reference examples: each folder's top5_summary.csv (all five PSMs), and the payloads and
+    HTML views the deposit carries. The deposit holds 7 of the 25 payloads; the observed spectra of the other 18 come
+    from the repository's examples/, whose payloads equal the deposited ones where both exist."""
+    import pandas as pd
+
+    from proteomics_mcp.core.visualization import (
+        render_annotated_observed_spectrum_html,
+        render_observed_spectrum_html,
+        render_spectrum_comparison_html,
+    )
+
+    report: dict[str, Any] = {}
+    for folder, spec in EXAMPLE_SETS.items():
+        published = supplement / EXAMPLES / folder
+        target = deposit / EXAMPLES / folder
+        target.mkdir(parents=True, exist_ok=True)
+        summary = pd.read_csv(published / "top5_summary.csv")
+        rows, written = [], []
+        for row in summary.itertuples():
+            name = f"rank_{row.rank}_scan_{row.scan_number}_"
+            deposited = sorted(published.glob(f"{name}*_payload.json"))
+            source = deposited[0] if deposited else next((REPO_ROOT / "examples" / folder).glob(f"{name}*_payload.json"), None)
+            if source is None:
+                raise SystemExit(f"{folder} rank {row.rank}: no payload with the observed spectrum (deposit or examples/)")
+            payload = json.loads(source.read_text())
+            lookup = {"candidate_id": str(row.candidate_id)} if spec.get("by") == "candidate_id" else {"scan": int(row.scan_number)}
+            candidate = resolve_candidate(supplement, {**spec, **lookup}, candidate_cache)
+            if candidate.get("scan_number") is None:  # Casanovo: the scan link of the published payload
+                candidate["scan_number"] = payload["metrics"]["candidate"]["scan_number"]
+                candidate["spectrum_id"] = payload["metrics"]["candidate"]["spectrum_id"]
+            s = payload["metrics"]["annotation_settings"]
+            settings = {"tolerance": s["tolerance"], "tolerance_unit": s["tolerance_unit"], "annotation_ion_types": s["annotation_ion_types"],
+                        "annotation_max_isotope": s["annotation_max_isotope"], "annotation_max_ion_charge": s["annotation_max_ion_charge"],
+                        "annotation_neutral_losses": s["annotation_neutral_losses"]}
+            new = score_psm(candidate, payload["observed"], settings)
+            metrics, annotation_summary = new["metrics"], new["metrics"].get("annotation_summary") or {}
+            rows.append({"rank": row.rank, "candidate_id": candidate.get("candidate_id"), "scan_number": candidate.get("scan_number"),
+                         "spectrum_id": candidate.get("spectrum_id"), "experiment_name": candidate.get("experiment_name"),
+                         "peptidoform": candidate.get("peptidoform"), "confidence": candidate.get("confidence"), "raw_score": candidate.get("raw_score"),
+                         **{k: metrics.get(k) for k in ("spectral_angle", "cosine_similarity", "pearson_correlation", "xcorr", "hyperscore",
+                                                        "matched_ion_count", "matched_ion_fraction")},
+                         "annotated_peak_count": annotation_summary.get("annotated_peak_count"),
+                         "annotated_intensity_fraction": annotation_summary.get("annotated_intensity_fraction")})
+            if deposited:  # the deposit keeps its file names, so the stem (with the 0.1.10 peptide text) stays
+                stem = deposited[0].name.removesuffix("_payload.json")
+                (target / f"{stem}_payload.json").write_text(json.dumps(new, default=str))
+                render_spectrum_comparison_html(new, target / f"{stem}_mirror.html")
+                render_annotated_observed_spectrum_html(new, target / f"{stem}_annotated.html", tolerance=s["tolerance"],
+                                                        tolerance_unit=s["tolerance_unit"], **EXAMPLE_HTML["annotated"])
+                render_observed_spectrum_html(new, target / f"{stem}_plain.html")
+                written += [f"{stem}_{kind}" for kind in ("payload.json", "mirror.html", "annotated.html", "plain.html")]
+        table, columns = deposited_column_order(pd.DataFrame(rows), published / "top5_summary.csv")
+        table.to_csv(target / "top5_summary.csv", index=False)
+        report[folder] = {"psms": len(rows), "payload_files": written, "top5_summary_columns": columns,
+                          "peptidoform_changes": {str(r["rank"]): (o, r["peptidoform"]) for r, o in zip(rows, summary["peptidoform"]) if o != r["peptidoform"]}}
+    return report
+
+
 # --- CHANGES.md ----------------------------------------------------------------------------------------------------------
 
 
@@ -933,6 +1005,8 @@ def main(argv: list[str] | None = None) -> int:
         log("verification failed: nothing assembled (see work/verification.json)")
         return 3
     log("verification passed" if not problems else f"verification: {len(problems)} mismatches (--no-verify)")
+    log("re-scoring the deposit's reference examples")
+    examples_report = regenerate_examples(supplement, deposit, candidate_cache)
 
     from proteomics_mcp.core.visualization import render_spectrum_comparison_html, render_static_spectrum
 
@@ -992,6 +1066,9 @@ def main(argv: list[str] | None = None) -> int:
         compose([[("A", p["A"], 0.5), ("B", p["B"], 0.5)], [("C", p["C"], 1.0)], [("D", p["D"], 0.5), ("E", p["E"], 0.5)]], PAGE_WIDTH["Figure4"],
                 out / "Figure4.pdf")
         names.append("Figure4")
+    (deposit / PUBLISHED_PDFS).mkdir(parents=True, exist_ok=True)
+    for name in names:
+        shutil.copyfile(out / f"{name}.pdf", deposit / PUBLISHED_PDFS / f"{name}.pdf")
     git = git_state()
     label = f"Regenerated ({git['describe']}, MS2PIP {ms2pip_version}, v2)" + (" PROVISIONAL" if fig4["status"] == "PROVISIONAL" else "")
     for name in names:
@@ -1019,6 +1096,7 @@ def main(argv: list[str] | None = None) -> int:
         "inputs": inputs, "figure2_ms2pip": {v: {"metrics": {k: r["metrics"].get(k) for k, _, _ in STRIP_METRICS}, "versions": r.get("versions"),
                                                 "python": r.get("python"), "command": r.get("command")} for v, r in fig2_by_version.items()},
         "verification": {"problems": problems, "passed": not problems, "figure4": fig4.get("status")}, "figure4": fig4,
+        "examples": examples_report,
     }
     manifest["outputs"] = {str(p.relative_to(out)): file_digest(p) for p in sorted(out.rglob("*")) if p.is_file() and "work" not in p.relative_to(out).parts}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1, default=str))

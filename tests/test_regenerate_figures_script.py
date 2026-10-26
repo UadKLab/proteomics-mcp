@@ -88,3 +88,10 @@ def test_regenerated_tables_keep_the_deposited_column_order(script, tmp_path):
     ordered, columns = script.deposited_column_order(new, deposited)
     assert list(ordered.columns) == ["candidate_id", "spectral_angle", "xcorr"]
     assert columns == {"removed": ["log2_xcorr"], "added": ["xcorr"]}
+
+
+def test_example_sets_cover_the_figure_payloads(script):
+    """Every figure PSM's payload folder is re-scored for the deposit, from the same table and adapter."""
+    for spec in script.PSMS.values():
+        folder = spec["payload"].split("/")[0]
+        assert script.EXAMPLE_SETS[folder]["table"] == spec["table"] and script.EXAMPLE_SETS[folder]["adapter"] == spec["adapter"]
