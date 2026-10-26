@@ -115,6 +115,6 @@ jobs:
         # selection (.python-version) and the committed uv.lock.
         run: |
           version=$(uv run --no-project python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
-          uv run --no-project --with "mcp>=2,<3" python scripts/smoke_mcp.py \
+          uv run --no-project --with "mcp>=2.1,<3" python scripts/smoke_mcp.py \
             --expect-version "$version" --manifest manifest.json \
             --server-command "uv run --directory . --no-dev extension_server.py"
