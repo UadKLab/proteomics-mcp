@@ -564,6 +564,26 @@ def summarize_numeric_distribution(
     return result
 
 
+def _range_edges(lower: float, upper: float, bins: int) -> list[float]:
+    """bins equal-width edges from lower to upper; the last edge is upper itself, not lower plus a rounded width."""
+    if math.isclose(lower, upper):
+        upper = lower + 1.0
+    edges = [lower + ((upper - lower) * i / bins) for i in range(bins)]
+    return [*edges, upper]
+
+
+def _cut_into_bins(values: pd.Series, edges: list[float], *, close_last: bool) -> pd.Series:
+    """Each value's bin [left, right). With close_last the last bin is [left, right], as numpy.histogram's: used when
+    the edges come from a range (the data's or the caller's), so the values at its upper end are counted."""
+    categories = pd.cut(values, bins=edges, include_lowest=True, right=False)
+    if close_last:
+        at_upper = values == edges[-1]
+        if at_upper.any():
+            categories = categories.copy()
+            categories[at_upper] = categories.cat.categories[-1]
+    return categories
+
+
 def bin_numeric_distribution(
     frame: pd.DataFrame,
     *,
@@ -584,9 +604,7 @@ def bin_numeric_distribution(
         bins = int(bin_count or 10)
         lower = float(valid.min()) if value_range is None else float(value_range[0])
         upper = float(valid.max()) if value_range is None else float(value_range[1])
-        if math.isclose(lower, upper):
-            upper = lower + 1.0
-        edges = [lower + ((upper - lower) * i / bins) for i in range(bins + 1)]
+        edges = _range_edges(lower, upper, bins)
     else:
         edges = [float(value) for value in bin_edges]
         if len(edges) < 2:
@@ -599,7 +617,7 @@ def bin_numeric_distribution(
                 {"left": float(edges[i]), "right": float(edges[i + 1]), "count": 0, "weight_sum": None if weight_field is None else 0.0}
                 for i in range(len(edges) - 1)
             ]
-        categories = pd.cut(valid_series, bins=edges, include_lowest=True, right=False)
+        categories = _cut_into_bins(valid_series, edges, close_last=bin_edges is None)
         counts = categories.value_counts(sort=False)
         weight_sums: dict[Any, float] = {}
         if weight_field is not None:
@@ -747,18 +765,13 @@ def bin_2d_numeric_distribution(
             if len(out) < 2:
                 raise ValueError("2D bin edges must contain at least two numeric edges.")
             return out
-        bins = int(count or 10)
-        lower = float(series.min())
-        upper = float(series.max())
-        if math.isclose(lower, upper):
-            upper = lower + 1.0
-        return [lower + ((upper - lower) * i / bins) for i in range(bins + 1)]
+        return _range_edges(float(series.min()), float(series.max()), int(count or 10))
 
     x_edges = resolve_edges(x_valid, x_bin_edges, x_bin_count)
     y_edges = resolve_edges(y_valid, y_bin_edges, y_bin_count)
 
-    x_bins = pd.cut(x_valid, bins=x_edges, include_lowest=True, right=False)
-    y_bins = pd.cut(y_valid, bins=y_edges, include_lowest=True, right=False)
+    x_bins = _cut_into_bins(x_valid, x_edges, close_last=x_bin_edges is None)
+    y_bins = _cut_into_bins(y_valid, y_edges, close_last=y_bin_edges is None)
     bin_frame = pd.DataFrame({"x_bin": x_bins, "y_bin": y_bins})
     if weight_field is not None:
         weights = _numeric_series(frame.loc[valid_mask], weight_field).fillna(0.0)
