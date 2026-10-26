@@ -10,6 +10,7 @@ from urllib.request import Request, urlopen
 import numpy as np
 import pandas as pd
 
+from proteomics_mcp.core.runs import run_from_spectrum_id, run_name, spectra_run_names
 from proteomics_mcp.models.schemas import ObservedSpectrum
 
 
@@ -167,12 +168,8 @@ def _write_spectrum_frame(frame: pd.DataFrame, output_path: str | Path) -> dict[
 
 
 def _source_stem(path_value: Any) -> str | None:
-    if path_value is None:
-        return None
-    text = str(path_value).strip()
-    if not text:
-        return None
-    return Path(text).stem
+    """Run name of a source file: base name without compression or spectrum-file suffixes (#126)."""
+    return run_name(path_value)
 
 
 def _present(value: Any) -> bool:
@@ -201,24 +198,38 @@ def load_spectrum_from_table(
 ) -> ObservedSpectrum:
     """Look up one spectrum by scan number, else by 0-based position within its run, else by spectrum id.
 
-    experiment_name selects the run. A name that matches no run of a multi-run table raises LookupError rather than
+    experiment_name selects the run. The table's run is its experiment_name, source_name or source_file column, the
+    first it fills (core.runs, #142). A name that matches no run of a multi-run table raises LookupError rather than
     falling back to another run; in a single-run table it refers to that run. A lookup that matches several different
-    spectra raises LookupError rather than returning the first (#76).
+    spectra raises LookupError rather than returning the first (#76). A spectrum id "<run>:<scan>" is looked up by run
+    and scan when the table has no spectrum_id column.
     """
     frame = load_spectrum_table(path)
     candidates = frame
-    run_stems = frame["source_file"].map(_source_stem) if "source_file" in frame.columns else None
+    if (
+        scan_number is None
+        and spectrum_index is None
+        and spectrum_id is not None
+        and "spectrum_id" not in frame.columns
+        and "scan" not in frame.columns
+    ):
+        id_run, id_scan = run_from_spectrum_id(spectrum_id)
+        if id_scan is not None:
+            scan_number = id_scan
+            experiment_name = experiment_name or id_run
+    run_stems, run_column = spectra_run_names(frame)
     run_count = int(run_stems.nunique()) if run_stems is not None else 1
     run_matched = False
-    if experiment_name is not None and run_stems is not None:
-        filtered = frame[run_stems == str(experiment_name)]
+    wanted_run = run_name(experiment_name)
+    if wanted_run is not None and run_stems is not None:
+        filtered = frame[run_stems == wanted_run]
         if not filtered.empty:
             candidates = filtered
             run_matched = True
         elif run_count > 1:
             examples = ", ".join(sorted(run_stems.dropna().unique())[:5])
             raise LookupError(
-                f"No run named {experiment_name!r} among the {run_count} runs in the spectrum table ({examples}); "
+                f"No run named {wanted_run!r} among the {run_count} runs in the spectrum table ({run_column}: {examples}); "
                 "pass a run name (experiment_name) that matches one of them."
             )
     if scan_number is None and spectrum_index is not None:
@@ -251,7 +262,7 @@ def load_spectrum_from_table(
     if len(candidates) > 1 and not _same_peaks(candidates, mz_col, int_col):
         # Identical copies (MGF charge-state enumeration) are harmless; different spectra are not.
         target = f"scan {scan_number}" if scan_number is not None else f"spectrum id {spectrum_id!r}"
-        runs = sorted(candidates["source_file"].map(_source_stem).unique()) if "source_file" in candidates.columns else []
+        runs = sorted(run_stems.loc[candidates.index].dropna().unique()) if run_stems is not None else []
         raise LookupError(
             f"{len(candidates)} different spectra match {target}" + (f" in runs {', '.join(runs)}" if runs else "")
             + "; pass the run name (experiment_name) or a unique identifier."
@@ -290,6 +301,38 @@ def _proxi_precursor_mz(attributes: list[dict[str, Any]]) -> float | None:
                 except (TypeError, ValueError):
                     continue
     return None
+
+
+# Units a PROXI "scan start time" (MS:1000016) attribute may carry, as seconds per unit
+_PROXI_TIME_UNITS = {
+    "UO:0000010": 1.0, "second": 1.0,
+    "UO:0000031": 60.0, "minute": 60.0,
+    "UO:0000028": 0.001, "millisecond": 0.001,
+}
+
+
+def _proxi_retention_time(attributes: list[dict[str, Any]]) -> tuple[float | None, str | None]:
+    """Retention time in seconds from the PROXI scan start time (MS:1000016), and where it came from (#135).
+
+    PROXI attributes may carry their unit (unitAccession / unitName). PRIDE sends none, and its values are seconds:
+    scan 21989 of the PXD044934 S. brodae run has 1964.03, the 32.73 min Proteome Discoverer reports. Without a unit
+    the value is therefore read as seconds; a unit this module does not know gives no retention time.
+    """
+    for attr in attributes:
+        if attr.get("accession") != "MS:1000016" and str(attr.get("name", "")).lower() != "scan start time":
+            continue
+        try:
+            value = float(attr["value"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        unit = next((attr[key] for key in ("unitAccession", "unit_accession", "unitName", "unit_name", "unit") if attr.get(key)), None)
+        if unit is None:
+            return value, "MS:1000016 scan start time (no unit given; read as seconds)"
+        factor = _PROXI_TIME_UNITS.get(str(unit)) or _PROXI_TIME_UNITS.get(str(unit).lower())
+        if factor is None:
+            return None, f"MS:1000016 scan start time in unknown unit {unit!r}; not used"
+        return value * factor, f"MS:1000016 scan start time ({unit})"
+    return None, None
 
 
 class _TimedPROXIBackend:
@@ -358,6 +401,9 @@ def retrieve_spectrum_from_usi(usi: str, *, backend: str = "pride", timeout_seco
         "attributes": attributes,
     }
     precursor_mz = _proxi_precursor_mz(attributes if isinstance(attributes, list) else [])
+    rt_seconds, rt_source = _proxi_retention_time(attributes if isinstance(attributes, list) else [])
+    if rt_source is not None:
+        metadata["rt_source"] = rt_source
     precursor_charge = None
     for attr in attributes if isinstance(attributes, list) else []:
         name = str(attr.get("name", "")).lower()
@@ -372,6 +418,7 @@ def retrieve_spectrum_from_usi(usi: str, *, backend: str = "pride", timeout_seco
         scan_number=parsed_scan,
         precursor_mz=precursor_mz,
         precursor_charge=precursor_charge,
+        rt_seconds=rt_seconds,
         source=f"usi:{backend}",
         metadata=metadata,
     )
@@ -386,7 +433,7 @@ def mzml_to_feather(mzml_path: str | Path, output_path: str | Path, *, ms_level:
     spectra = []
     exp = pyopenms.MSExperiment()
     pyopenms.MzMLFile().load(str(mzml_path), exp)
-    source_name = Path(mzml_path).stem
+    source_name = run_name(mzml_path)  # A.mzML.gz -> A (#126)
     for spec in exp.getSpectra():
         if int(spec.getMSLevel()) != int(ms_level):
             continue
@@ -474,7 +521,7 @@ def mgf_to_feather(mgf_path: str | Path, output_path: str | Path) -> dict[str, A
         raise RuntimeError("MGF conversion requires pyteomics and pyarrow to be installed.") from exc
 
     mgf_path = Path(mgf_path)
-    source_name = mgf_path.stem
+    source_name = run_name(mgf_path)  # A.mgf.gz -> A (#126)
     spectra: list[dict[str, Any]] = []
     with pyteomics_mgf.MGF(str(mgf_path), convert_arrays=1, read_charges=False, read_ions=False) as reader:
         for index, spectrum in enumerate(reader, start=1):
@@ -561,7 +608,7 @@ def bruker_d_to_feather(d_path: str | Path, output_path: str | Path) -> dict[str
             result = mgf_to_feather(mgf_fallback, output_path)
             frame = pd.read_feather(output_path)
             frame["source_file"] = str(d_path)
-            frame["source_name"] = d_path.stem
+            frame["source_name"] = run_name(d_path)
             frame["metadata"] = frame["metadata"].map(
                 lambda meta: {
                     **(meta if isinstance(meta, dict) else {}),
@@ -584,7 +631,7 @@ def bruker_d_to_feather(d_path: str | Path, output_path: str | Path) -> dict[str
             result = mgf_to_feather(mgf_fallback, output_path)
             frame = pd.read_feather(output_path)
             frame["source_file"] = str(d_path)
-            frame["source_name"] = d_path.stem
+            frame["source_name"] = run_name(d_path)
             frame["metadata"] = frame["metadata"].map(
                 lambda meta: {
                     **(meta if isinstance(meta, dict) else {}),
@@ -598,7 +645,7 @@ def bruker_d_to_feather(d_path: str | Path, output_path: str | Path) -> dict[str
             result["fallback_used"] = "ProteinAnalysisResults.mgf"
             return result
         raise
-    source_name = d_path.stem
+    source_name = run_name(d_path)
     spectra: list[dict[str, Any]] = []
 
     frames = getattr(raw, "frames", None)

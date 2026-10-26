@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from proteomics_mcp.adapters.instanovo import _as_float, _as_int, _is_missing, _probability_from_score, normalize_peptidoform_to_instanovo_style
+from proteomics_mcp.adapters.table_io import describe_columns, read_candidate_table
 from proteomics_mcp.models.schemas import CandidatePSM
 
 
@@ -17,7 +18,10 @@ def _get_str(row: pd.Series, column: str) -> str | None:
 
 def load_casanovo_predictions(path: str | Path, *, limit: int | None = None) -> list[CandidatePSM]:
     """Load Casanovo prediction exports into canonical candidates."""
-    frame = pd.read_csv(path, nrows=limit)
+    frame = read_candidate_table(path, limit=limit)
+    if not {"predictions", "prediction"} & set(frame.columns):
+        # Without it every row is skipped and the table would load as empty, silently (#140).
+        raise ValueError(f"Missing required Casanovo column 'predictions'. Columns found: {describe_columns(frame)}.")
     candidates: list[CandidatePSM] = []
     for row_idx, row in frame.iterrows():
         peptidoform = _get_str(row, "predictions") or _get_str(row, "prediction")

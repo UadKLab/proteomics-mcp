@@ -280,8 +280,17 @@ def precursor_isotope_corrected_errors(
     return isotope, error_da / isotope_mz * 1e6, error_da
 
 
-# Prediction settings worth keeping with a score: what was asked of the predictor and what answered (#137, #128)
-_PREDICTOR_SETTING_KEYS = ("model_version", "requested_model", "resolved_model", "collision_energy", "fragmentation_type", "instrument_type")
+# Prediction settings worth keeping with a score: what was asked of the predictor and what answered (#137), including the
+# collision energy a Koina prediction used and where it came from (#128)
+_PREDICTOR_SETTING_KEYS = (
+    "model_version",
+    "requested_model",
+    "resolved_model",
+    "collision_energy",
+    "collision_energy_source",
+    "fragmentation_type",
+    "instrument_type",
+)
 
 
 def _predictor_metadata(predicted: PredictedSpectrum) -> dict[str, object]:

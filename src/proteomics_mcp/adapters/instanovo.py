@@ -10,6 +10,7 @@ from typing import Any
 import pandas as pd
 
 from proteomics_mcp.adapters.modifications import normalize_peptidoform_to_unimod_style
+from proteomics_mcp.adapters.table_io import describe_columns, read_candidate_table
 from proteomics_mcp.core.spectrum_loader import parse_scan_number
 from proteomics_mcp.models.schemas import CandidatePSM
 
@@ -336,8 +337,11 @@ def load_instanovo_predictions(
     ``default_experiment_name`` supplies raw-file provenance for minimal exports
     that only contain spectrum indices and prediction fields.
     """
-    frame = pd.read_csv(path, nrows=limit)
-    schema = _detect_schema(set(frame.columns))
+    frame = read_candidate_table(path, limit=limit)
+    try:
+        schema = _detect_schema(set(frame.columns))
+    except ValueError as exc:
+        raise ValueError(f"{exc} Columns found: {describe_columns(frame)}.") from exc
     candidates: list[CandidatePSM] = []
     skipped_without_prediction = 0
     # For MGF input (and mzML input in 1.0.0), InstaNovo writes the spectrum's 0-based position in the file as
