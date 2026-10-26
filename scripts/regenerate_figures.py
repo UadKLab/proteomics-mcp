@@ -108,6 +108,10 @@ DEPOSIT_ARABIDOPSIS = "processed/arabidopsis"
 DEPOSIT_INTERACTIVE = "figure_assets/interactive"
 FIGURE4_DEPOSIT = {
     "spectra_mgf": f"{DEPOSIT_ARABIDOPSIS}/figure4_usi_spectra.mgf",  # new: the PRIDE spectra, so Figure 4 rebuilds from Zenodo alone
+    "scored_psms_full": f"{DEPOSIT_ARABIDOPSIS}/figure4_scored_psms_full.csv",  # new: the batch scoring output, every column
+    "scored_ions": f"{DEPOSIT_ARABIDOPSIS}/figure4_scored_ions.jsonl",  # new: the ions behind each score (#137)
+    "prediction_manifest": "regeneration/figure4_prediction_manifest.json",  # new: build_prediction_batch's manifest
+    "scoring_manifest": "regeneration/figure4_scoring_manifest.json",  # new: score_from_prediction_batch's manifest
     "scored_psms": f"{DEPOSIT_ARABIDOPSIS}/supplementary_scored_psms.csv",
     "scored_peptides": f"{DEPOSIT_ARABIDOPSIS}/supplementary_scored_peptides.csv",
     "plot_data": f"{DEPOSIT_ARABIDOPSIS}/figure4_dashboard_plot_data.json",
@@ -730,6 +734,11 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
     shutil.copyfile(mgf, targets["spectra_mgf"])
     psms, status["scored_psms_columns"] = deposited_column_order(enriched, supplement / FIGURE4_DEPOSIT["scored_psms"])
     psms.to_csv(targets["scored_psms"], index=False)
+    shutil.copyfile(scored_csv, targets["scored_psms_full"])
+    shutil.copyfile(scored["output_files"]["scored_ions_jsonl"], targets["scored_ions"])
+    shutil.copyfile(batch["output_files"]["manifest_json"], targets["prediction_manifest"])
+    shutil.copyfile(scored["output_files"]["manifest_json"], targets["scoring_manifest"])
+    # the inspect_peptide_table tool: every peptide of the scored subset, as the package tabulates them
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         inspected = inspect_peptide_table_tool(path=str(candidates), adapter="fragpipe", scored_path=str(scored_csv), limit=len(subset))
@@ -1130,6 +1139,17 @@ def main(argv: list[str] | None = None) -> int:
         "raster_panels_dpi": dpi,
         "examples": examples_report,
     }
+    # The environment of this run, for the deposit: uv.lock of this checkout, the figure environment's requirements
+    # (uv.lock with MS2PIP and the assembly tools pinned) and every installed distribution.
+    regeneration = deposit / "regeneration"
+    regeneration.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(REPO_ROOT / "uv.lock", regeneration / "uv.lock")
+    if (work / "requirements_figures.txt").is_file():
+        shutil.copyfile(work / "requirements_figures.txt", regeneration / "requirements_figures.txt")
+    from importlib.metadata import distributions
+
+    installed = sorted({f"{d.metadata['Name']}=={d.version}" for d in distributions()}, key=str.lower)
+    (regeneration / "environment.txt").write_text(f"# Python {platform.python_version()}, {platform.platform()}\n" + "\n".join(installed) + "\n")
     manifest["outputs"] = {str(p.relative_to(out)): file_digest(p) for p in sorted(out.rglob("*")) if p.is_file() and "work" not in p.relative_to(out).parts}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1, default=str))
     (out / "CHANGES.md").write_text(changes_markdown(results, fig2_by_version, ms2pip_version, fig4, manifest))
