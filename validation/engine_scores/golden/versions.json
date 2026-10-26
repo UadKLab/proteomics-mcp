@@ -1,0 +1,24 @@
+{
+ "comet_image": "quay.io/biocontainers/comet-ms:2026011--h9ee0642_0@sha256:af4868654b0652fb55e8b87e8d1da77bed87f92345e4e85895280b4a9e3e9c9c",
+ "xtandem_image": "quay.io/biocontainers/xtandem:15.12.15.2--h4464bbb_11@sha256:712774bdb3afbfd884d22de3cc2e5b93ccaf0074ba527a3b5b2cba748aac10ea",
+ "comet_version": "2026.01.1",
+ "xtandem_version": "2015.12.15.2",
+ "generated": "2026-10-22",
+ "inputs_sha256": {
+  "arabidopsis_usi.mgf": "e63af58b76f34c96005dd5f29095883ee7352519b667c1f533198d20a8395cd3",
+  "arabidopsis_usi.tsv": "09fff421c1cc6c4901d0746ae767d6ad8f64bd76884ed6accd5797d7c6d881da",
+  "bsa1_ms2.mgf": "255a2870be2dd690887ce25745f621aa23a259be7c34e41920d90a5ab6cea811",
+  "search.fasta": "61a49dea405ee915f57e5aa1e2b635b5e893634cdc2c1c2b03e0c251f8fb2d28",
+  "comet_high_res.params": "a2797f448bb0d603051821ac3efa0d4ce5efc1ce889930eb5a02f47e2c958fbc",
+  "comet_low_res.params": "367b0830434c154b3b762895634481e7e1a5c698448c5d1a1e137d4aabbb0099",
+  "xtandem_default_input.xml": "817c7b1fce89cb2a8fe675ba9ad753a6278b6b5b31fcdc041a1ba4b24ca801de"
+ },
+ "psms": {
+  "comet_high_res": 1250,
+  "comet_low_res": 1500,
+  "xtandem_da": 117,
+  "xtandem_ppm": 106,
+  "xtandem_reversed": 63,
+  "xtandem_low_res": 92
+ }
+}

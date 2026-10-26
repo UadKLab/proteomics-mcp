@@ -28,6 +28,7 @@ mkdocs.yml
 .coverage
 htmlcov/
 tests/
+validation/
 
 # Local virtualenv (bundled via uv at install time, not shipped)
 .venv/
