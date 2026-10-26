@@ -108,6 +108,10 @@ git switch --detach vX.Y.Z
 uv run python scripts/regenerate_figures.py --out ~/pmcp/figures-vX.Y.Z --cache-dir ~/pmcp/cache
 ```
 
+- **How the figures are made:** every number, score, annotation and plot comes from the package, through the functions behind its MCP tools (`load_candidates`, `score_spectrum`, `predict_fragments`, the prediction batch and its scoring, `build_id_dashboard`, `render_static_spectrum`, `render_spectrum_comparison`, the observed-spectrum views, `render_psm_table`, `render_peptide_table`, `inspect_peptide_table`). The script computes no score and draws no data. It only assembles the figures, in place of the manual Illustrator step:
+  - it places the package's panels on the published page widths and adds the panel letters;
+  - it zooms and crops the package's interactive plots (Supplementary Figure 2B/2C) and captures them, and the Figure 4 dashboard plots, as screenshots. These must reach at least 300 dpi in the figure; the actual values are in `manifest.json` (`raster_panels_dpi`);
+  - it writes the PRIDE spectra of Figure 4 to an MGF at full precision.
 - **Environment:** the figures use MS2PIP 4.1.2, the release behind the published ones (#23). The package does not pin MS2PIP. The script runs itself again in a uv environment (Python 3.12, `--python`) with this checkout, every other dependency at its `uv.lock` version, MS2PIP 4.1.2 and the assembly tools (Playwright, pypdf, pypdfium2), all listed in `FIGURE_ENVIRONMENT`. The environment's requirements file is in `work/requirements_figures.txt`, and its checksum is in `manifest.json`.
 
 - **Inputs:** the Zenodo supplement (record 23295902, md5-checked, downloaded into `--cache-dir` or given with `--zenodo-zip`) and, for Figure 4, PRIDE spectra by USI (cached per scan). The PSMs are resolved with the release's adapters; the observed spectra are those of the published reference payloads.

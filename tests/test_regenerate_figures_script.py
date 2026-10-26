@@ -95,3 +95,9 @@ def test_example_sets_cover_the_figure_payloads(script):
     for spec in script.PSMS.values():
         folder = spec["payload"].split("/")[0]
         assert script.EXAMPLE_SETS[folder]["table"] == spec["table"] and script.EXAMPLE_SETS[folder]["adapter"] == spec["adapter"]
+
+
+def test_raster_panels_are_the_screenshots(script):
+    """Only the screenshots of interactive plots are raster panels, and they must reach 300 dpi in the figure."""
+    assert script.MIN_RASTER_DPI == 300
+    assert script.RASTER_PANELS == {"Suppl_figure2B", "Suppl_figure2C", "Figure4A", "Figure4B", "Figure4C", "Figure4D", "Figure4E"}

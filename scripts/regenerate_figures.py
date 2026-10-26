@@ -14,6 +14,14 @@ The figures use MS2PIP 4.1.2, as the published ones did (#23). The package itsel
 runs itself again in a uv environment with this checkout, every other dependency at its uv.lock version, MS2PIP 4.1.2
 and the figure-assembly tools (FIGURE_ENVIRONMENT), unless it already runs in one.
 
+How the figures are made: every number, score, annotation and plot comes from the package, through the functions behind
+its MCP tools (load_candidates, score_spectrum, predict_fragments, the prediction batch and its scoring, build_id_dashboard,
+render_static_spectrum, render_spectrum_comparison, the observed-spectrum views, render_psm_table, render_peptide_table,
+inspect_peptide_table). The script computes no score and draws no data. It only assembles: it places the package's panels
+on the published page widths and adds the panel letters (in place of the manual Illustrator step), zooms and crops the
+package's interactive plots (Supplementary Figure 2B/2C) and captures them, and the Figure 4 dashboard plots, as
+screenshots of at least MIN_RASTER_DPI in the figure, and writes the PRIDE spectra of Figure 4 to an MGF at full precision.
+
 HTML panels (Figure 2B, Supplementary Figure 2, Figure 4) are captured with Playwright in the local Google Chrome
 (`--browser-channel chrome`) or Playwright's own Chromium (`--browser-channel chromium`). Exit codes: 0 done,
 3 a verification against the expected 0.2.0 values failed (nothing is assembled), 4 an input checksum differs.
@@ -77,6 +85,9 @@ ANNOTATED_LABELS = 18  # the published Figure 3 panels label the 18 most intense
 FIG3A_ION_TYPES = "a,b,c,x,y,z,z-dot,immonium,precursor"  # the ion families in the published Figure 3A legend
 FIG3B_ION_TYPES = "all"
 METRIC_STRIP_VIEWPORT = 1400  # five metric tiles per row, as in Figure 2B
+# Panels that are screenshots of the package's interactive plots; the rest are vector PDFs from the package's renderers.
+RASTER_PANELS = {"Suppl_figure2B", "Suppl_figure2C", *(f"Figure4{letter}" for letter in "ABCDE")}
+MIN_RASTER_DPI = 300
 METADATA_VIEWPORT = 960  # four metadata columns, as in Supplementary Figure 2A
 S2B_MZ_RANGE = (195.0, 1085.0)
 S2C_MZ_RANGE = (413.6, 420.4)
@@ -465,14 +476,15 @@ def png_to_pdf(png: Path, pdf: Path, dpi: int) -> None:
 # --- figure assembly ---------------------------------------------------------------------------------------------------
 
 
-def compose(rows: list[list[tuple[str, Path, float]]], width: float, output: Path, gap: float = 10.0, gutter: float = 16.0) -> None:
+def compose(rows: list[list[tuple[str, Path, float]]], width: float, output: Path, gap: float = 10.0, gutter: float = 16.0) -> dict[str, float]:
     """Lay out panel PDFs in rows ((letter, pdf, fraction of the width)), letter at each panel's top left, as the
     published figures are (letters in a left gutter of each panel); the vector content of each panel is kept.
-    Writes output (.pdf) and a PNG next to it."""
+    Writes output (.pdf) and a PNG next to it; returns each panel's placed width in points, by panel file stem."""
     from matplotlib.figure import Figure
     from pypdf import PageObject, PdfReader, PdfWriter, Transformation
 
     placed: list[tuple[str, Any, float, float, float]] = []  # letter, page, x, y_top, scale
+    widths: dict[str, float] = {}
     y_top = 0.0
     for row in rows:
         x = 0.0
@@ -482,6 +494,7 @@ def compose(rows: list[list[tuple[str, Path, float]]], width: float, output: Pat
             panel_width = width * fraction - gutter - (gap if len(row) > 1 else 0)
             scale = panel_width / float(page.mediabox.width)
             placed.append((letter, page, x + (gap / 2 if len(row) > 1 and x > 0 else 0), y_top, scale))
+            widths[Path(pdf).stem] = panel_width
             row_height = max(row_height, float(page.mediabox.height) * scale)
             x += width * fraction
         y_top += row_height + gap
@@ -502,6 +515,14 @@ def compose(rows: list[list[tuple[str, Path, float]]], width: float, output: Pat
     with output.open("wb") as handle:
         writer.write(handle)
     pdf_to_png(output, output.with_suffix(".png"))
+    return widths
+
+
+def raster_dpi(panels: Path, widths: dict[str, float]) -> dict[str, float]:
+    """Effective resolution of each screenshot panel in its figure: PNG pixels per inch of placed width."""
+    from PIL import Image
+
+    return {stem: round(Image.open(panels / f"{stem}.png").width / (widths[stem] / 72), 1) for stem in RASTER_PANELS if stem in widths}
 
 
 def pdf_to_png(pdf: Path, png: Path, longest: int = 2400) -> None:
@@ -1055,17 +1076,23 @@ def main(argv: list[str] | None = None) -> int:
         browser.close()
 
     log("assembling figures")
-    compose([[("A", fig2a, 1.0)], [("B", panels / "Figure2B.pdf", 1.0)]], PAGE_WIDTH["Figure2"], out / "Figure2.pdf")
+    widths: dict[str, float] = {}
+    widths |= compose([[("A", fig2a, 1.0)], [("B", panels / "Figure2B.pdf", 1.0)]], PAGE_WIDTH["Figure2"], out / "Figure2.pdf")
     compose([[("A", fig3a, 1.0)], [("B", fig3b, 1.0)]], PAGE_WIDTH["Figure3"], out / "Figure3.pdf")
-    compose([[("A", panels / "Suppl_figure2A.pdf", 1.0)], [("B", panels / "Suppl_figure2B.pdf", 1.0)], [("C", panels / "Suppl_figure2C.pdf", 0.66)]],
+    widths |= compose([[("A", panels / "Suppl_figure2A.pdf", 1.0)], [("B", panels / "Suppl_figure2B.pdf", 1.0)], [("C", panels / "Suppl_figure2C.pdf", 0.66)]],
             PAGE_WIDTH["Suppl_figure2"], out / "Suppl_figure2.pdf")
-    compose([[("A", s5["A"], 0.5), ("C", s5["C"], 0.5)], [("B", s5["B"], 0.5), ("D", s5["D"], 0.5)]], PAGE_WIDTH["Suppl_figure5"], out / "Suppl_figure5.pdf")
+    widths |= compose([[("A", s5["A"], 0.5), ("C", s5["C"], 0.5)], [("B", s5["B"], 0.5), ("D", s5["D"], 0.5)]], PAGE_WIDTH["Suppl_figure5"], out / "Suppl_figure5.pdf")
     names = ["Figure2", "Figure3", "Suppl_figure2", "Suppl_figure5"]
     if fig4["status"] != "SKIPPED":
         p = {letter: panels / f"Figure4{letter}.pdf" for letter in FIGURE4_PLOTS}
-        compose([[("A", p["A"], 0.5), ("B", p["B"], 0.5)], [("C", p["C"], 1.0)], [("D", p["D"], 0.5), ("E", p["E"], 0.5)]], PAGE_WIDTH["Figure4"],
+        widths |= compose([[("A", p["A"], 0.5), ("B", p["B"], 0.5)], [("C", p["C"], 1.0)], [("D", p["D"], 0.5), ("E", p["E"], 0.5)]], PAGE_WIDTH["Figure4"],
                 out / "Figure4.pdf")
         names.append("Figure4")
+    dpi = raster_dpi(panels, widths)
+    low = {stem: value for stem, value in dpi.items() if value < MIN_RASTER_DPI}
+    if low:
+        problems.append(f"screenshot panels below {MIN_RASTER_DPI} dpi: {low}")
+        log(f"MISMATCH screenshot panels below {MIN_RASTER_DPI} dpi: {low}")
     (deposit / PUBLISHED_PDFS).mkdir(parents=True, exist_ok=True)
     for name in names:
         shutil.copyfile(out / f"{name}.pdf", deposit / PUBLISHED_PDFS / f"{name}.pdf")
@@ -1096,6 +1123,7 @@ def main(argv: list[str] | None = None) -> int:
         "inputs": inputs, "figure2_ms2pip": {v: {"metrics": {k: r["metrics"].get(k) for k, _, _ in STRIP_METRICS}, "versions": r.get("versions"),
                                                 "python": r.get("python"), "command": r.get("command")} for v, r in fig2_by_version.items()},
         "verification": {"problems": problems, "passed": not problems, "figure4": fig4.get("status")}, "figure4": fig4,
+        "raster_panels_dpi": dpi,
         "examples": examples_report,
     }
     manifest["outputs"] = {str(p.relative_to(out)): file_digest(p) for p in sorted(out.rglob("*")) if p.is_file() and "work" not in p.relative_to(out).parts}
