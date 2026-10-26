@@ -161,8 +161,8 @@ def test_unexpected_tool_errors_stay_masked(monkeypatch):
     monkeypatch.setattr(server_module, "predict_fragments_tool", crash)
     result = _call_tool("predict_fragments", {"peptidoform": "PEPTIDE", "charge": 2})
     assert result.is_error
-    if "secret" in result.content[0].text:
-        pytest.skip("this mcp version passes every exception message through; masking starts with later 2.x releases")
+    # mcp 2.0.x passed the message through; the package requires 2.1, the first release that hides it (#164)
+    assert "secret" not in result.content[0].text
     assert "Error executing tool predict_fragments" in result.content[0].text
 
 
