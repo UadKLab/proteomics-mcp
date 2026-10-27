@@ -222,7 +222,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--weight-field")
     p.add_argument("--bin-edges-json")
     p.add_argument("--bin-count", type=int)
-    p.add_argument("--range-json")
+    p.add_argument("--range-json", help='[minimum, maximum] of the bins, e.g. "[0, 1]"; null for an end taken from the data')
     p.add_argument("--limit", type=int)
     p = sub.add_parser("bin-2d-numeric-fields")
     p.add_argument("--path", required=True)

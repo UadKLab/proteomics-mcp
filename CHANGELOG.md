@@ -17,6 +17,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ### Fixed
 
+- **A one-sided bin range is used** ([#175](https://github.com/UadKLab/proteomics-mcp/issues/175)). `bin_numeric_field` used `range_min` and `range_max` only when both were given, so `range_min=0` on its own was silently ignored. Either end can now be given on its own, and the other is the data's minimum or maximum; the CLI's `--range-json` takes `null` for an end. A minimum above the maximum is refused with a message naming them, instead of pandas' "bins must increase monotonically".
 - **Histograms count their maximum** ([#169](https://github.com/UadKLab/proteomics-mcp/issues/169)):
   - **Before:** a histogram whose range came from the data (every `build_id_dashboard` histogram, the per-run histograms and m/z-vs-RT map, and `bin_numeric_field` / `bin_2d_numeric_fields` without `bin_edges`) cut it into half-open bins, so the values at the maximum fell outside the last bin and were not counted. The published Figure 4 dashboard plots 98-99 of its 100 PSMs in panels B-E.
   - **Now:** the last bin is closed, as in `numpy.histogram`, when the edges come from a range (the data's or `value_range`). Explicit `bin_edges` keep half-open bins.

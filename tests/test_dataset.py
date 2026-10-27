@@ -1336,3 +1336,56 @@ def test_explicit_bin_edges_stay_half_open():
     frame = pd.DataFrame({"value": [1.0, 2.0, 3.0]})
     binned = bin_numeric_distribution(frame, field="value", bin_edges=[1.0, 2.0, 3.0])
     assert [row["count"] for row in binned["bins"]] == [1, 1]  # 3.0 is outside [2, 3): the caller chose the edges
+
+
+# A range given at one end only takes the other from the data (#175)
+
+
+@pytest.mark.parametrize(
+    ("value_range", "edges"),
+    [
+        ((0.0, None), (0.0, 0.7)),
+        ((None, 1.0), (0.1, 1.0)),
+        ((0.0, 1.0), (0.0, 1.0)),
+        (None, (0.1, 0.7)),
+    ],
+)
+def test_a_one_sided_range_takes_the_other_end_from_the_data(value_range, edges):
+    frame = pd.DataFrame({"value": [0.1, 0.3, 0.7]})
+
+    binned = bin_numeric_distribution(frame, field="value", bin_count=4, value_range=value_range)
+
+    assert (binned["bin_edges"][0], binned["bin_edges"][-1]) == pytest.approx(edges)
+    assert sum(row["count"] for row in binned["bins"]) == 3
+
+
+@pytest.mark.parametrize(("value_range", "message"), [((0.9, None), "start at 0.9 and end at 0.7"), ((0.5, 0.2), "start at 0.5 and end at 0.2"), ((0.0,), "must be \\[minimum, maximum\\]")])
+def test_a_range_that_cannot_be_binned_is_refused(value_range, message):
+    frame = pd.DataFrame({"value": [0.1, 0.3, 0.7]})
+
+    with pytest.raises(ValueError, match=message):
+        bin_numeric_distribution(frame, field="value", bin_count=4, value_range=value_range)
+
+
+def test_range_min_alone_reaches_the_bins_through_mcp_and_the_cli(tmp_path, capsys):
+    import asyncio
+
+    from proteomics_mcp.cli import main
+    from proteomics_mcp.server import mcp
+
+    path = tmp_path / "preds.csv"
+    pd.DataFrame({"scan_number": [1, 2, 3], "preds": ["PEPTIDEK"] * 3, "log_probs": [-0.1, -0.2, -0.3],
+                  "precursor_mz": [450.0, 500.0, 550.0]}).to_csv(path, index=False)
+
+    async def call():
+        from mcp import Client
+
+        async with Client(mcp) as client:
+            return await client.call_tool("bin_numeric_field", {"path": str(path), "field": "precursor_mz", "bin_count": 4, "range_min": 400.0})
+
+    result = asyncio.run(call())
+    assert not result.is_error, result.content[0].text
+    assert json.loads(result.content[0].text)["bin_edges"] == [400.0, 437.5, 475.0, 512.5, 550.0]
+
+    main(["bin-numeric-field", "--path", str(path), "--field", "precursor_mz", "--bin-count", "4", "--range-json", "[null, 600]"])
+    assert json.loads(capsys.readouterr().out)["bin_edges"] == [450.0, 487.5, 525.0, 562.5, 600.0]
