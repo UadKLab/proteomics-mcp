@@ -14,10 +14,7 @@ from proteomics_mcp.core.annotation import (
     peptidoform_neutral_mass,
 )
 
-pytest.importorskip("pyopenms")
-
-# Every modification aa_sequence_from_proforma maps to OpenMS: N-terminal acetyl, carbamidomethyl, deamidation and
-# phospho (site-specific), oxidation
+# N-terminal acetyl, oxidation, phospho, carbamidomethyl and deamidation on one peptide
 MAPPED = "[UNIMOD:1]-PEPM[UNIMOD:35]S[UNIMOD:21]C[UNIMOD:4]N[UNIMOD:7]K"
 
 
