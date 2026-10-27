@@ -101,14 +101,14 @@ An MCP-capable client launches `proteomics-mcp serve` over stdio and exposes the
 
 For Claude Desktop, install the `.mcpb` file attached to the latest [GitHub release](https://github.com/UadKLab/proteomics-mcp/releases). The extension installs its Python dependencies through the managed `uv` runtime. Select an output directory in the extension settings; local input paths must be accessible to Claude Desktop.
 
-For other MCP clients, run the package from PyPI with `uvx`. Pin a version, such as `proteomics-mcp@0.2.0`, for reproducible results. Step-by-step setup for Claude Desktop, Claude Code, Codex CLI, Cursor and Windsurf is in [Connect an MCP client](https://uadklab.github.io/proteomics-mcp/clients/):
+For other MCP clients, run the package from PyPI with `uvx`. Pin a version, such as `proteomics-mcp@0.1.10`, for reproducible results. Step-by-step setup for Claude Desktop, Claude Code, Codex CLI, Cursor and Windsurf is in [Connect an MCP client](https://uadklab.github.io/proteomics-mcp/clients/):
 
 ```json
 {
   "mcpServers": {
     "proteomics-mcp": {
       "command": "uvx",
-      "args": ["proteomics-mcp@0.2.0", "serve"]
+      "args": ["proteomics-mcp@0.1.10", "serve"]
     }
   }
 }
