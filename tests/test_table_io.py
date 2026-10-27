@@ -108,3 +108,34 @@ def test_maxquant_and_fragpipe_accept_comma_separated_exports(tmp_path):
     for path in ("psm.csv", "psm.tsv"):
         [candidate] = load_fragpipe_psms(tmp_path / path)
         assert candidate.peptidoform == "PEPM[UNIMOD:35]K"
+
+
+# Delimiter detection inside every supported compression, and the retry after a parse error (#166)
+
+
+@pytest.mark.parametrize("compression", ["bz2", "xz", "zip"])
+def test_unknown_extension_inside_compression_is_detected_from_the_header(tmp_path, compression):
+    path = tmp_path / f"table.dat.{compression}"
+    TABLE.to_csv(path, sep=";", index=False, compression=compression if compression != "zip" else {"method": "zip", "archive_name": "table.dat"})
+
+    frame = read_candidate_table(path)
+
+    assert list(frame.columns) == list(TABLE.columns)
+
+
+def test_a_parse_error_is_retried_with_the_header_delimiter(tmp_path):
+    # tab-separated, named .csv; the second row has a comma, so reading it as CSV raises a ParserError
+    path = tmp_path / "tabs.csv"
+    path.write_text("scan_number\tpredictions\n1\tPEPTIDEK\n2\tPEP,TLDEK\n", encoding="utf-8")
+
+    frame = read_candidate_table(path)
+
+    assert frame["predictions"].tolist() == ["PEPTIDEK", "PEP,TLDEK"]
+
+
+def test_a_table_no_delimiter_reads_is_refused_with_the_separator_tried(tmp_path):
+    path = tmp_path / "broken.csv"
+    path.write_text("a,b\n1,2\n1,2,3,4\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Could not read broken.csv as a comma-separated table"):
+        read_candidate_table(path)

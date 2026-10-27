@@ -85,6 +85,6 @@ source_pkgs = ["proteomics_mcp"]
 branch = true
 
 [tool.coverage.report]
-fail_under = 84
+fail_under = 88
 sort = "cover"
 skip_empty = true
