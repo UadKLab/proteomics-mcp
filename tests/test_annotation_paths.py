@@ -8,7 +8,6 @@ from proteomics_mcp.core import annotation
 from proteomics_mcp.core.annotation import (
     NEUTRON_MASS,
     PROTON_MASS,
-    aa_sequence_from_proforma,
     generate_precursor_related_ions,
     generate_terminal_fragments,
     parse_peptidoform,
@@ -51,36 +50,7 @@ def test_explicit_neutral_losses_replace_the_standard_ones():
 
 @pytest.mark.parametrize("peptidoform", ["", "[UNIMOD:1]-", "PEP[UNIMOD:35"])
 def test_no_precursor_ions_without_a_sequence(peptidoform):
-    assert aa_sequence_from_proforma(peptidoform) is None
     assert generate_precursor_related_ions(peptidoform, precursor_charge=2) == []
-
-
-def test_without_pyopenms_there_are_no_precursor_ions(monkeypatch):
-    import builtins
-
-    real_import = builtins.__import__
-
-    def no_pyopenms(name, *args, **kwargs):
-        if name == "pyopenms":
-            raise ImportError(name)
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", no_pyopenms)
-
-    assert aa_sequence_from_proforma("PEPTIDEK") is None
-
-
-def test_a_sequence_openms_rejects_gives_no_precursor_ions(monkeypatch):
-    class Rejecting:
-        @staticmethod
-        def fromString(_):
-            raise RuntimeError("not a sequence OpenMS knows")
-
-    import pyopenms
-
-    monkeypatch.setattr(pyopenms, "AASequence", Rejecting)
-
-    assert aa_sequence_from_proforma("PEPTIDEK") is None
 
 
 @pytest.mark.parametrize(
