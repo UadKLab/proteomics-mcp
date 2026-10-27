@@ -105,6 +105,21 @@ jobs:
             "$WHEEL_PY" -m coverage report --format=markdown --fail-under=0 | sed 's|[^ |]*site-packages/||'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The README coverage badge: docs.yml publishes this file with the documentation site after a push to main
+      - name: Coverage badge
+        if: env.COVERAGE == 'true' && github.event_name == 'push'
+        run: |
+          "$WHEEL_PY" -m coverage json -q -o coverage.json --fail-under=0
+          "$WHEEL_PY" scripts/coverage_badge.py coverage.json coverage-badge.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: env.COVERAGE == 'true' && github.event_name == 'push'
+        with:
+          name: coverage-badge
+          path: coverage-badge.json
+          retention-days: 90
+          if-no-files-found: error
+
       - name: MCP stdio smoke test
         run: '"$WHEEL_PY" scripts/smoke_mcp.py --manifest manifest.json'
 

@@ -1,6 +1,7 @@
 # proteomics-mcp
 
 [![tests](https://github.com/UadKLab/proteomics-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/UadKLab/proteomics-mcp/actions/workflows/tests.yml)
+[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fuadklab.github.io%2Fproteomics-mcp%2Fcoverage-badge.json)](https://github.com/UadKLab/proteomics-mcp/actions/workflows/tests.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/UadKLab/proteomics-mcp/blob/main/LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-purple.svg)](https://modelcontextprotocol.io/)
@@ -164,4 +165,4 @@ uv run proteomics-mcp --help
 
 Tests that download MS2PIP models are marked `network`; deselect them when offline with `uv run pytest -m "not network"`.
 
-`uv run pytest --cov` adds line and branch coverage, measured as in CI: one test job runs it and fails if coverage drops below `fail_under` in `pyproject.toml`. The per-module table is in that job's summary.
+`uv run pytest --cov` adds line and branch coverage, measured as in CI: one test job runs it and fails if coverage drops below `fail_under` in `pyproject.toml`. The per-module table is in that job's summary, and the coverage badge above shows the last run on `main`.
