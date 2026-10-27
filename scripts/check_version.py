@@ -10,7 +10,9 @@ fails if any of the following disagree with it:
 - the git tag, when given with ``--tag`` (expected ``v<version>``);
 - the installed distribution, when ``--installed`` is given;
 
-and it fails if ``docs/releases/v<version>.md`` (GitHub release notes) is missing.
+and it fails if ``docs/releases/v<version>.md`` (GitHub release notes) is missing, or if ``CHANGELOG.md`` has no
+``## [<version>] - YYYY-MM-DD`` heading. With ``--tag`` that date must also be the day the tag is checked (UTC, give or
+take a day for time zones): the release prep sets it, and it has to be updated if the tag comes later.
 
 Usage:
     python scripts/check_version.py
@@ -21,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import sys
@@ -61,7 +64,16 @@ def _find_versions(value: Any, path: str = "") -> list[tuple[str, str]]:
     return found
 
 
-def check(root: Path, tag: str | None = None, installed: bool = False) -> tuple[str, list[str], list[str]]:
+def _changelog_date(root: Path, version: str) -> dt.date | None:
+    """The date of the version's CHANGELOG.md heading, "## [X.Y.Z] - YYYY-MM-DD"."""
+    text = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    match = re.search(rf"^## \[{re.escape(version)}\] - (\d{{4}}-\d{{2}}-\d{{2}})\s*$", text, flags=re.MULTILINE)
+    return dt.date.fromisoformat(match.group(1)) if match else None
+
+
+def check(
+    root: Path, tag: str | None = None, installed: bool = False, today: dt.date | None = None
+) -> tuple[str, list[str], list[str]]:
     expected = _pyproject_version(root)
     problems: list[str] = []
     checked: list[str] = [f"pyproject.toml: {expected}"]
@@ -97,6 +109,16 @@ def check(root: Path, tag: str | None = None, installed: bool = False) -> tuple[
         checked.append(f"installed {DISTRIBUTION}: {installed_value}")
         if installed_value != expected:
             problems.append(f"installed {DISTRIBUTION} is {installed_value!r}, expected {expected!r}")
+
+    released = _changelog_date(root, expected)
+    checked.append(f"CHANGELOG.md: {released or 'no dated heading'}")
+    if released is None:
+        problems.append(f"CHANGELOG.md has no '## [{expected}] - YYYY-MM-DD' heading")
+    elif tag is not None:
+        today = today or dt.datetime.now(dt.timezone.utc).date()
+        # A day either way for time zones: the tag is pushed from a local clock, the check runs in UTC
+        if abs((today - released).days) > 1:
+            problems.append(f"CHANGELOG.md dates {expected} {released}, but it is tagged on {today}: set the release date before tagging")
 
     notes = root / "docs" / "releases" / f"v{expected}.md"
     checked.append(f"docs/releases/v{expected}.md: {'present' if notes.is_file() else 'missing'}")
