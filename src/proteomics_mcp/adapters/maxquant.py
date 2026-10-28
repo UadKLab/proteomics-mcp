@@ -200,6 +200,22 @@ def _mass_check_warning(peptidoform: str, reported_mass: float | None) -> str | 
     return None
 
 
+def _observed_precursor_mz(row: pd.Series) -> float | None:
+    """The precursor m/z MaxQuant observed, recalibrated where MaxQuant could.
+
+    msms.txt's "m/z" is the theoretical m/z of the identified peptide, (Mass + z * proton) / z; the observation is only
+    in the errors, which are relative to it. "Mass Error [ppm]" is the error after MaxQuant's recalibration; "Simple Mass Error [ppm]", filled
+    when that one is not, is the uncalibrated error of the selected precursor peak, which may be a 13C isotope peak.
+    """
+    theoretical_mz = _as_float(row.get("m/z"))  # printed to 5 decimals; "Mass" has 4
+    error_ppm = _as_float(row.get("Mass Error [ppm]"))
+    if error_ppm is None:
+        error_ppm = _as_float(row.get("Simple Mass Error [ppm]"))
+    if theoretical_mz is None or error_ppm is None:
+        return None
+    return theoretical_mz * (1.0 + error_ppm * 1e-6)
+
+
 def load_maxquant_psms(
     path: str | Path, *, limit: int | None = None, fixed_modifications: str | list[str] | None = None
 ) -> list[CandidatePSM]:
@@ -259,7 +275,8 @@ def load_maxquant_psms(
                 spectrum_id=spectrum_id,
                 usi=None,
                 peptidoform=peptidoform,
-                precursor_mz=_as_float(row.get("m/z")),
+                # Not "m/z": that is the theoretical m/z, so every precursor mass error would be 0 (#179)
+                precursor_mz=_observed_precursor_mz(row),
                 precursor_charge=_as_int(row.get("Charge")),
                 rank=None,
                 raw_score=raw_score,

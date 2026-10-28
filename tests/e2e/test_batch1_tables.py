@@ -121,3 +121,54 @@ def test_retrieve_pride_sdrf(tool, report, accession):
     is_error, remote = tool("retrieve_pride_sdrf", {"project_accession": accession, "timeout_seconds": 60})
     report("sdrf", f"retrieve_pride_sdrf {accession}", "fail (#40)" if is_error else "pass", {"result": str(remote)[:300]})
     assert not is_error, remote
+
+
+# The whole search-engine tables of the supplement against the engines' own numbers (#179): (adapter, table, the
+# engine's mass column, offset to the neutral mass, tolerance in Da as the engine prints it, precursor tolerance in ppm)
+ENGINE_TABLES = [
+    # MaxQuant's default main-search tolerance; parameters.txt does not record it
+    ("maxquant", "processed/proteome_tools/maxquant_msms.txt", "Mass", 0.0, 1e-4, 4.5),
+    # fragger.params: precursor_true_tolerance = 20 ppm, isotope_error = 0/1/2/3
+    ("fragpipe", "processed/arabidopsis/fragpipe_psm.tsv", "Calculated Peptide Mass", 0.0, 6e-4, 20.0),
+    # Proteome Discoverer's default precursor tolerance
+    ("proteome_discoverer", "processed/sbrodae/proteome_discoverer_PSMs.xlsx", "Theo. MH+ [Da]", -1.007276466812, 1e-4, 10.0),
+]
+
+
+def _engine_candidates(zenodo, adapter, table):
+    from proteomics_mcp.tools.workflows import _load_candidate_models
+
+    return _load_candidate_models(str(zenodo / table), adapter)
+
+
+@pytest.mark.parametrize(("adapter", "table", "mass_column", "offset", "tolerance", "_"), ENGINE_TABLES, ids=[t[0] for t in ENGINE_TABLES])
+def test_peptidoform_masses_match_the_engines(zenodo, report, adapter, table, mass_column, offset, tolerance, _):
+    annotation = pytest.importorskip("proteomics_mcp.core.annotation")
+    if not hasattr(annotation, "peptidoform_neutral_mass"):
+        pytest.skip("the installed package predates peptidoform_neutral_mass (#73)")
+    candidates = _engine_candidates(zenodo, adapter, table)
+
+    differences = [annotation.peptidoform_neutral_mass(c.peptidoform) or float("nan") for c in candidates]
+    differences = [abs(ours - float(c.source_columns[mass_column]) - offset) for ours, c in zip(differences, candidates)]
+    off = [c.peptidoform for c, difference in zip(candidates, differences) if not difference <= tolerance]
+    report("tables", f"peptidoform mass vs {adapter} {mass_column}", "pass" if not off else "fail",
+           {"psms": len(candidates), "outside": len(off), "max_abs_difference_da": max(differences), "examples": off[:5]})
+    assert not off, f"{len(off)} of {len(candidates)} peptidoforms differ from {mass_column} by more than {tolerance} Da: {off[:5]}"
+
+
+@pytest.mark.parametrize(("adapter", "table", "_m", "_o", "_t", "tolerance_ppm"), ENGINE_TABLES, ids=[t[0] for t in ENGINE_TABLES])
+def test_precursor_errors_are_within_the_search_tolerance(zenodo, report, adapter, table, _m, _o, _t, tolerance_ppm):
+    scoring = pytest.importorskip("proteomics_mcp.core.scoring")
+    if 3 not in getattr(scoring, "PRECURSOR_ISOTOPE_ERRORS", ()):
+        pytest.skip("the installed package predates the +3 isotope correction and MaxQuant's observed precursor m/z (#179)")
+    candidates = _engine_candidates(zenodo, adapter, table)
+    if adapter == "maxquant":
+        # type MSMS has no isotope pattern, so MaxQuant did not recalibrate it and its precursor may be another peak
+        candidates = [c for c in candidates if c.source_columns.get("Type") != "MSMS"]
+
+    errors = [scoring.precursor_isotope_corrected_errors(c.peptidoform, c.precursor_charge, c.precursor_mz)[1] for c in candidates]
+    outside = [(c.peptidoform, error) for c, error in zip(candidates, errors) if error is None or abs(error) > tolerance_ppm]
+    largest = max(abs(error) for error in errors if error is not None)
+    report("tables", f"precursor error {adapter} within {tolerance_ppm} ppm", "pass" if not outside else "fail",
+           {"psms": len(candidates), "outside": len(outside), "max_abs_ppm": largest, "examples": outside[:5]})
+    assert not outside, f"{len(outside)} of {len(candidates)} precursor errors outside {tolerance_ppm} ppm: {outside[:5]}"

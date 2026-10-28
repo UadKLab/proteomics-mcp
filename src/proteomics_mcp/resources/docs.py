@@ -44,7 +44,7 @@ Spectrum-level metrics:
 
 precursor_mass_error_* is the observed minus the theoretical monoisotopic precursor m/z. The theoretical mass includes
 every residue and terminal modification; it is null when a modification cannot be resolved. precursor_isotope_error
-(0, 1 or 2) is the 13C isotope peak closest to the observed m/z, and precursor_mass_error_corrected_* is the error
+(0 to 3) is the 13C isotope peak closest to the observed m/z, and precursor_mass_error_corrected_* is the error
 relative to that peak.
 
 The profile preserves the sidecar-style formulas where practical while normalizing all outputs into SpectrumMetricResult.

@@ -14,7 +14,9 @@ from proteomics_mcp.models.schemas import CandidatePSM, MatchedPeak, ObservedSpe
 
 NEUTRON_MASS = 1.00335484
 # Isotope peaks the instrument may have selected as precursor instead of the monoisotopic one (MSFragger's default).
-PRECURSOR_ISOTOPE_ERRORS = (0, 1, 2)
+# 13C peaks a precursor may have been picked at. Search engines accept PSMs up to +3: the manuscript supplement's
+# FragPipe search used isotope_error = 0/1/2/3, and its 326 PSMs at +3 showed errors of over 1,000 ppm when read as 0-2 (#179).
+PRECURSOR_ISOTOPE_ERRORS = (0, 1, 2, 3)
 
 
 def ppm_error(observed_mz: float, predicted_mz: float) -> float:

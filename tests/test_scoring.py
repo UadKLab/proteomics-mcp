@@ -111,7 +111,8 @@ def test_precursor_mass_error_is_empty_when_a_modification_is_not_understood(off
     assert precursor_isotope_corrected_errors(peptidoform, 2, reference_mz("PEPTIDE", 2)) == (None, None, None)
 
 
-@pytest.mark.parametrize(("isotope", "charge"), [(0, 2), (1, 2), (2, 2), (1, 3)])
+# +3 as search engines accept it: 326 FragPipe PSMs of the manuscript supplement
+@pytest.mark.parametrize(("isotope", "charge"), [(0, 2), (1, 2), (2, 2), (1, 3), (3, 2), (3, 4)])
 def test_isotope_corrected_precursor_error(isotope, charge):
     observed_mz = reference_mz("PEPTIDE", charge) + isotope * NEUTRON / charge + 2e-6 * reference_mz("PEPTIDE", charge)
 
