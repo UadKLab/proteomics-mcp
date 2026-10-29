@@ -39,7 +39,8 @@ REASONS = [
     ("figure_assets/pdfs/Suppl_figure2.pdf", "panel B: peaks of predicted ions below the 0.1% cut-off are no longer matched (#83)"),
     ("figure_assets/pdfs/Suppl_figure5.pdf", "panels B and C: fewer matched ions under metric profile v2 (#74, #83)"),
     ("figure_assets/interactive/", "rebuilt from the Figure 4 build (#42, #47): scores under metric profile v2 (#72, #74, #83), xcorr and hyperscore "
-     "columns (#51), retention times from PRIDE (#135), histograms that count their maximum (#169)"),
+     "columns (#51), retention times from PRIDE (#135), histograms that count their maximum (#169), precursor errors from the "
+     "spectrum with FragPipe's own as engine_precursor_* (#179)"),
     ("processed/arabidopsis/figure4_scored_psms_full.csv", "new: the Figure 4 batch scoring output with every column of the 0.2.0 scoring "
      "schema, next to the compact supplementary_scored_psms.csv (#137, #51)"),
     ("processed/arabidopsis/figure4_scored_ions.jsonl", "new: for each Figure 4 PSM, the predicted and observed intensities behind its "
@@ -47,9 +48,13 @@ REASONS = [
     ("processed/arabidopsis/figure4_usi_spectra.mgf", "new: the 100 PRIDE spectra of Figure 4 with their retention times, so the figure can be rebuilt "
      "from this deposit alone (`regenerate_figures.py --figure4-mgf`; #42, #135)"),
     ("processed/arabidopsis/", "rebuilt from the Figure 4 build (#42, #47): scores under metric profile v2 (#72, #74, #83), xcorr and hyperscore "
-     "columns (#51), retention times from PRIDE (#135); the dashboard plot data's histograms count their maximum (#169)"),
+     "columns (#51), retention times from PRIDE (#135); the dashboard plot data's histograms count their maximum (#169); precursor "
+     "errors from the spectrum's precursor m/z, i.e. FragPipe's uncalibrated error, with FragPipe's calibrated one as "
+     "engine_precursor_mass_error_ppm (#179)"),
     ("figure_assets/examples/", "re-scored with 0.2.0: metric profile v2 (#72, #74, #83), Comet XCorr and X! Tandem hyperscore (#51), corrected "
-     "C-terminal ions (#79), MaxQuant fixed modifications (#101); candidate ids follow the deposited table names (#42)"),
+     "C-terminal ions (#79), MaxQuant fixed modifications (#101), precursor-related ions from the peptidoform's own mass "
+     "(#174), precursor errors from the spectrum for every engine, with the engine's own as engine_precursor_* (#179); "
+     "candidate ids follow the deposited table names (#42)"),
     ("regeneration/", "new: the record of the regeneration run: package version and git SHA, MS2PIP 4.1.2, inputs, checks, every changed "
      "value, the environment (uv.lock, requirements, installed packages) and the Figure 4 prediction and scoring manifests"),
     ("PROVENANCE.md", "new: versions, commands and the RAW -> mzML conversion behind this version"),
