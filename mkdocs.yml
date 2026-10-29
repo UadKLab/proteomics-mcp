@@ -9,6 +9,8 @@ nav:
   - Overview: index.md
   - Connect a client: clients.md
   - Reference: reference.md
+  - Tutorials:
+      - "An agent session, from download to figure": tutorials/agent_session.md
   - Prompt examples:
       - Workflow overview: prompt_examples/00_overview.md
       - Table inspection: prompt_examples/01_table_inspection.md

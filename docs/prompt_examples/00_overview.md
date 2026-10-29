@@ -15,6 +15,8 @@ Each example includes:
 - **What the MCP should do**: the intended tool sequence
 - **Expected output shape**: the kind of structured response or artifact the user should expect
 
+For a complete analysis, from downloading data to a publication figure, see [An agent session, from download to figure](../tutorials/agent_session.md).
+
 ## Files
 
 - [01_table_inspection.md](01_table_inspection.md)
@@ -42,3 +44,10 @@ Less useful prompts are vague requests like:
 - "make all plots"
 
 Those are underspecified and usually not the right operating pattern for this server.
+
+During a session:
+
+- ask for paths and scripts: "save the joined table" and "keep the script" make the work reproducible, and the agent then says where things are
+- ask how a number was obtained; re-checking often surfaces a mistake
+- keep compute small on purpose: fetch single spectra by USI and ask for the "top 100" rather than everything, since scoring a whole run takes minutes to hours
+- check one claim yourself: open the plot and look for the peak the agent names

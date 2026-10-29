@@ -150,6 +150,7 @@ For software citation, use the metadata in [CITATION.cff](https://github.com/Uad
 - [Documentation site](https://uadklab.github.io/proteomics-mcp/): installation, reference, and prompt examples.
 - [Technical reference](https://uadklab.github.io/proteomics-mcp/reference/): installation, configuration, data formats, workflows, metrics, batch artifacts, and tool groups.
 - [Prompt examples](https://uadklab.github.io/proteomics-mcp/prompt_examples/00_overview/): practical requests for an MCP-capable agent.
+- [An agent session](https://uadklab.github.io/proteomics-mcp/tutorials/agent_session/): one analysis with an agent, from downloading public data to a publication figure.
 - [Examples](https://github.com/UadKLab/proteomics-mcp/blob/main/examples/README.md): rendered spectra and dashboard artifacts included with the repository.
 - [GitHub releases](https://github.com/UadKLab/proteomics-mcp/releases): versioned source and build artifacts, and the Claude Desktop extension.
 - [Changelog](https://github.com/UadKLab/proteomics-mcp/blob/main/CHANGELOG.md): changes per release.

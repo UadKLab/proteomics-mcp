@@ -30,7 +30,7 @@ The server uses stdio and must be launched by an MCP client, not run interactive
 3. Retrieve the corresponding MS2 spectrum, predict fragments if needed, and score or annotate the candidate.
 4. Render a spectrum or aggregate saved scores into a table or dashboard.
 
-Start with the [technical reference](reference.md) for formats and commands, or the [prompt examples](prompt_examples/00_overview.md) for agent workflows.
+Start with the [technical reference](reference.md) for formats and commands, the [prompt examples](prompt_examples/00_overview.md) for agent workflows, or [an agent session](tutorials/agent_session.md) that follows one analysis from download to figure.
 
 ## Data and privacy
 
