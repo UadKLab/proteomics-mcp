@@ -4,7 +4,7 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-10-26
+## [0.2.0] - 2026-10-29
 
 ### Changed
 
