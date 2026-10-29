@@ -144,6 +144,10 @@ class SpectrumMetricResult:
     precursor_isotope_error: int | None = None
     precursor_mass_error_corrected_ppm: float | None = None
     precursor_mass_error_corrected_da: float | None = None
+    # The isotope-corrected error of the candidate's precursor m/z, as the identification table reports it. MaxQuant,
+    # FragPipe and Proteome Discoverer report recalibrated values, so this is the engine's own error (#179).
+    engine_precursor_isotope_error: int | None = None
+    engine_precursor_mass_error_ppm: float | None = None
     # legacy_v1 only: the 0.1.x variants (0.1 m/z bins against the predicted spectrum; ln n! + ln sums), kept so earlier
     # scores reproduce. They are not the engines' scores.
     xcorr_like: float | None = None
