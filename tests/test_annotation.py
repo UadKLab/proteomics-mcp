@@ -141,3 +141,34 @@ def test_auxiliary_ion_types_are_generated_and_matched():
     assert result["annotated_peak_count"] == 3
     assert result["ion_type_counts"] == {"immonium": 1, "reporter": 1, "precursor": 1}
     assert result["annotations"] == ["Immonium(P)", "TMT126", "p+"]
+
+
+# Precursor-related ions come from the peptidoform's own mass, with every modification it carries (#174)
+
+
+def test_precursor_ions_carry_every_modification():
+    import pytest
+
+    from proteomics_mcp.core.annotation import PROTON_MASS, generate_precursor_related_ions, peptidoform_neutral_mass
+
+    expected = {
+        "PEPK[UNIMOD:737]": 699.4238,  # TMT6plex: was 470.26, without the label
+        "PEPC[UNIMOD:5]K": 616.2759,  # carbamyl: was 573.27
+        "PEPS[+79.966331]K": 637.2593,  # a mass shift: was 557.29
+        "PEPTIDEK-[UNIMOD:2]": 927.4782,  # C-terminal amidation: was 928.46
+        "[UNIMOD:1]-PEPM[UNIMOD:35]S[UNIMOD:21]C[UNIMOD:4]N[UNIMOD:7]K": 1101.3628,
+    }
+    for peptidoform, mz in expected.items():
+        [ion] = generate_precursor_related_ions(peptidoform, precursor_charge=1)
+        assert ion["mz"] == pytest.approx(mz, abs=1e-4), peptidoform
+        assert ion["mz"] == peptidoform_neutral_mass(peptidoform) + PROTON_MASS
+
+
+def test_no_precursor_ions_when_a_modification_is_not_understood(monkeypatch):
+    from proteomics_mcp.core import annotation
+
+    monkeypatch.setattr(annotation, "unimod_mass", lambda token: None)
+
+    # before, an unreadable modification was left out of the mass, and the ions were placed at the unmodified mass
+    assert annotation.generate_precursor_related_ions("PEPK[NotAModification]", precursor_charge=2) == []
+    assert annotation.generate_precursor_related_ions("PEPTIDEK", precursor_charge=2) != []

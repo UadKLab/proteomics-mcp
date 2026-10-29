@@ -594,10 +594,16 @@ def bin_numeric_distribution(
     field: str,
     bin_edges: list[float] | None = None,
     bin_count: int | None = None,
-    value_range: tuple[float, float] | None = None,
+    value_range: tuple[float | None, float | None] | None = None,
     group_by: str | None = None,
     weight_field: str | None = None,
 ) -> dict[str, Any]:
+    """Histogram bins of a numeric field.
+
+    value_range is (minimum, maximum) of equal-width bins; an end given as None is the data's own (#175).
+    """
+    if value_range is not None and len(value_range) != 2:
+        raise ValueError(f"value_range must be [minimum, maximum], with null for an end taken from the data; got {list(value_range)}.")
     numeric = _numeric_series(frame, field)
     valid = numeric.dropna()
     if valid.empty:
@@ -606,8 +612,14 @@ def bin_numeric_distribution(
 
     if bin_edges is None:
         bins = int(bin_count or 10)
-        lower = float(valid.min()) if value_range is None else float(value_range[0])
-        upper = float(valid.max()) if value_range is None else float(value_range[1])
+        range_min, range_max = value_range or (None, None)
+        lower = float(valid.min()) if range_min is None else float(range_min)
+        upper = float(valid.max()) if range_max is None else float(range_max)
+        if lower > upper:
+            raise ValueError(
+                f"The bins would start at {lower:g} and end at {upper:g}: range_min must not be above range_max, "
+                "and an end that is not given is the data's own minimum or maximum."
+            )
         edges = _range_edges(lower, upper, bins)
     else:
         edges = [float(value) for value in bin_edges]

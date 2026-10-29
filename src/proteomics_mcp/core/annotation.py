@@ -53,14 +53,6 @@ SIDECHAIN_ION_LOSSES = {
     "V": {"primary": ("CH3", 15.023475), "alt": None},
 }
 
-UNIMOD_TO_OPENMS = {
-    "1": "Acetyl (N-term)",
-    "4": "Carbamidomethyl (C)",
-    "7": {"N": "Deamidated (N)", "Q": "Deamidated (Q)", "R": "Deamidated (R)"},
-    "21": {"S": "Phospho (S)", "T": "Phospho (T)", "Y": "Phospho (Y)"},
-    "35": "Oxidation (M)",
-}
-
 UNIMOD_MASS_DELTA = {
     "1": 42.01056468403,
     "4": 57.021463734999996,
@@ -285,64 +277,6 @@ def residues_from_peptidoform(peptidoform: str) -> list[str]:
     return parse_peptidoform(peptidoform).residues
 
 
-def aa_sequence_from_proforma(peptidoform: str):
-    try:
-        import pyopenms  # type: ignore
-    except ImportError:
-        return None
-
-    text = _clean_peptidoform(peptidoform)
-    residues: list[str] = []
-    mods: list[str | None] = []
-    nterm_mod: str | None = None
-    i = 0
-    pending_nterm = True
-    while i < len(text):
-        if text.startswith("[UNIMOD:", i):
-            end = text.find("]", i)
-            if end == -1:
-                return None
-            unimod = text[i + 8 : end]
-            mapped = UNIMOD_TO_OPENMS.get(unimod)
-            if pending_nterm and isinstance(mapped, str):
-                nterm_mod = mapped
-            i = end + 1
-            if i < len(text) and text[i] == "-":
-                i += 1
-            continue
-        ch = text[i]
-        if "A" <= ch <= "Z":
-            residues.append(ch)
-            mods.append(None)
-            pending_nterm = False
-            i += 1
-            if text.startswith("[UNIMOD:", i):
-                end = text.find("]", i)
-                if end == -1:
-                    return None
-                unimod = text[i + 8 : end]
-                mapped = UNIMOD_TO_OPENMS.get(unimod)
-                if isinstance(mapped, dict):
-                    mods[-1] = mapped.get(ch)
-                elif isinstance(mapped, str):
-                    mods[-1] = mapped
-                i = end + 1
-            continue
-        i += 1
-    if not residues:
-        return None
-    try:
-        seq = pyopenms.AASequence.fromString("".join(residues))
-        if nterm_mod:
-            seq.setNTerminalModification(nterm_mod)
-        for idx, mod in enumerate(mods):
-            if mod:
-                seq.setModification(idx, mod)
-        return seq
-    except Exception:
-        return None
-
-
 def _charge_label(charge: int) -> str:
     return "+" * max(charge, 1)
 
@@ -562,17 +496,15 @@ def generate_precursor_related_ions(
     max_isotope: int = 0,
     neutral_losses: dict[str, float] | bool | None = None,
 ) -> list[dict[str, Any]]:
-    seq = aa_sequence_from_proforma(peptidoform)
-    if seq is None:
+    # The peptidoform's own mass, with every modification it carries; none when any part is not understood (#174)
+    neutral_mass = peptidoform_neutral_mass(peptidoform)
+    if neutral_mass is None:
         return []
     charge_limit = max(1, int(precursor_charge or 1))
     parsed = parse_peptidoform(peptidoform)
     loss_options = _neutral_loss_options(parsed, neutral_losses)
     ions: list[dict[str, Any]] = []
     for charge in range(1, charge_limit + 1):
-        neutral_mass = float(seq.getMZ(1)) - PROTON_MASS
-        if neutral_mass is None or neutral_mass <= 0:
-            continue
         loss_variants: list[tuple[str | None, float]] = [(None, neutral_mass)]
         for loss_name, loss_mass in loss_options.items():
             candidate_mass = neutral_mass - loss_mass

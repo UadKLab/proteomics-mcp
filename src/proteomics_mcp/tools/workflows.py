@@ -796,7 +796,7 @@ def bin_numeric_field_tool(
     group_by: str | None = None,
     bin_edges: list[float] | None = None,
     bin_count: int | None = None,
-    value_range: tuple[float, float] | None = None,
+    value_range: tuple[float | None, float | None] | None = None,
     weight_field: str | None = None,
     limit: int | None = None,
     **adapter_options: Any,
