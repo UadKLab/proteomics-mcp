@@ -51,6 +51,8 @@ def test_cli_has_expected_commands():
     assert "summarize-dataset" in help_text
     assert "render-dataset-report" in help_text
     assert "render-spectra-batch" in help_text
+    assert "thermo-raw-to-mzml" in help_text
+    assert "thermo-raw-to-feather" in help_text
     assert "mgf-to-feather" in help_text
     assert "bruker-d-to-feather" in help_text
     assert "export-to-instanovo" in help_text
@@ -176,9 +178,29 @@ def test_mcp_tools_have_directory_annotations():
         assert tool.annotations.destructive_hint is not None
     assert tools["inspect_psm_table"].annotations.read_only_hint is True
     assert tools["mgf_to_feather"].annotations.destructive_hint is True
+    assert tools["thermo_raw_to_feather"].annotations.destructive_hint is True
     assert tools["retrieve_usi_spectrum"].annotations.open_world_hint is True
 
     if not MANIFEST_PATH.is_file():
         pytest.skip("manifest.json is only available in a source tree or sdist")
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     assert {tool["name"] for tool in manifest["tools"]} == set(tools)
+
+
+def test_thermo_raw_tools_do_not_let_the_client_choose_the_program():
+    """The MCP tools run the ThermoRawFileParser on PATH or in the environment, never one named by the client (#172)."""
+    tools = {tool.name: tool for tool in mcp._tool_manager.list_tools()}
+    for name in ("thermo_raw_to_mzml", "thermo_raw_to_feather"):
+        assert not {"parser_executable", "parser_arguments"} & set(tools[name].parameters["properties"])
+
+
+def test_a_missing_thermo_raw_parser_reaches_the_client(monkeypatch, tmp_path):
+    from proteomics_mcp.core import spectrum_loader
+
+    raw = tmp_path / "run.raw"
+    raw.write_bytes(b"raw")
+    monkeypatch.delenv(spectrum_loader.THERMO_RAW_PARSER_ENV, raising=False)
+    monkeypatch.setattr(spectrum_loader.shutil, "which", lambda name: None)
+    result = _call_tool("thermo_raw_to_feather", {"raw_path": str(raw), "output_path": str(tmp_path / "run.feather")})
+    assert result.is_error
+    assert "FileNotFoundError: Reading Thermo .raw files needs CompOmics ThermoRawFileParser" in result.content[0].text

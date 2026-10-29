@@ -63,7 +63,15 @@ from proteomics_mcp.core.sdrf import load_sdrf_summary, retrieve_pride_sdrf
 from proteomics_mcp.core.scoring import score_candidate_spectrum
 from proteomics_mcp.core.runs import SPECTRA_RUN_COLUMNS, candidate_run, run_name, spectra_run_names
 from proteomics_mcp.core.acquisition import normalized_collision_energy
-from proteomics_mcp.core.spectrum_loader import bruker_d_to_feather, load_spectrum_from_table, mgf_to_feather, mzml_to_feather, retrieve_spectrum_from_usi
+from proteomics_mcp.core.spectrum_loader import (
+    bruker_d_to_feather,
+    load_spectrum_from_table,
+    mgf_to_feather,
+    mzml_to_feather,
+    retrieve_spectrum_from_usi,
+    thermo_raw_to_feather,
+    thermo_raw_to_mzml,
+)
 from proteomics_mcp.core.visualization import (
     build_spectrum_payload,
     render_annotated_observed_spectrum_html,
@@ -2096,6 +2104,38 @@ def retrieve_pride_sdrf_tool(project_accession: str, timeout_seconds: float = 20
 
 def mzml_to_feather_tool(mzml_path: str, output_path: str, ms_level: int = 2) -> dict[str, Any]:
     return mzml_to_feather(mzml_path, output_path, ms_level=ms_level)
+
+
+def thermo_raw_to_mzml_tool(
+    raw_path: str,
+    output_path: str,
+    parser_executable: str | None = None,
+    parser_arguments: list[str] | None = None,
+    timeout_seconds: float = 3600.0,
+) -> dict[str, Any]:
+    return thermo_raw_to_mzml(
+        raw_path, output_path, parser_executable=parser_executable, parser_arguments=parser_arguments, timeout_seconds=timeout_seconds
+    )
+
+
+def thermo_raw_to_feather_tool(
+    raw_path: str,
+    output_path: str,
+    mzml_output_path: str | None = None,
+    ms_level: int = 2,
+    parser_executable: str | None = None,
+    parser_arguments: list[str] | None = None,
+    timeout_seconds: float = 3600.0,
+) -> dict[str, Any]:
+    return thermo_raw_to_feather(
+        raw_path,
+        output_path,
+        mzml_output_path=mzml_output_path,
+        ms_level=ms_level,
+        parser_executable=parser_executable,
+        parser_arguments=parser_arguments,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def mgf_to_feather_tool(mgf_path: str, output_path: str) -> dict[str, Any]:
