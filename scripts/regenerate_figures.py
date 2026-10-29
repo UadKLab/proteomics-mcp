@@ -143,7 +143,9 @@ EXPECTED = {
              "fragment_mass_error_abs_mean_ppm_by_ms2pip": {"4.2.0": "2.867"},  # the --compare-ms2pip side-by-side
              "mirror_labels_removed": ["b11+", "b1+", "b2+", "b8+"]},
     "fig3a": {"labelled_peaks": 237},
-    "fig3b": {"peptidoform": "AQNSC[UNIMOD:4]PIC[UNIMOD:4]QK", "labelled_peaks": 110, "precursor_abs_ppm_max": 0.05,
+    # precursor error from the spectrum's precursor m/z (603.274597), as for every engine since #179 (PR #180); MaxQuant's own,
+    # recalibrated error is engine_precursor_mass_error_ppm (-0.029)
+    "fig3b": {"peptidoform": "AQNSC[UNIMOD:4]PIC[UNIMOD:4]QK", "labelled_peaks": 110, "precursor_mass_error_ppm": "1.462",
               "legend_without": ["a+1", "d-alt"], "legend_with": ["precursor"]},
     "mirror_labels_removed": {"s5a": [], "s5b": ["y22++", "y23++", "y24++"], "s5c": ["b3+", "b6+", "y14+", "y15+", "y15++", "y17++"], "s5d": []},
 }
@@ -348,9 +350,9 @@ def verify(results: dict[str, dict[str, Any]], ms2pip_version: str, fig2_by_vers
     labels_3b = annotation(fig3b, FIG3B_ION_TYPES)
     if labels_3b["annotated_peak_count"] != expected_3b["labelled_peaks"]:
         problems.append(f"Figure 3B labelled peaks: {labels_3b['annotated_peak_count']}, expected {expected_3b['labelled_peaks']}")
-    precursor = fig3b["metrics"].get("precursor_mass_error_ppm")
-    if precursor is None or abs(precursor) > expected_3b["precursor_abs_ppm_max"]:
-        problems.append(f"Figure 3B precursor error {precursor} ppm, expected ~0")
+    precursor = printed(fig3b["metrics"].get("precursor_mass_error_ppm"), "{:.3f}")
+    if precursor != expected_3b["precursor_mass_error_ppm"]:
+        problems.append(f"Figure 3B precursor error {precursor} ppm, expected {expected_3b['precursor_mass_error_ppm']}")
     present = set(labels_3b["ion_type_counts"])
     for ion in expected_3b["legend_without"]:
         if ion in present:
@@ -952,7 +954,9 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
               f"Legend: {', '.join(sorted(set(ann_old['ion_type_counts']) - set(ann_new['ion_type_counts'])))} removed, "
               f"{', '.join(sorted(set(ann_new['ion_type_counts']) - set(ann_old['ion_type_counts']))) or 'nothing'} added. Precursor error "
               f"{printed(b_old['metrics'].get('precursor_mass_error_ppm'), '{:.1f}')} ppm → {printed(b_new['metrics'].get('precursor_mass_error_ppm'), '{:.3f}')} ppm "
-              f"(not printed in the figure). w-ion labels also follow #79 (PR #104).", ""]
+              f"(not printed in the figure): measured from the spectrum's precursor m/z, as for every engine since #179 (PR #180); "
+              f"MaxQuant's own, recalibrated error is {printed(b_new['metrics'].get('engine_precursor_mass_error_ppm'), '{:.3f}')} ppm "
+              f"(`engine_precursor_mass_error_ppm`). w-ion labels also follow #79 (PR #104).", ""]
     lines += ["## Supplementary Figure 2 → image changes (panel B only)", "",
               f"Panel B: {', '.join(removed)} are unmatched under v2, so the `b2+ | EF` and `b8+ | EFHLNESG` labels disappear and those "
               "peaks turn grey (#83, PR #106). Panels A and C are unchanged; no caption values change.", "",
