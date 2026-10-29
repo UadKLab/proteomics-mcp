@@ -80,6 +80,8 @@
     { "name": "load_sdrf", "description": "Load SDRF-Proteomics metadata from a local TSV." },
     { "name": "retrieve_pride_sdrf", "description": "Retrieve SDRF metadata from PRIDE." },
     { "name": "mzml_to_feather", "description": "Convert an mzML file to Feather format." },
+    { "name": "thermo_raw_to_mzml", "description": "Convert a Thermo .raw file to mzML with ThermoRawFileParser, installed separately." },
+    { "name": "thermo_raw_to_feather", "description": "Convert a Thermo .raw file to Feather format through mzML from ThermoRawFileParser." },
     { "name": "mgf_to_feather", "description": "Convert an MGF file to Feather format." },
     { "name": "bruker_d_to_feather", "description": "Convert Bruker timsTOF data to Feather format." },
     { "name": "export_to_instanovo", "description": "Export spectra in an InstaNovo-compatible format." },

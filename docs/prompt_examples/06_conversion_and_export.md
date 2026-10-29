@@ -32,7 +32,23 @@ Convert this Bruker `.d` directory to Feather and tell me whether AlphaTims or t
 - source format
 - fallback indicator when applicable
 
-## Example 3: Convert and export to InstaNovo
+## Example 3: Convert Thermo `.raw`
+
+**User prompt**
+
+Convert this Thermo `.raw` file to Feather, keep the mzML, and tell me which converter version was used.
+
+**What the MCP should do**
+
+- call `thermo_raw_to_feather` (ThermoRawFileParser must be installed separately, on PATH or in `PROTEOMICS_MCP_THERMORAWFILEPARSER`)
+
+**Expected output shape**
+
+- Feather output path and MS2 spectrum count
+- the kept mzML path
+- `converter`: name, version and command
+
+## Example 4: Convert and export to InstaNovo
 
 **User prompt**
 
@@ -48,7 +64,7 @@ Convert this MGF-derived Feather file into an InstaNovo-ready IPC file.
 - output format
 - any export metadata returned by the tool
 
-## Example 4: Ask whether a table is suitable downstream
+## Example 5: Ask whether a table is suitable downstream
 
 **User prompt**
 
