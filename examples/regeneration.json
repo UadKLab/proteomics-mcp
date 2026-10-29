@@ -1,0 +1,234 @@
+{
+ "generated": "2026-10-29T16:31:46+00:00",
+ "command": "uv run python scripts/regenerate_examples.py --cache-dir ~/pmcp/cache-v0.2.0 --source-of v0.2.0",
+ "package": {
+  "proteomics-mcp": "0.2.0",
+  "source_sha256": "b8205669cf36532ce9ee0b0da7066629c190499295177f44c3d40333c5a155ad"
+ },
+ "source_of": {
+  "tag": "v0.2.0",
+  "sha256": "b8205669cf36532ce9ee0b0da7066629c190499295177f44c3d40333c5a155ad",
+  "equal": true
+ },
+ "git": {
+  "sha": "5359d9693055f02c356cf6647a795adc23af27eb",
+  "describe": "v0.2.0-11-g5359d96",
+  "dirty": false
+ },
+ "ms2pip": "4.1.2",
+ "python": "3.12.13",
+ "inputs": {
+  "zenodo_supplement": {
+   "record": "23295902",
+   "md5": "1445e7af348b12c703f477d50fb01130"
+  }
+ },
+ "settings": {
+  "metric_profile": "v2 (package default)",
+  "predictor": {
+   "predictor_backend": "ms2pip",
+   "predictor_model": "HCD"
+  },
+  "scoring_and_annotation": "as each payload was published (0.05 Da, ion types all, max isotope 2, neutral losses)",
+  "annotated_view": {
+   "ion_types": "all",
+   "max_isotope": 2,
+   "neutral_losses": false
+  }
+ },
+ "examples": {
+  "17_maxquant_top5": {
+   "psms": 5,
+   "payload_files": [
+    "rank_1_scan_6637_AQNSCPICQK_payload.json",
+    "rank_1_scan_6637_AQNSCPICQK_mirror.html",
+    "rank_1_scan_6637_AQNSCPICQK_annotated.html",
+    "rank_1_scan_6637_AQNSCPICQK_plain.html",
+    "rank_2_scan_38257_HTYDDEFFTFK_payload.json",
+    "rank_2_scan_38257_HTYDDEFFTFK_mirror.html",
+    "rank_2_scan_38257_HTYDDEFFTFK_annotated.html",
+    "rank_2_scan_38257_HTYDDEFFTFK_plain.html",
+    "rank_3_scan_6689_AQNSCPICQK_payload.json",
+    "rank_3_scan_6689_AQNSCPICQK_mirror.html",
+    "rank_3_scan_6689_AQNSCPICQK_annotated.html",
+    "rank_3_scan_6689_AQNSCPICQK_plain.html",
+    "rank_4_scan_38223_HTYDDEFFTFK_payload.json",
+    "rank_4_scan_38223_HTYDDEFFTFK_mirror.html",
+    "rank_4_scan_38223_HTYDDEFFTFK_annotated.html",
+    "rank_4_scan_38223_HTYDDEFFTFK_plain.html",
+    "rank_5_scan_5597_KAVEATQVCR_payload.json",
+    "rank_5_scan_5597_KAVEATQVCR_mirror.html",
+    "rank_5_scan_5597_KAVEATQVCR_annotated.html",
+    "rank_5_scan_5597_KAVEATQVCR_plain.html"
+   ],
+   "top5_summary_columns": {
+    "removed": [
+     "log2_xcorr",
+     "log2_hyperscore"
+    ],
+    "added": [
+     "xcorr",
+     "hyperscore"
+    ]
+   },
+   "peptidoform_changes": {
+    "1": [
+     "AQNSCPICQK",
+     "AQNSC[UNIMOD:4]PIC[UNIMOD:4]QK"
+    ],
+    "3": [
+     "AQNSCPICQK",
+     "AQNSC[UNIMOD:4]PIC[UNIMOD:4]QK"
+    ],
+    "5": [
+     "KAVEATQVCR",
+     "KAVEATQVC[UNIMOD:4]R"
+    ]
+   }
+  },
+  "18_fragpipe_top5": {
+   "psms": 5,
+   "payload_files": [
+    "rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_payload.json",
+    "rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_mirror.html",
+    "rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_annotated.html",
+    "rank_1_scan_183225_FIHVSTDEVYGETDEDALVGNHEASQLLPTNPYSATK_plain.html",
+    "rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_payload.json",
+    "rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_mirror.html",
+    "rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_annotated.html",
+    "rank_2_scan_173520_SALMTTAYVLDNTNAPLHDAADNSLSNPYAHGSGHVDPQK_plain.html",
+    "rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_payload.json",
+    "rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_mirror.html",
+    "rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_annotated.html",
+    "rank_3_scan_196914_ISM_UNIMOD_35_DEQDLLNGAGETYEVALTEPGTYSFYC_UNIMOD_4_APHQGAGM_UNIMOD_35_VGK_plain.html",
+    "rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_payload.json",
+    "rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_mirror.html",
+    "rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_annotated.html",
+    "rank_4_scan_186297_QSFSVTVTGSDVDSEVPSSANLIWSDGTHNVR_plain.html",
+    "rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_payload.json",
+    "rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_mirror.html",
+    "rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_annotated.html",
+    "rank_5_scan_198353_TSPSDNPFISSIEVYSLDTGM_UNIMOD_35_YDDLGPNEGLILHDR_plain.html"
+   ],
+   "top5_summary_columns": {
+    "removed": [
+     "log2_xcorr",
+     "log2_hyperscore"
+    ],
+    "added": [
+     "xcorr",
+     "hyperscore"
+    ]
+   },
+   "peptidoform_changes": {}
+  },
+  "19_proteome_discoverer_top5": {
+   "psms": 5,
+   "payload_files": [
+    "rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_payload.json",
+    "rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_mirror.html",
+    "rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_annotated.html",
+    "rank_1_scan_24381_DM_UNIMOD_35_HGVTSHLSNQELQDLVEFMK_plain.html",
+    "rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_payload.json",
+    "rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_mirror.html",
+    "rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_annotated.html",
+    "rank_2_scan_23638_EVAFELDKTPVITGDAPGFIVNR_plain.html",
+    "rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_payload.json",
+    "rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_mirror.html",
+    "rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_annotated.html",
+    "rank_3_scan_17557_YVSRPGIISEDDDTEILGSDR_plain.html",
+    "rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_payload.json",
+    "rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_mirror.html",
+    "rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_annotated.html",
+    "rank_4_scan_24820_GEVDKLGFLMLAYSPDGAKDEFGR_plain.html",
+    "rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_payload.json",
+    "rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_mirror.html",
+    "rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_annotated.html",
+    "rank_5_scan_25242_DMHGVTSHLSNQELQDLVEFMK_plain.html"
+   ],
+   "top5_summary_columns": {
+    "removed": [
+     "log2_xcorr",
+     "log2_hyperscore"
+    ],
+    "added": [
+     "xcorr",
+     "hyperscore"
+    ]
+   },
+   "peptidoform_changes": {}
+  },
+  "22_hela_instanovo_top5": {
+   "psms": 5,
+   "payload_files": [
+    "rank_1_scan_43956_LQLETELEALKEELLFMK_payload.json",
+    "rank_1_scan_43956_LQLETELEALKEELLFMK_mirror.html",
+    "rank_1_scan_43956_LQLETELEALKEELLFMK_annotated.html",
+    "rank_1_scan_43956_LQLETELEALKEELLFMK_plain.html",
+    "rank_2_scan_11648_EFHLNESGDPSSK_payload.json",
+    "rank_2_scan_11648_EFHLNESGDPSSK_mirror.html",
+    "rank_2_scan_11648_EFHLNESGDPSSK_annotated.html",
+    "rank_2_scan_11648_EFHLNESGDPSSK_plain.html",
+    "rank_3_scan_8734_EVYQQQQYGSGGR_payload.json",
+    "rank_3_scan_8734_EVYQQQQYGSGGR_mirror.html",
+    "rank_3_scan_8734_EVYQQQQYGSGGR_annotated.html",
+    "rank_3_scan_8734_EVYQQQQYGSGGR_plain.html",
+    "rank_4_scan_39484_TLFPLFMK_payload.json",
+    "rank_4_scan_39484_TLFPLFMK_mirror.html",
+    "rank_4_scan_39484_TLFPLFMK_annotated.html",
+    "rank_4_scan_39484_TLFPLFMK_plain.html",
+    "rank_5_scan_33229_SRGFGFVLFK_payload.json",
+    "rank_5_scan_33229_SRGFGFVLFK_mirror.html",
+    "rank_5_scan_33229_SRGFGFVLFK_annotated.html",
+    "rank_5_scan_33229_SRGFGFVLFK_plain.html"
+   ],
+   "top5_summary_columns": {
+    "removed": [
+     "log2_xcorr",
+     "log2_hyperscore"
+    ],
+    "added": [
+     "xcorr",
+     "hyperscore"
+    ]
+   },
+   "peptidoform_changes": {}
+  },
+  "23_sbrodae_casanovo_top5": {
+   "psms": 5,
+   "payload_files": [
+    "rank_1_scan_4634_YKFTTR_payload.json",
+    "rank_1_scan_4634_YKFTTR_mirror.html",
+    "rank_1_scan_4634_YKFTTR_annotated.html",
+    "rank_1_scan_4634_YKFTTR_plain.html",
+    "rank_2_scan_15106_EYLM_UNIMOD_35_FR_payload.json",
+    "rank_2_scan_15106_EYLM_UNIMOD_35_FR_mirror.html",
+    "rank_2_scan_15106_EYLM_UNIMOD_35_FR_annotated.html",
+    "rank_2_scan_15106_EYLM_UNIMOD_35_FR_plain.html",
+    "rank_3_scan_10031_FLYNTR_payload.json",
+    "rank_3_scan_10031_FLYNTR_mirror.html",
+    "rank_3_scan_10031_FLYNTR_annotated.html",
+    "rank_3_scan_10031_FLYNTR_plain.html",
+    "rank_4_scan_15204_YLPPFR_payload.json",
+    "rank_4_scan_15204_YLPPFR_mirror.html",
+    "rank_4_scan_15204_YLPPFR_annotated.html",
+    "rank_4_scan_15204_YLPPFR_plain.html",
+    "rank_5_scan_14776_NFNFPR_payload.json",
+    "rank_5_scan_14776_NFNFPR_mirror.html",
+    "rank_5_scan_14776_NFNFPR_annotated.html",
+    "rank_5_scan_14776_NFNFPR_plain.html"
+   ],
+   "top5_summary_columns": {
+    "removed": [
+     "log2_xcorr",
+     "log2_hyperscore"
+    ],
+    "added": [
+     "xcorr",
+     "hyperscore"
+    ]
+   },
+   "peptidoform_changes": {}
+  }
+ }
+}
