@@ -111,7 +111,8 @@ def test_precursor_mass_error_is_empty_when_a_modification_is_not_understood(off
     assert precursor_isotope_corrected_errors(peptidoform, 2, reference_mz("PEPTIDE", 2)) == (None, None, None)
 
 
-@pytest.mark.parametrize(("isotope", "charge"), [(0, 2), (1, 2), (2, 2), (1, 3)])
+# +3 as search engines accept it: 326 FragPipe PSMs of the manuscript supplement
+@pytest.mark.parametrize(("isotope", "charge"), [(0, 2), (1, 2), (2, 2), (1, 3), (3, 2), (3, 4)])
 def test_isotope_corrected_precursor_error(isotope, charge):
     observed_mz = reference_mz("PEPTIDE", charge) + isotope * NEUTRON / charge + 2e-6 * reference_mz("PEPTIDE", charge)
 
@@ -141,6 +142,27 @@ def test_score_candidate_reports_isotope_corrected_precursor_error():
     assert result.precursor_mass_error_ppm == pytest.approx(NEUTRON / 2 / reference_mz("PEPTIDE", 2) * 1e6, rel=1e-4)
     assert result.precursor_isotope_error == 1
     assert abs(result.precursor_mass_error_corrected_ppm) < 1e-3
+
+
+def test_precursor_error_is_the_spectrums_and_the_engines_is_reported_apart():
+    # an engine reports a recalibrated precursor m/z: 2 ppm here, against 5 ppm in the spectrum (#179)
+    theoretical_mz = reference_mz("PEPTIDE", 2)
+    candidate = CandidatePSM(candidate_id="c1", source_engine="maxquant", peptidoform="PEPTIDE", precursor_charge=2,
+                             precursor_mz=theoretical_mz * (1 + 2e-6))
+    observed = ObservedSpectrum(mz=[100.0], intensity=[10.0], precursor_mz=theoretical_mz * (1 + 5e-6), precursor_charge=2)
+    predicted = PredictedSpectrum(
+        peptidoform="PEPTIDE",
+        precursor_charge=2,
+        predictor_name="mock",
+        fragments=[PredictedFragment(mz=100.0, intensity=1.0, annotation="b1+", ion_type="b", ordinal=1)],
+    )
+
+    result = score_candidate_spectrum(candidate=candidate, observed=observed, predicted=predicted, use_observed_annotation=False)
+
+    assert result.precursor_mass_error_ppm == pytest.approx(5.0, abs=1e-3)
+    assert result.precursor_mass_error_corrected_ppm == pytest.approx(5.0, abs=1e-3)
+    assert result.engine_precursor_isotope_error == 0
+    assert result.engine_precursor_mass_error_ppm == pytest.approx(2.0, abs=1e-3)
 
 
 def test_score_candidate_uses_precursor_target_metadata_for_precursor_error():

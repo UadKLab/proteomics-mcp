@@ -390,8 +390,12 @@ if MCPServer is not None:
         weight_field: str | None = None,
         limit: int | None = None,
     ) -> dict[str, Any]:
-        """Return histogram-style bins for one numeric field with optional grouping and weighting."""
-        value_range = (range_min, range_max) if range_min is not None and range_max is not None else None
+        """Return histogram-style bins for one numeric field with optional grouping and weighting.
+
+        bin_count equal-width bins span range_min to range_max; either may be given on its own, and the end not
+        given is the data's minimum or maximum. bin_edges, when given, are used instead.
+        """
+        value_range = (range_min, range_max) if range_min is not None or range_max is not None else None
         return bin_numeric_field_tool(
             path=path,
             field=field,
