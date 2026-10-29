@@ -14,6 +14,8 @@ Do not run `proteomics-mcp serve` in a terminal by itself; it waits for JSON-RPC
 
 Recommended: download `proteomics-mcp-v0.1.10.mcpb` from the [GitHub release](https://github.com/UadKLab/proteomics-mcp/releases/tag/v0.1.10) and open it with Claude Desktop. The extension manages its own Python environment. In its settings, choose an output directory; input files must be in folders Claude Desktop can read.
 
+Claude Desktop calls the tools but does not run commands on your computer, so it cannot download data or run its own scripts: give it the paths of files you have already downloaded.
+
 Alternatively, without the extension, add the server to `claude_desktop_config.json` (*Settings → Developer → Edit Config*) and restart Claude Desktop:
 
 ```json
@@ -47,7 +49,18 @@ or add it to `~/.codex/config.toml`:
 [mcp_servers.proteomics-mcp]
 command = "uvx"
 args = ["proteomics-mcp@0.1.10", "serve"]
+tool_timeout_sec = 600
 ```
+
+Codex stops a tool call after 60 seconds by default; `tool_timeout_sec` gives longer calls, such as summarising a large table or scoring a batch, time to finish. Check the server with `codex mcp list`.
+
+## Gemini CLI
+
+```bash
+gemini mcp add proteomics-mcp uvx proteomics-mcp@0.1.10 serve -s user
+```
+
+This writes the server into `~/.gemini/settings.json`; `-s user` makes it available in every folder. Check it with `gemini mcp list`.
 
 ## Cursor
 
@@ -83,4 +96,4 @@ Set these as environment variables in the client's server entry (`"env": {...}` 
 
 ## Check the connection
 
-Ask the agent to list the proteomics-mcp tools; it should find 51. If the server does not start, the client's MCP log shows the error; see also the [troubleshooting prompts](prompt_examples/08_troubleshooting.md).
+Ask the agent to list the proteomics-mcp tools; it should find 53. If the server does not start, the client's MCP log shows the error; see also the [troubleshooting prompts](prompt_examples/08_troubleshooting.md).

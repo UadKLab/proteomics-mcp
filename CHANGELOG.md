@@ -4,6 +4,10 @@ All notable changes to proteomics-mcp are listed here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- **Tutorial: an agent session, from download to figure** ([#183](https://github.com/UadKLab/proteomics-mcp/issues/183)). One analysis with an agent on public data, the S. brodae tables of the manuscript's Zenodo supplement, with single spectra from PRIDE: table overviews and a dashboard, Casanovo's agreement with Proteome Discoverer and a confidence cut-off, one disagreement settled on its spectrum with MS2PIP and Prosit, a publication figure and a written report. Every number was checked against 0.2.0. The client setup page gains Gemini CLI and the Codex tool timeout, and the prompting tips move to the prompt-examples overview.
+
 ## [0.2.0] - 2026-10-29
 
 ### Changed
