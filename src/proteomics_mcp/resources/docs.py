@@ -229,8 +229,10 @@ Score-aware dashboards are typically produced through build-prediction-batch -> 
 
 The MCP exposes:
 - mzml_to_feather: convert mzML spectra to Feather through pyOpenMS
+- thermo_raw_to_mzml: convert a Thermo `.raw` file to mzML with ThermoRawFileParser, which the user installs separately (on PATH or in $PROTEOMICS_MCP_THERMORAWFILEPARSER); no Thermo libraries are bundled. The result records the converter's version and command
+- thermo_raw_to_feather: the same, then mzml_to_feather on the mzML, which is kept
 - mgf_to_feather: convert MGF spectra to Feather through pyteomics
 - bruker_d_to_feather: convert a Bruker `.d` directory to Feather, preferring AlphaTims direct extraction and otherwise using an explicit `ProteinAnalysisResults.mgf` fallback when that export is present
 
-All three converters produce a semi-wide Feather table with one row per spectrum and fields such as source_file/source_name, spectrum_id, scan_number, precursor_mz, precursor_charge, mz_array, intensity_array, retention time when available, and converter-specific metadata.""",
+The Feather converters produce a semi-wide table with one row per spectrum and fields such as source_file/source_name, spectrum_id, scan_number, precursor_mz, precursor_charge, mz_array, intensity_array, retention time when available, and converter-specific metadata.""",
 }

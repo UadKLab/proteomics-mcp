@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
@@ -510,6 +513,125 @@ def mzml_to_feather(mzml_path: str | Path, output_path: str | Path, *, ms_level:
     result = _write_spectrum_frame(frame, output_path)
     result["ms_level"] = ms_level
     result["source_format"] = "mzml"
+    return result
+
+
+# ThermoRawFileParser (CompOmics, Apache-2.0) is run as an external program: the package never bundles, downloads or loads
+# the Thermo RawFileReader libraries it uses, which have their own licence (#172). Bioconda installs it as thermorawfileparser.
+THERMO_RAW_PARSER_ENV = "PROTEOMICS_MCP_THERMORAWFILEPARSER"
+_THERMO_RAW_PARSER_NAMES = ("ThermoRawFileParser", "thermorawfileparser")
+
+
+def _thermo_raw_parser(executable: str | Path | None) -> str:
+    """The ThermoRawFileParser to run: the one given, else $PROTEOMICS_MCP_THERMORAWFILEPARSER, else one on PATH."""
+    requested = executable or os.environ.get(THERMO_RAW_PARSER_ENV)
+    if requested:
+        path = Path(requested).expanduser()
+        if path.parent != Path("."):
+            if not path.is_file():
+                raise FileNotFoundError(f"ThermoRawFileParser was not found at {path}.")
+            return str(path.resolve())
+        found = shutil.which(str(requested))
+        if found is None:
+            raise FileNotFoundError(f"ThermoRawFileParser was not found: {requested} is not on PATH.")
+        return found
+    for name in _THERMO_RAW_PARSER_NAMES:
+        found = shutil.which(name)
+        if found is not None:
+            return found
+    raise FileNotFoundError(
+        "Reading Thermo .raw files needs CompOmics ThermoRawFileParser, installed separately "
+        "(https://github.com/CompOmics/ThermoRawFileParser, or `conda install -c bioconda thermorawfileparser`). "
+        f"Put it on PATH or set {THERMO_RAW_PARSER_ENV} to its path; or convert the file to mzML first."
+    )
+
+
+def _thermo_raw_parser_version(parser: str, timeout_seconds: float) -> str | None:
+    """The version ThermoRawFileParser reports, or None if it does not answer --version."""
+    try:
+        completed = subprocess.run([parser, "--version"], capture_output=True, text=True, check=False, timeout=min(timeout_seconds, 120.0))
+    except (OSError, subprocess.SubprocessError):
+        return None
+    lines = (completed.stdout or completed.stderr or "").strip().splitlines()
+    return lines[-1].strip() if completed.returncode == 0 and lines else None
+
+
+def _process_output(stdout: str | bytes | None, stderr: str | bytes | None) -> str:
+    text = "\n".join(str(part).strip() for part in (stdout, stderr) if part)
+    return text[-2000:] if text else "no output"
+
+
+def thermo_raw_to_mzml(
+    raw_path: str | Path,
+    output_path: str | Path,
+    *,
+    parser_executable: str | Path | None = None,
+    parser_arguments: list[str] | None = None,
+    timeout_seconds: float = 3600.0,
+) -> dict[str, Any]:
+    """Convert a Thermo .raw file to mzML with an externally installed ThermoRawFileParser."""
+    raw_path = Path(raw_path).expanduser()
+    output_path = Path(output_path).expanduser()
+    if not raw_path.is_file():
+        raise FileNotFoundError(f"Thermo .raw file not found: {raw_path}")
+    if raw_path.suffix.lower() != ".raw":
+        raise ValueError(f"Expected a Thermo .raw file, got {raw_path.name}.")
+    if output_path.suffix.lower() != ".mzml":
+        raise ValueError(f"The mzML output path must end in .mzML: {output_path.name}")
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be greater than 0.")
+    parser = _thermo_raw_parser(parser_executable)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # -f 1 is mzML; -b names the output file
+    command = [parser, "-i", str(raw_path.resolve()), "-b", str(output_path.resolve()), "-f", "1", *(str(a) for a in parser_arguments or [])]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=False, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError(
+            f"ThermoRawFileParser did not finish converting {raw_path.name} within {timeout_seconds:g} s. "
+            f"Output: {_process_output(exc.stdout, exc.stderr)}"
+        ) from exc
+    if completed.returncode != 0 or not output_path.is_file():
+        raise ValueError(
+            f"ThermoRawFileParser could not convert {raw_path.name} (exit code {completed.returncode}"
+            f"{'' if output_path.is_file() else ', no mzML written'}). Output: {_process_output(completed.stdout, completed.stderr)}"
+        )
+    return {
+        "raw_path": str(raw_path),
+        "output_path": str(output_path),
+        "source_format": "thermo_raw",
+        "output_format": "mzml",
+        "converter": {
+            "name": "ThermoRawFileParser",
+            "version": _thermo_raw_parser_version(parser, timeout_seconds),
+            "executable": parser,
+            "command": command,
+        },
+    }
+
+
+def thermo_raw_to_feather(
+    raw_path: str | Path,
+    output_path: str | Path,
+    *,
+    mzml_output_path: str | Path | None = None,
+    ms_level: int = 2,
+    parser_executable: str | Path | None = None,
+    parser_arguments: list[str] | None = None,
+    timeout_seconds: float = 3600.0,
+) -> dict[str, Any]:
+    """Convert a Thermo .raw file to the Feather spectrum table: ThermoRawFileParser to mzML, then mzml_to_feather.
+
+    The mzML is kept, next to the Feather file unless mzml_output_path is given.
+    """
+    output_path = Path(output_path).expanduser()
+    mzml_path = Path(mzml_output_path).expanduser() if mzml_output_path else output_path.with_suffix(".mzML")
+    conversion = thermo_raw_to_mzml(
+        raw_path, mzml_path, parser_executable=parser_executable, parser_arguments=parser_arguments, timeout_seconds=timeout_seconds
+    )
+    result = mzml_to_feather(mzml_path, output_path, ms_level=ms_level)
+    result.update({"source_format": "thermo_raw", "raw_path": conversion["raw_path"], "mzml_path": str(mzml_path),
+                   "converter": conversion["converter"]})
     return result
 
 

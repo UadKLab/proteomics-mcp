@@ -52,6 +52,8 @@ from proteomics_mcp.tools.workflows import (
     list_distribution_fields_tool,
     load_candidates_tool,
     mzml_to_feather_tool,
+    thermo_raw_to_feather_tool,
+    thermo_raw_to_mzml_tool,
     mgf_to_feather_tool,
     predict_fragments_tool,
     describe_predictor_model_tool,
@@ -810,6 +812,22 @@ if MCPServer is not None:
     def mzml_to_feather(mzml_path: str, output_path: str, ms_level: int = 2) -> dict[str, Any]:
         """Convert an mzML file into the normalized Feather spectrum table used by local workflows."""
         return mzml_to_feather_tool(mzml_path, _resolve(output_path), ms_level)
+
+    # The parser is the one on PATH or in $PROTEOMICS_MCP_THERMORAWFILEPARSER, never a tool argument: an MCP client
+    # must not choose which program runs, or with which arguments (#172)
+    @mcp.tool()
+    def thermo_raw_to_mzml(raw_path: str, output_path: str, timeout_seconds: float = 3600.0) -> dict[str, Any]:
+        """Convert a Thermo `.raw` file to mzML with ThermoRawFileParser, installed separately (no Thermo libraries are bundled)."""
+        return thermo_raw_to_mzml_tool(raw_path, _resolve(output_path), timeout_seconds=timeout_seconds)
+
+    @mcp.tool()
+    def thermo_raw_to_feather(
+        raw_path: str, output_path: str, mzml_output_path: str | None = None, ms_level: int = 2, timeout_seconds: float = 3600.0
+    ) -> dict[str, Any]:
+        """Convert a Thermo `.raw` file to the normalized Feather spectrum table, through mzML from ThermoRawFileParser (installed separately); the mzML is kept."""
+        return thermo_raw_to_feather_tool(
+            raw_path, _resolve(output_path), mzml_output_path=_resolve(mzml_output_path), ms_level=ms_level, timeout_seconds=timeout_seconds
+        )
 
     @mcp.tool()
     def mgf_to_feather(mgf_path: str, output_path: str) -> dict[str, Any]:

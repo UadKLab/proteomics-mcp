@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -528,3 +529,104 @@ def test_bruker_precursors_get_unique_scan_numbers_and_inverse_mobility(monkeypa
     uncharged = load_spectrum_from_table(output, scan_number=2)
     assert uncharged.precursor_mz == 600.0
     assert uncharged.precursor_charge is None
+
+
+# Thermo .raw through ThermoRawFileParser (#172): the parser is mocked, so no .raw file, .NET or Thermo library is needed.
+def _fake_thermo_raw_parser(monkeypatch, calls, *, version="2.0.0.0", returncode=0, write=True):
+    def run(command, **kwargs):
+        calls.append(command)
+        if command[1:] == ["--version"]:
+            return subprocess.CompletedProcess(command, 0, stdout=f"{version}\n", stderr="")
+        if write:
+            Path(command[command.index("-b") + 1]).write_text("<mzML/>", encoding="utf-8")
+        return subprocess.CompletedProcess(command, returncode, stdout="Processing completed 0 errors", stderr="")
+
+    monkeypatch.setattr(spectrum_loader.subprocess, "run", run)
+
+
+def test_thermo_raw_to_mzml_runs_the_external_parser_and_records_it(tmp_path, monkeypatch):
+    raw = tmp_path / "run.raw"
+    raw.write_bytes(b"raw")
+    parser = tmp_path / "bin" / "ThermoRawFileParser"
+    parser.parent.mkdir()
+    parser.write_text("")
+    calls: list[list[str]] = []
+    _fake_thermo_raw_parser(monkeypatch, calls)
+
+    result = spectrum_loader.thermo_raw_to_mzml(raw, tmp_path / "out" / "run.mzML", parser_executable=parser,
+                                                parser_arguments=["--noPeakPicking"])
+
+    command = [str(parser.resolve()), "-i", str(raw.resolve()), "-b", str((tmp_path / "out" / "run.mzML").resolve()), "-f", "1",
+               "--noPeakPicking"]
+    assert calls == [command, [str(parser.resolve()), "--version"]]
+    assert result["converter"] == {"name": "ThermoRawFileParser", "version": "2.0.0.0", "executable": str(parser.resolve()),
+                                   "command": command}
+    assert result["source_format"] == "thermo_raw"
+
+
+def test_thermo_raw_parser_comes_from_the_environment_then_path(tmp_path, monkeypatch):
+    parser = tmp_path / "ThermoRawFileParser"
+    parser.write_text("")
+    monkeypatch.setenv(spectrum_loader.THERMO_RAW_PARSER_ENV, str(parser))
+    assert spectrum_loader._thermo_raw_parser(None) == str(parser.resolve())
+
+    monkeypatch.delenv(spectrum_loader.THERMO_RAW_PARSER_ENV)
+    monkeypatch.setattr(spectrum_loader.shutil, "which", lambda name: "/conda/bin/thermorawfileparser" if name == "thermorawfileparser" else None)
+    assert spectrum_loader._thermo_raw_parser(None) == "/conda/bin/thermorawfileparser"
+
+
+def test_a_missing_thermo_raw_parser_says_how_to_install_it(tmp_path, monkeypatch):
+    raw = tmp_path / "run.raw"
+    raw.write_bytes(b"raw")
+    monkeypatch.delenv(spectrum_loader.THERMO_RAW_PARSER_ENV, raising=False)
+    monkeypatch.setattr(spectrum_loader.shutil, "which", lambda name: None)
+    with pytest.raises(FileNotFoundError, match="ThermoRawFileParser, installed separately.*PROTEOMICS_MCP_THERMORAWFILEPARSER"):
+        spectrum_loader.thermo_raw_to_mzml(raw, tmp_path / "run.mzML")
+    with pytest.raises(FileNotFoundError, match="not found at"):
+        spectrum_loader.thermo_raw_to_mzml(raw, tmp_path / "run.mzML", parser_executable=tmp_path / "nowhere" / "ThermoRawFileParser")
+
+
+@pytest.mark.parametrize(("returncode", "write", "message"), [(1, True, "exit code 1"), (0, False, "no mzML written")])
+def test_a_failed_thermo_raw_conversion_is_reported(tmp_path, monkeypatch, returncode, write, message):
+    raw = tmp_path / "run.RAW"
+    raw.write_bytes(b"raw")
+    monkeypatch.setattr(spectrum_loader.shutil, "which", lambda name: "/usr/bin/ThermoRawFileParser")
+    _fake_thermo_raw_parser(monkeypatch, [], returncode=returncode, write=write)
+    with pytest.raises(ValueError, match=f"could not convert run.RAW.*{message}.*Processing completed"):
+        spectrum_loader.thermo_raw_to_mzml(raw, tmp_path / "run.mzML", parser_executable="ThermoRawFileParser")
+
+
+def test_thermo_raw_conversion_timeout_and_arguments(tmp_path, monkeypatch):
+    raw = tmp_path / "run.raw"
+    raw.write_bytes(b"raw")
+    monkeypatch.setattr(spectrum_loader.shutil, "which", lambda name: "/usr/bin/ThermoRawFileParser")
+
+    def slow(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"], output="parsing", stderr="")
+
+    monkeypatch.setattr(spectrum_loader.subprocess, "run", slow)
+    with pytest.raises(TimeoutError, match="within 5 s"):
+        spectrum_loader.thermo_raw_to_mzml(raw, tmp_path / "run.mzML", timeout_seconds=5)
+    (tmp_path / "run.mzML").write_text("")
+    with pytest.raises(ValueError, match="Expected a Thermo .raw file"):
+        spectrum_loader.thermo_raw_to_mzml(tmp_path / "run.mzML", tmp_path / "out.mzML")
+    with pytest.raises(ValueError, match="must end in .mzML"):
+        spectrum_loader.thermo_raw_to_mzml(raw, tmp_path / "run.mgf")
+
+
+def test_thermo_raw_to_feather_reads_the_kept_mzml(tmp_path, monkeypatch):
+    raw = tmp_path / "run.raw"
+    raw.write_bytes(b"raw")
+    monkeypatch.setattr(spectrum_loader.shutil, "which", lambda name: "/usr/bin/ThermoRawFileParser")
+    _fake_thermo_raw_parser(monkeypatch, [])
+    read = []
+    monkeypatch.setattr(spectrum_loader, "mzml_to_feather",
+                        lambda mzml, out, ms_level: read.append((mzml, out, ms_level)) or {"output_path": str(out), "spectra_written": 3,
+                                                                                            "source_format": "mzml"})
+
+    result = spectrum_loader.thermo_raw_to_feather(raw, tmp_path / "run.feather")
+
+    assert read == [(tmp_path / "run.mzML", tmp_path / "run.feather", 2)]
+    assert result["source_format"] == "thermo_raw"
+    assert result["mzml_path"] == str(tmp_path / "run.mzML")
+    assert result["converter"]["version"] == "2.0.0.0"
