@@ -24,7 +24,8 @@ screenshots of at least MIN_RASTER_DPI in the figure, and writes the PRIDE spect
 
 HTML panels (Figure 2B, Supplementary Figure 2, Figure 4) are captured with Playwright in the local Google Chrome
 (`--browser-channel chrome`) or Playwright's own Chromium (`--browser-channel chromium`). Exit codes: 0 done,
-3 a verification against the expected 0.2.0 values failed (nothing is assembled), 4 an input checksum differs.
+3 a verification against the expected 0.2.0 values failed (nothing is assembled), 4 an input checksum differs, 5 the
+installed package is not this checkout's code (a stale build; nothing is scored).
 """
 
 from __future__ import annotations
@@ -373,9 +374,41 @@ def pinned_environment(packages: list[str], python: str, workdir: Path, name: st
     workdir.mkdir(parents=True, exist_ok=True)
     requirements = workdir / f"requirements_{name}.txt"
     requirements.write_text("\n".join([*lines, *packages, ""]))
-    return ["uv", "run", "--no-project", "--python", python, "--with-requirements", str(requirements), "--with", str(REPO_ROOT),
-            "--reinstall-package", "proteomics-mcp",  # build this checkout, never a cached build of another commit
-            "python"]
+    # A wheel built now from this checkout, never a cached build: `--with <checkout> --reinstall-package` reinstalled uv's
+    # cached build of an earlier commit, because uv rebuilds a local project only when pyproject.toml changes.
+    # check_installed_package() then confirms the installed code is the checkout's before anything is scored.
+    wheel = checkout_wheel(workdir / f"wheel_{name}")
+    return ["uv", "run", "--no-project", "--python", python, "--with-requirements", str(requirements), "--with", str(wheel),
+            "--refresh-package", "proteomics-mcp", "--reinstall-package", "proteomics-mcp", "python"]
+
+
+def checkout_wheel(folder: Path) -> Path:
+    """Build a wheel of this checkout into an emptied folder and return it."""
+    shutil.rmtree(folder, ignore_errors=True)
+    subprocess.run(["uv", "build", "--wheel", "--out-dir", str(folder), str(REPO_ROOT)], capture_output=True, text=True, check=True)
+    wheels = sorted(folder.glob("proteomics_mcp-*.whl"))
+    if len(wheels) != 1:
+        raise SystemExit(f"uv build wrote {len(wheels)} proteomics-mcp wheels to {folder}, expected 1")
+    return wheels[0]
+
+
+def source_digest(package_dir: Path) -> str:
+    """sha256 over the package's .py files: each file's path relative to the package, then its bytes."""
+    digest = hashlib.sha256()
+    for path in sorted((p for p in package_dir.rglob("*.py") if "__pycache__" not in p.parts), key=lambda p: p.relative_to(package_dir).as_posix()):
+        digest.update(path.relative_to(package_dir).as_posix().encode() + b"\0" + path.read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def check_installed_package(installed: Path | None = None, checkout: Path = REPO_ROOT / "src" / "proteomics_mcp") -> str:
+    """The source digest of the installed package, which must be this checkout's; exits with code 5 otherwise."""
+    installed = installed or Path(__import__("proteomics_mcp").__file__).parent
+    found, expected = source_digest(installed), source_digest(checkout)
+    if found != expected:
+        print(f"The installed proteomics-mcp is not this checkout's code (a stale build?): the .py files in {installed} hash to "
+              f"{found[:16]}, those in {checkout} to {expected[:16]}. Nothing was scored.", file=sys.stderr)
+        raise SystemExit(5)
+    return expected
 
 
 def rerun_in_figure_environment(args: argparse.Namespace, argv: list[str]) -> int:
@@ -1002,6 +1035,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if not args.figure2_metrics_only and not args.in_figure_environment:
         return rerun_in_figure_environment(args, argv)
+    source_sha256 = check_installed_package()  # before anything is scored
     args.cache_dir = args.cache_dir.expanduser().resolve()
     args.cache_dir.mkdir(parents=True, exist_ok=True)
     archive, supplement = zenodo_supplement(args.zenodo_zip and args.zenodo_zip.expanduser().resolve(), args.cache_dir)
@@ -1026,7 +1060,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.figure2_metrics_only:
         payload = new_payload("fig2")
-        args.figure2_metrics_only.write_text(json.dumps({"metrics": payload["metrics"], "versions": package_versions(),
+        args.figure2_metrics_only.write_text(json.dumps({"metrics": payload["metrics"], "versions": package_versions(), "source_sha256": source_sha256,
                                                          "python": platform.python_version()}, default=str))
         return 0
 
@@ -1141,7 +1175,8 @@ def main(argv: list[str] | None = None) -> int:
     manifest = {
         "started": started, "finished": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "command": user_command(), "interpreter": Path(sys.executable).as_posix(), "cwd": Path.cwd().as_posix(),
-        "package": {"proteomics-mcp": version("proteomics-mcp"), "source": Path(__import__("proteomics_mcp").__file__).parent.as_posix()},
+        "package": {"proteomics-mcp": version("proteomics-mcp"), "source": Path(__import__("proteomics_mcp").__file__).parent.as_posix(),
+                    "source_sha256": source_sha256, "git_sha": git["sha"]},
         "git": git, "ms2pip": ms2pip_version, "python": platform.python_version(), "platform": platform.platform(), "versions": package_versions(),
         "figure_environment": {"pinned": FIGURE_ENVIRONMENT, "requirements": "work/requirements_figures.txt",
                                "requirements_sha256": file_digest(work / "requirements_figures.txt") if (work / "requirements_figures.txt").is_file() else None},

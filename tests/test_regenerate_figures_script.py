@@ -110,3 +110,37 @@ def test_manifest_records_the_command_as_typed(script, monkeypatch):
     assert "\\" not in script.user_command()  # forward slashes on Windows too
     monkeypatch.setattr(script.sys, "argv", [script.sys.argv[0], "--out", r"C:\pmcp\figures"])
     assert script.user_command().endswith("--out C:/pmcp/figures")
+
+
+def test_a_stale_installed_package_stops_the_run_before_scoring(script, tmp_path, capsys):
+    """The figures were once made with uv's cached build of an earlier commit: the installed code must be the checkout's."""
+    checkout = tmp_path / "src" / "proteomics_mcp"
+    installed = tmp_path / "site-packages" / "proteomics_mcp"
+    for package in (checkout, installed):
+        (package / "core").mkdir(parents=True)
+        (package / "__init__.py").write_text("")
+        (package / "core" / "scoring.py").write_text("PRECURSOR_ISOTOPE_ERRORS = (0, 1, 2, 3)\n")
+    (installed / "__pycache__").mkdir()
+    (installed / "__pycache__" / "x.cpython-312.pyc").write_bytes(b"ignored")
+    assert script.check_installed_package(installed, checkout) == script.source_digest(checkout)
+
+    (installed / "core" / "scoring.py").write_text("PRECURSOR_ISOTOPE_ERRORS = (0, 1, 2)\n")
+    with pytest.raises(SystemExit) as stopped:
+        script.check_installed_package(installed, checkout)
+    assert stopped.value.code == 5
+    assert "not this checkout's code" in capsys.readouterr().err
+
+    (installed / "core" / "scoring.py").write_text("PRECURSOR_ISOTOPE_ERRORS = (0, 1, 2, 3)\n")
+    (installed / "core" / "extra.py").write_text("")
+    with pytest.raises(SystemExit):
+        script.check_installed_package(installed, checkout)
+
+
+def test_the_installed_package_is_checked_against_the_checkout(script):
+    """In this test environment the package is the checkout's, so the guard passes."""
+    import proteomics_mcp
+
+    installed = Path(proteomics_mcp.__file__).parent
+    if installed != ROOT / "src" / "proteomics_mcp" and script.source_digest(installed) != script.source_digest(ROOT / "src" / "proteomics_mcp"):
+        pytest.skip("the installed package is not this checkout (e.g. a wheel from another commit)")
+    assert script.check_installed_package() == script.source_digest(ROOT / "src" / "proteomics_mcp")
