@@ -3,7 +3,7 @@
   "manifest_version": "0.4",
   "name": "proteomics-mcp",
   "display_name": "Proteomics MCP",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "description": "Spectrum-level proteomics scoring tools exposed through MCP",
   "long_description": "Inspect proteomics identification results and MS2 spectra on your computer. Supports InstaNovo, Casanovo, MaxQuant, FragPipe, Proteome Discoverer, and mapped tables; optional public services provide USI retrieval and Koina predictions.",
   "author": {

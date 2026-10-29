@@ -19,5 +19,5 @@ authors:
     family-names: "Kalogeropoulos"
 repository-code: "https://github.com/UadKLab/proteomics-mcp"
 url: "https://uadklab.github.io/proteomics-mcp/"
-version: "0.1.10"
+version: "0.2.0"
 license: MIT

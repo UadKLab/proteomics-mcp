@@ -59,9 +59,10 @@ Replace `X.Y.Z` with the new version.
    - `pyproject.toml` (`[project].version`, the single source of truth)
    - `manifest.json` (`version`)
    - `CITATION.cff` (`version`)
-   - the pinned install commands in `README.md` and `docs/clients.md` (`proteomics-mcp@X.Y.Z`, `vX.Y.Z` release links)
+
+   Not the pinned install commands in `README.md` and `docs/clients.md`: the documentation site deploys from `main` on every merge, so they would point to a version that is not on PyPI yet. They change in step 12.
 3. **Release notes.** Add `docs/releases/vX.Y.Z.md`. The workflow uses it as the GitHub release text.
-4. **Changelog.** In `CHANGELOG.md`, move the *Unreleased* entries under a new `X.Y.Z` heading with the release date.
+4. **Changelog.** In `CHANGELOG.md`, move the *Unreleased* entries under a new `## [X.Y.Z] - YYYY-MM-DD` heading with the planned release date. `check_version.py` requires the heading, and on the tag it requires the date to be the tag day (UTC, give or take a day): if tagging slips, update the date on `main` first.
 5. **Check:**
    ```bash
    python3 scripts/check_version.py --tag vX.Y.Z
@@ -81,7 +82,8 @@ Replace `X.Y.Z` with the new version.
     uvx --refresh proteomics-mcp@X.Y.Z --help
     python3 -m venv /tmp/pmcp && /tmp/pmcp/bin/pip install proteomics-mcp==X.Y.Z && /tmp/pmcp/bin/proteomics-mcp --help
     ```
-12. **Track.** Tick the release items in the tracking issue.
+12. **Pin the documentation to the release.** Once `X.Y.Z` is on PyPI and the GitHub release exists, open a pull request that changes the pinned install commands in `README.md` and `docs/clients.md` to `proteomics-mcp@X.Y.Z` and the `.mcpb` link to `proteomics-mcp-vX.Y.Z.mcpb` on release `vX.Y.Z`.
+13. **Track.** Tick the release items in the tracking issue.
 
 ### TestPyPI verification
 
@@ -147,9 +149,21 @@ PyPI never accepts a re-upload of a version, even after deletion. To withdraw a 
 3. Release the fix as a new version (e.g. `X.Y.Z+1`) following the checklist above.
 4. Edit the GitHub release text to point to the fixed version, and add a note under that version in `CHANGELOG.md`.
 
+## Cited version
+
+The manuscript cites **0.2.0**. It carries the correctness fixes found in review, and the manuscript figures are regenerated with it (see [#33](https://github.com/UadKLab/proteomics-mcp/issues/33), [#147](https://github.com/UadKLab/proteomics-mcp/issues/147), [#149](https://github.com/UadKLab/proteomics-mcp/issues/149)).
+
+| Version | Cited | Figures |
+|---|---|---|
+| 0.2.0 | now | regenerated with it |
+| 0.1.10 | until 0.2.0 | re-score identically from the stored payloads |
+| 0.1.8 | until 0.1.10 | the original figures were made with it ([#55](https://github.com/UadKLab/proteomics-mcp/issues/55)) |
+
+When the cited version changes, update this section, the CHANGELOG entries and the release notes that name the cited version.
+
 ## History: manual upload of 0.1.8
 
-0.1.10 is the version cited in the manuscript; the figures were made with 0.1.8 (see [#55](https://github.com/UadKLab/proteomics-mcp/issues/55)). 0.1.8 was published once, by hand, before this workflow existed (decision 6 in [#1](https://github.com/UadKLab/proteomics-mcp/issues/1)). Details are in [#9](https://github.com/UadKLab/proteomics-mcp/issues/9).
+0.1.8 was published once, by hand, before this workflow existed (decision 6 in [#1](https://github.com/UadKLab/proteomics-mcp/issues/1)). Details are in [#9](https://github.com/UadKLab/proteomics-mcp/issues/9).
 
 - **What and when:** on 2026-10-12, @marcoreverenna uploaded the wheel and sdist attached to the GitHub release [`v0.1.8`](https://github.com/UadKLab/proteomics-mcp/releases/tag/v0.1.8) (tag → `ef7be33`) unchanged with `twine`, first to TestPyPI and then to PyPI.
 - **Credentials:** short-lived, account-scoped API tokens, because the projects did not exist yet. They were revoked after the upload.

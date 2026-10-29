@@ -133,8 +133,7 @@ def test_usi_spectra_carry_precursor_mz(retrieved, report):
     assert not missing, f"{len(missing)} of {len(retrieved)} USI spectra have no precursor_mz"
 
 
-# Not strict: a development build of 0.2.0 still reports version 0.1.10 and already has the fix
-@pytest.mark.xfail(INSTALLED < Version("0.2.0"), strict=False, reason="#135 (fixed in 0.2.0): USI spectra have no rt_seconds")
+@pytest.mark.xfail(INSTALLED < Version("0.2.0"), strict=True, reason="#135 (fixed in 0.2.0): USI spectra have no rt_seconds")
 def test_usi_spectra_carry_the_retention_time_of_the_reference(retrieved, report):
     """PRIDE's scan start time, read as seconds, equals the retention time the mzML gave the reference payload (#135)."""
     differences, missing = {}, []
