@@ -3,6 +3,7 @@
 import hashlib
 import importlib.util
 import json
+import subprocess
 import zipfile
 from pathlib import Path, PureWindowsPath
 
@@ -20,6 +21,30 @@ def script():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+SUMMARY = {"comet_high_res": {"engine": "Comet 2026.01.1", "spectra": "high_res", "psms": 3, "decoy_psms": 1, "exact": 3,
+                              "within_tolerance": 3, "tolerance": 0.001, "max_difference": 0.0, "not_scored": 0}}
+
+
+def _fake_validate(returncode: int = 0):
+    """validate.py's outputs without running it (the real run is tests/test_engine_reference_scores.py's business)."""
+
+    def run(out: Path) -> subprocess.CompletedProcess:
+        if returncode == 0:
+            (out / "comparison.tsv").write_text("run\ttitle\n")
+            (out / "summary.json").write_text(json.dumps(SUMMARY))
+            (out / "agreement.png").write_bytes(b"png")
+            (out / "agreement.pdf").write_bytes(b"pdf")
+            (out / "high_res.mgf").write_text("BEGIN IONS\nEND IONS\n")
+        return subprocess.CompletedProcess(["validate.py"], returncode, "", "FAIL comet_high_res" if returncode else "")
+
+    return run
+
+
+@pytest.fixture(autouse=True)
+def _no_validation_run(script, monkeypatch):
+    monkeypatch.setattr(script, "run_validate", _fake_validate())
 
 
 def _deposit(tmp_path: Path) -> Path:
@@ -125,3 +150,37 @@ def test_provenance_notes_the_macos_openmp_runtime_and_the_packaging_commit(scri
     assert ("bundled with pyOpenMS" in provenance and "OpenMP Error #15" in provenance) is noted
     assert "**Packaging:** `scripts/build_zenodo_package.py` at `v0.2.0-3-gdef` (commit `def`)." in provenance
     assert "proteomics-mcp **0.2.0**, built from the tag `v0.2.0`" in provenance
+
+
+def test_package_adds_the_engine_score_validation(script, tmp_path, monkeypatch):
+    """#154: the validation's comparison, summary, plots, versions.json and the commands to rerun it go into validation/."""
+    archive = _deposit(tmp_path)
+    monkeypatch.setattr(script, "ZENODO_MD5", hashlib.md5(archive.read_bytes()).hexdigest())
+    out = tmp_path / "package"
+    assert script.main(["--figures", str(_figures(tmp_path)), "--zenodo-zip", str(archive), "--out", str(out)]) == 0
+
+    validation = out / "supplement" / "validation"
+    assert sorted(p.name for p in validation.iterdir()) == ["README.md", "agreement.pdf", "agreement.png", "comparison.tsv", "summary.json",
+                                                            "versions.json"]
+    versions = json.loads((validation / "versions.json").read_text())
+    assert versions == json.loads((script.VALIDATION / "golden" / "versions.json").read_text())
+    assert "@sha256:" in versions["comet_image"] and "comet_high_res.params" in versions["inputs_sha256"]
+    readme = (validation / "README.md").read_text()
+    assert "3 of 3 PSMs are equal" in readme and "git switch --detach v0.2.0" in readme
+    assert f"docker pull {versions['comet_image']}" in readme and "validate.py --run-engines --out out" in readme
+    changes = (out / "supplement" / "CHANGES.md").read_text()
+    added = changes.split("## Added")[1].split("\n## ")[0]
+    assert "`validation/README.md`" in added and "`validation/versions.json`" in added and "#154" in added
+    assert "Engine-score validation outputs" not in changes  # no longer pending
+    assert "**Engine-score validation:** `validation/`" in (out / "supplement" / "PROVENANCE.md").read_text()
+    listed = {line.split("  ", 1)[1] for line in (out / "supplement" / "MANIFEST.sha256").read_text().splitlines()}
+    assert "validation/comparison.tsv" in listed
+
+
+def test_package_stops_when_the_validation_fails(script, tmp_path, monkeypatch):
+    archive = _deposit(tmp_path)
+    monkeypatch.setattr(script, "ZENODO_MD5", hashlib.md5(archive.read_bytes()).hexdigest())
+    monkeypatch.setattr(script, "run_validate", _fake_validate(returncode=1))
+    out = tmp_path / "package"
+    assert script.main(["--figures", str(_figures(tmp_path)), "--zenodo-zip", str(archive), "--out", str(out)]) == 5
+    assert not (out / "supplement" / "MANIFEST.sha256").exists()

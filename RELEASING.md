@@ -136,10 +136,11 @@ uv run python scripts/build_zenodo_package.py --figures path/to/figures --cache-
 `<out>/supplement/` has the structure of the current deposit:
 - every deposited file unchanged, except those the run regenerated;
 - the new files (the Figure 4 MGF, `regeneration/manifest.json`, `regeneration/FIGURE_CHANGES.md`);
+- `validation/`: the engine-score validation (#154), from `validation/engine_scores/validate.py` run against the engines' committed output (no Docker): `comparison.tsv`, `summary.json`, the agreement plots, `versions.json` (images by digest, sha256 of every input and parameter file) and a `README.md` with the result and the commands to run it again;
 - `CHANGES.md`: each file regenerated, added, unchanged or not regenerated, with the reason and issue links;
 - `MANIFEST.sha256` for every file.
 
-The script refuses a run whose checks or Figure 4 did not pass. It uploads nothing: the maintainer uploads the folder as a new version of the Zenodo record.
+The script refuses a run whose checks or Figure 4 did not pass (exit code 2), and stops if the validation fails (exit code 5). It uploads nothing: the maintainer uploads the folder as a new version of the Zenodo record.
 
 ## Yanking a release
 
