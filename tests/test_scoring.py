@@ -144,6 +144,27 @@ def test_score_candidate_reports_isotope_corrected_precursor_error():
     assert abs(result.precursor_mass_error_corrected_ppm) < 1e-3
 
 
+def test_precursor_error_is_the_spectrums_and_the_engines_is_reported_apart():
+    # an engine reports a recalibrated precursor m/z: 2 ppm here, against 5 ppm in the spectrum (#179)
+    theoretical_mz = reference_mz("PEPTIDE", 2)
+    candidate = CandidatePSM(candidate_id="c1", source_engine="maxquant", peptidoform="PEPTIDE", precursor_charge=2,
+                             precursor_mz=theoretical_mz * (1 + 2e-6))
+    observed = ObservedSpectrum(mz=[100.0], intensity=[10.0], precursor_mz=theoretical_mz * (1 + 5e-6), precursor_charge=2)
+    predicted = PredictedSpectrum(
+        peptidoform="PEPTIDE",
+        precursor_charge=2,
+        predictor_name="mock",
+        fragments=[PredictedFragment(mz=100.0, intensity=1.0, annotation="b1+", ion_type="b", ordinal=1)],
+    )
+
+    result = score_candidate_spectrum(candidate=candidate, observed=observed, predicted=predicted, use_observed_annotation=False)
+
+    assert result.precursor_mass_error_ppm == pytest.approx(5.0, abs=1e-3)
+    assert result.precursor_mass_error_corrected_ppm == pytest.approx(5.0, abs=1e-3)
+    assert result.engine_precursor_isotope_error == 0
+    assert result.engine_precursor_mass_error_ppm == pytest.approx(2.0, abs=1e-3)
+
+
 def test_score_candidate_uses_precursor_target_metadata_for_precursor_error():
     theoretical_mz = reference_mz("PEPTIDE", 2)
     candidate = CandidatePSM(candidate_id="c1", source_engine="test", peptidoform="PEPTIDE", precursor_charge=2)

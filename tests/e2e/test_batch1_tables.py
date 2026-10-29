@@ -158,6 +158,7 @@ def test_peptidoform_masses_match_the_engines(zenodo, report, adapter, table, ma
 
 @pytest.mark.parametrize(("adapter", "table", "_m", "_o", "_t", "tolerance_ppm"), ENGINE_TABLES, ids=[t[0] for t in ENGINE_TABLES])
 def test_precursor_errors_are_within_the_search_tolerance(zenodo, report, adapter, table, _m, _o, _t, tolerance_ppm):
+    """The precursor m/z each engine reports (engine_precursor_mass_error_ppm when scored), not the spectrum's."""
     scoring = pytest.importorskip("proteomics_mcp.core.scoring")
     if 3 not in getattr(scoring, "PRECURSOR_ISOTOPE_ERRORS", ()):
         pytest.skip("the installed package predates the +3 isotope correction and MaxQuant's observed precursor m/z (#179)")
@@ -169,6 +170,6 @@ def test_precursor_errors_are_within_the_search_tolerance(zenodo, report, adapte
     errors = [scoring.precursor_isotope_corrected_errors(c.peptidoform, c.precursor_charge, c.precursor_mz)[1] for c in candidates]
     outside = [(c.peptidoform, error) for c, error in zip(candidates, errors) if error is None or abs(error) > tolerance_ppm]
     largest = max(abs(error) for error in errors if error is not None)
-    report("tables", f"precursor error {adapter} within {tolerance_ppm} ppm", "pass" if not outside else "fail",
+    report("tables", f"engine precursor error {adapter} within {tolerance_ppm} ppm", "pass" if not outside else "fail",
            {"psms": len(candidates), "outside": len(outside), "max_abs_ppm": largest, "examples": outside[:5]})
     assert not outside, f"{len(outside)} of {len(candidates)} precursor errors outside {tolerance_ppm} ppm: {outside[:5]}"

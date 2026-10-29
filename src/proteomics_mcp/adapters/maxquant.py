@@ -275,7 +275,7 @@ def load_maxquant_psms(
                 spectrum_id=spectrum_id,
                 usi=None,
                 peptidoform=peptidoform,
-                # Not "m/z": that is the theoretical m/z, so every precursor mass error would be 0 (#179)
+                # Not "m/z": that is the theoretical m/z, so MaxQuant's own error (engine_precursor_*) would be 0 (#179)
                 precursor_mz=_observed_precursor_mz(row),
                 precursor_charge=_as_int(row.get("Charge")),
                 rank=None,

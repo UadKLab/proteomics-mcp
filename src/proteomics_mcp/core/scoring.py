@@ -424,11 +424,17 @@ def score_candidate_spectrum(
     ppm_errors = [ppm_error(m.observed_mz, m.predicted_mz) for m in matches if m.predicted_mz != 0]
     da_errors = [m.observed_mz - m.predicted_mz for m in matches]
     total_predicted = len(fragments)
-    observed_precursor_mz = candidate.precursor_mz or precursor_target_mz(observed)
+    # The spectrum's own precursor m/z, so the error means the same for every engine: MaxQuant, FragPipe and Proteome
+    # Discoverer report recalibrated values (#179). Those give the engine_precursor_* errors; the candidate's m/z is used
+    # here only when the spectrum has none.
+    observed_precursor_mz = precursor_target_mz(observed)
+    if observed_precursor_mz is None:
+        observed_precursor_mz = candidate.precursor_mz
     precursor_error_ppm, precursor_error_da = precursor_mass_errors(candidate.peptidoform, charge, observed_precursor_mz)
     isotope_error, corrected_error_ppm, corrected_error_da = precursor_isotope_corrected_errors(
         candidate.peptidoform, charge, observed_precursor_mz
     )
+    engine_isotope_error, engine_error_ppm, _ = precursor_isotope_corrected_errors(candidate.peptidoform, charge, candidate.precursor_mz)
     search_scores = _search_scores(
         observed=observed,
         peptidoform=candidate.peptidoform,
@@ -477,6 +483,8 @@ def score_candidate_spectrum(
         precursor_isotope_error=isotope_error,
         precursor_mass_error_corrected_ppm=corrected_error_ppm,
         precursor_mass_error_corrected_da=corrected_error_da,
+        engine_precursor_isotope_error=engine_isotope_error,
+        engine_precursor_mass_error_ppm=engine_error_ppm,
         # predicted_index refers to predicted.fragments, which the renderers draw, not to the scored subset
         matched_peaks=[dataclasses.replace(match, predicted_index=scored[match.predicted_index]) for match in matches],
         metric_profile=metric_profile,
