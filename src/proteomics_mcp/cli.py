@@ -28,6 +28,8 @@ from proteomics_mcp.tools.workflows import (
     summarize_prediction_accuracy_tool,
     summarize_quant_quality_tool,
     mzml_to_feather_tool,
+    thermo_raw_to_feather_tool,
+    thermo_raw_to_mzml_tool,
     mgf_to_feather_tool,
     describe_predictor_model_tool,
     predict_fragments_tool,
@@ -324,6 +326,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--mzml-path", required=True)
     p.add_argument("--output-path", required=True)
     p.add_argument("--ms-level", type=int, default=2)
+    for command, help_text in (("thermo-raw-to-mzml", "Convert a Thermo .raw file to mzML with ThermoRawFileParser, installed separately."),
+                               ("thermo-raw-to-feather", "Convert a Thermo .raw file to a Feather spectrum table, through mzML from ThermoRawFileParser.")):
+        p = sub.add_parser(command, help=help_text)
+        p.add_argument("--raw-path", required=True)
+        p.add_argument("--output-path", required=True)
+        if command == "thermo-raw-to-feather":
+            p.add_argument("--mzml-output-path", help="Where to keep the mzML (default: next to the Feather file).")
+            p.add_argument("--ms-level", type=int, default=2)
+        p.add_argument("--parser-executable", help="ThermoRawFileParser to run (default: $PROTEOMICS_MCP_THERMORAWFILEPARSER, else PATH).")
+        p.add_argument("--parser-argument", action="append", dest="parser_arguments", help="Extra ThermoRawFileParser argument; repeatable.")
+        p.add_argument("--timeout-seconds", type=float, default=3600.0)
     p = sub.add_parser("mgf-to-feather")
     p.add_argument("--mgf-path", required=True)
     p.add_argument("--output-path", required=True)
@@ -853,6 +866,13 @@ def main(argv: list[str] | None = None) -> None:
         print(json.dumps(retrieve_pride_sdrf_tool(args.project_accession, args.timeout_seconds), indent=2))
     elif args.command == "mzml-to-feather":
         print(json.dumps(mzml_to_feather_tool(args.mzml_path, args.output_path, args.ms_level), indent=2))
+    elif args.command == "thermo-raw-to-mzml":
+        print(json.dumps(thermo_raw_to_mzml_tool(args.raw_path, args.output_path, parser_executable=args.parser_executable,
+                                                 parser_arguments=args.parser_arguments, timeout_seconds=args.timeout_seconds), indent=2))
+    elif args.command == "thermo-raw-to-feather":
+        print(json.dumps(thermo_raw_to_feather_tool(args.raw_path, args.output_path, mzml_output_path=args.mzml_output_path,
+                                                    ms_level=args.ms_level, parser_executable=args.parser_executable,
+                                                    parser_arguments=args.parser_arguments, timeout_seconds=args.timeout_seconds), indent=2))
     elif args.command == "mgf-to-feather":
         print(json.dumps(mgf_to_feather_tool(args.mgf_path, args.output_path), indent=2))
     elif args.command == "bruker-d-to-feather":

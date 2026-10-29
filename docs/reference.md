@@ -108,10 +108,20 @@ Required: a peptide/peptidoform and a spectrum locator (`usi`, `spectrum_id`, or
 
 - IPC/Feather: normalized local spectrum tables.
 - mzML: `mzml-to-feather`, backed by pyOpenMS.
+- Thermo `.raw`: `thermo-raw-to-mzml` and `thermo-raw-to-feather`, through ThermoRawFileParser installed separately (see *Thermo `.raw` files* below).
 - MGF: `mgf-to-feather`, backed by pyteomics.
 - Bruker `.d`: `bruker-d-to-feather`, preferring AlphaTims with an embedded-MGF fallback. For ddaPASEF, `scan_number` is the precursor `Id`, the identifier of each MS2 spectrum (also in `precursor_id` and `spectrum_id`, `<run>:precursor:<Id>`). `mobility` is the reduced ion mobility 1/K0 (V·s/cm²), and `scan_index` is the precursor's mean position on the TIMS scan axis. Precursors without an assigned charge are kept, with an empty `precursor_charge`.
 - USI: `retrieve-usi-spectrum` through a configured provider.
 - InstaNovo export: `export-to-instanovo` writes a normalized IPC or Parquet inference table. With `sequence_column`, spectra without a sequence get a null `sequence` (reported as `sequences_missing`): InstaNovo refuses such a table as annotated data. For a labelled training or evaluation set, pass `drop_unlabelled` (CLI `--drop-unlabelled`) to leave those spectra out (`spectra_dropped_unlabelled`); otherwise load the table as unannotated. Spectra without precursor m/z or charge are left out (`spectra_dropped_without_precursor`).
+
+### Thermo `.raw` files
+
+The package reads Thermo `.raw` files by running [ThermoRawFileParser](https://github.com/CompOmics/ThermoRawFileParser) (CompOmics; Hulstaert et al., *J Proteome Res* 2020, 19(1):537–542, PMID 31755270) as an external program. `thermo-raw-to-mzml` writes mzML with it (`-f 1`); `thermo-raw-to-feather` then reads that mzML with `mzml-to-feather` and keeps it, next to the Feather file unless `--mzml-output-path` is given.
+
+- **Install it yourself**, e.g. `conda install -c bioconda thermorawfileparser`, a release from its GitHub page, or the BioContainers image. The package runs the program given with `--parser-executable` (CLI only), else `$PROTEOMICS_MCP_THERMORAWFILEPARSER`, else `ThermoRawFileParser` or `thermorawfileparser` on `PATH`; without one it stops with a message saying how to install it. The MCP tools take no program or extra arguments from the client: they run the configured one.
+- **Licences.** ThermoRawFileParser is Apache-2.0. The Thermo RawFileReader libraries it uses have [their own licence](https://github.com/thermofisherlsms/RawFileReader/blob/main/License.doc). The package does not bundle, download or load them, nor ThermoRawFileParser itself.
+- **Provenance.** The result's `converter` records `name`, `version` (from `--version`), `executable` and the full `command`. ThermoRawFileParser also records itself in the mzML's software list.
+- **Peak picking** is ThermoRawFileParser's default (centroided spectra); extra parser arguments such as `--noPeakPicking` can be passed with `--parser-argument` on the CLI.
 
 USI spectra come from the provider's own processing of the raw file, so they can differ from a local mzML or MGF conversion of the same scan. For the 25 reference PSMs in `examples/` (PXD044934, PXD014877, PXD010595), PRIDE returned the same peaks as the local conversions for 2 PSMs. For the other 23 it returned 1–33 fewer peaks; the missing peaks were the only difference, and every remaining peak had the same m/z and intensity. Scores computed from a USI spectrum can therefore differ from scores computed from a local file. Record which source each result used.
 
@@ -229,7 +239,7 @@ The direct `score_candidates` path is suitable for smaller selected sets.
 
 - Table inspection: `load_candidates`, `inspect_*`, `render_*_table`.
 - Structured summaries: `summarize_*`, `bin_*`, `build_id_dashboard`.
-- Spectrum conversion/retrieval: `mzml_to_feather`, `mgf_to_feather`, `bruker_d_to_feather`, `export_to_instanovo`, `retrieve_usi_spectrum`.
+- Spectrum conversion/retrieval: `mzml_to_feather`, `thermo_raw_to_mzml`, `thermo_raw_to_feather`, `mgf_to_feather`, `bruker_d_to_feather`, `export_to_instanovo`, `retrieve_usi_spectrum`.
 - Prediction/evidence: `describe_predictor_model`, `predict_fragments`, `annotate_observed_spectrum`, `score_spectrum`, `score_candidates`, `summarize_score_metrics`.
 - Batch orchestration: `build_prediction_batch`, `inspect_prediction_batch*`, `score_from_prediction_batch`, `inspect_scored_batch*`.
 - Visualization: `render_spectrum_comparison`, `render_annotated_observed_spectrum`, `render_observed_spectrum`, `render_static_spectrum`, `render_spectra_batch`.

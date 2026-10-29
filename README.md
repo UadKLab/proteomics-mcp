@@ -17,7 +17,7 @@ It turns heterogeneous de novo and search-engine outputs into one usable workflo
 
 - Input adapters for InstaNovo, Casanovo, MaxQuant, FragPipe, Proteome Discoverer, and user-mapped tables.
 - Modified peptidoforms normalized to inline UNIMOD notation, such as `C[UNIMOD:4]` and `M[UNIMOD:35]`.
-- Local IPC/Feather spectra, mzML, MGF, Bruker `.d`, and USI retrieval.
+- Local IPC/Feather spectra, mzML, MGF, Thermo `.raw` (through ThermoRawFileParser, installed separately), Bruker `.d`, and USI retrieval.
 - Local MS2PIP and remote Koina/Prosit fragment prediction.
 - On-demand spectrum scoring, observed-spectrum annotation, three interactive HTML views, and publication-ready static SVG/PDF/PNG spectrum figures.
 - PSM/peptide tables, structured dataset summaries, dashboards, SDRF context, and resumable batch prediction/scoring artifacts.
@@ -135,6 +135,7 @@ Do not run `proteomics-mcp serve` in a terminal by itself. It expects JSON-RPC m
 - "Inspect `/path/to/results.csv` as an InstaNovo PSM table. Show the number of identifications, confidence distribution, and top five rows." The `inspect_psm_table` tool returns a structured dataset summary and a constrained preview.
 - "Score the first ten InstaNovo candidates in `/path/to/results.csv` against `/path/to/spectra.ipc` with local MS2PIP, save the scores to `/path/to/scored.csv`, and summarize matched ions." The `score_candidates` tool scores a constrained set and writes the scored table; `summarize_score_metrics` explains individual results.
 - "Convert `/path/to/run.mgf` to `/path/to/run.feather`, then export that spectrum table as `/path/to/instanovo.ipc`." The `mgf_to_feather` and `export_to_instanovo` tools write local files and report spectrum counts and output paths.
+- "Convert `/path/to/run.raw` to `/path/to/run.feather`." The `thermo_raw_to_feather` tool runs [ThermoRawFileParser](https://github.com/CompOmics/ThermoRawFileParser), which you install separately, keeps its mzML next to the Feather file, and records the converter's version and command.
 
 For more task-specific examples, see the [prompt examples](https://uadklab.github.io/proteomics-mcp/prompt_examples/00_overview/).
 
