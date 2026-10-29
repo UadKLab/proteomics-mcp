@@ -3,7 +3,7 @@
 proteomics-mcp runs locally as an MCP server over stdio. Every client below starts the same command and only registers it differently:
 
 ```text
-uvx proteomics-mcp@0.1.10 serve
+uvx proteomics-mcp@0.2.0 serve
 ```
 
 `uvx` comes with [uv](https://docs.astral.sh/uv/getting-started/installation/). It installs the pinned release from PyPI into a cached environment on first use, so the first start takes a minute. Pin the version, as shown here, so that results are reproducible. On macOS, install the OpenMP runtime once for local MS2PIP prediction: `brew install libomp`.
@@ -12,7 +12,7 @@ Do not run `proteomics-mcp serve` in a terminal by itself; it waits for JSON-RPC
 
 ## Claude Desktop
 
-Recommended: download `proteomics-mcp-v0.1.10.mcpb` from the [GitHub release](https://github.com/UadKLab/proteomics-mcp/releases/tag/v0.1.10) and open it with Claude Desktop. The extension manages its own Python environment. In its settings, choose an output directory; input files must be in folders Claude Desktop can read.
+Recommended: download `proteomics-mcp-v0.2.0.mcpb` from the [GitHub release](https://github.com/UadKLab/proteomics-mcp/releases/tag/v0.2.0) and open it with Claude Desktop. The extension manages its own Python environment. In its settings, choose an output directory; input files must be in folders Claude Desktop can read.
 
 Alternatively, without the extension, add the server to `claude_desktop_config.json` (*Settings → Developer → Edit Config*) and restart Claude Desktop:
 
@@ -21,7 +21,7 @@ Alternatively, without the extension, add the server to `claude_desktop_config.j
   "mcpServers": {
     "proteomics-mcp": {
       "command": "uvx",
-      "args": ["proteomics-mcp@0.1.10", "serve"]
+      "args": ["proteomics-mcp@0.2.0", "serve"]
     }
   }
 }
@@ -30,7 +30,7 @@ Alternatively, without the extension, add the server to `claude_desktop_config.j
 ## Claude Code
 
 ```bash
-claude mcp add proteomics-mcp -- uvx proteomics-mcp@0.1.10 serve
+claude mcp add proteomics-mcp -- uvx proteomics-mcp@0.2.0 serve
 ```
 
 Add `--scope project` to share the server with a repository through its `.mcp.json`. Check it with `claude mcp list`.
@@ -38,7 +38,7 @@ Add `--scope project` to share the server with a repository through its `.mcp.js
 ## Codex CLI
 
 ```bash
-codex mcp add proteomics-mcp -- uvx proteomics-mcp@0.1.10 serve
+codex mcp add proteomics-mcp -- uvx proteomics-mcp@0.2.0 serve
 ```
 
 or add it to `~/.codex/config.toml`:
@@ -46,7 +46,7 @@ or add it to `~/.codex/config.toml`:
 ```toml
 [mcp_servers.proteomics-mcp]
 command = "uvx"
-args = ["proteomics-mcp@0.1.10", "serve"]
+args = ["proteomics-mcp@0.2.0", "serve"]
 ```
 
 ## Cursor
@@ -58,7 +58,7 @@ Add the server to `~/.cursor/mcp.json` (all projects) or `.cursor/mcp.json` (one
   "mcpServers": {
     "proteomics-mcp": {
       "command": "uvx",
-      "args": ["proteomics-mcp@0.1.10", "serve"]
+      "args": ["proteomics-mcp@0.2.0", "serve"]
     }
   }
 }
