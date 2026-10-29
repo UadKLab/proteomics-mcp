@@ -925,10 +925,14 @@ def with_published_scan(candidate: dict[str, Any], payload: dict[str, Any]) -> d
     return candidate
 
 
-def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[str, list[dict[str, Any]]], *,
+                        target_root: Path | None = None, every_payload: bool = False) -> dict[str, Any]:
     """Re-score the deposit's reference examples: each folder's top5_summary.csv (all five PSMs), and the payloads and
     HTML views the deposit carries. The deposit holds 7 of the 25 payloads; the observed spectra of the other 18 come
-    from the repository's examples/, whose payloads equal the deposited ones where both exist."""
+    from the repository's examples/, whose observed spectra equal the deposited ones where both exist (checked).
+
+    target_root: write each folder there instead of deposit/figure_assets/examples. every_payload: write the payload
+    and views of all five PSMs, with the file names they have in the repository's examples/ (scripts/regenerate_examples.py)."""
     import pandas as pd
 
     from proteomics_mcp.core.visualization import (
@@ -940,17 +944,20 @@ def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[s
     report: dict[str, Any] = {}
     for folder, spec in EXAMPLE_SETS.items():
         published = supplement / EXAMPLES / folder
-        target = deposit / EXAMPLES / folder
+        target = (target_root or deposit / EXAMPLES) / folder
         target.mkdir(parents=True, exist_ok=True)
         summary = pd.read_csv(published / "top5_summary.csv")
         rows, written = [], []
         for row in summary.itertuples():
             name = f"rank_{row.rank}_scan_{row.scan_number}_"
             deposited = sorted(published.glob(f"{name}*_payload.json"))
-            source = deposited[0] if deposited else next((REPO_ROOT / "examples" / folder).glob(f"{name}*_payload.json"), None)
-            if source is None:
+            in_repository = next((REPO_ROOT / "examples" / folder).glob(f"{name}*_payload.json"), None)
+            source = deposited[0] if deposited else in_repository
+            if source is None or (every_payload and in_repository is None):
                 raise SystemExit(f"{folder} rank {row.rank}: no payload with the observed spectrum (deposit or examples/)")
             payload = json.loads(source.read_text())
+            if deposited and in_repository and json.loads(in_repository.read_text())["observed"] != payload["observed"]:
+                raise SystemExit(f"{folder} rank {row.rank}: the observed spectrum in examples/ differs from the deposited one")
             lookup = {"candidate_id": str(row.candidate_id)} if spec.get("by") == "candidate_id" else {"scan": int(row.scan_number)}
             candidate = with_published_scan(resolve_candidate(supplement, {**spec, **lookup}, candidate_cache), payload)
             new = score_psm(candidate, payload["observed"], published_settings(payload))
@@ -962,8 +969,8 @@ def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[s
                                                         "matched_ion_count", "matched_ion_fraction")},
                          "annotated_peak_count": annotation_summary.get("annotated_peak_count"),
                          "annotated_intensity_fraction": annotation_summary.get("annotated_intensity_fraction")})
-            if deposited:  # the deposit keeps its file names, so the stem (with the 0.1.10 peptide text) stays
-                stem = deposited[0].name.removesuffix("_payload.json")
+            if deposited or every_payload:  # file names are kept, so the stem (with the 0.1.10 peptide text) stays
+                stem = (in_repository if every_payload else deposited[0]).name.removesuffix("_payload.json")
                 (target / f"{stem}_payload.json").write_text(json.dumps(new, default=str))
                 render_spectrum_comparison_html(new, target / f"{stem}_mirror.html")
                 render_annotated_observed_spectrum_html(new, target / f"{stem}_annotated.html", tolerance=published_settings(payload)["tolerance"],

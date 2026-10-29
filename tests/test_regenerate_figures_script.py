@@ -253,3 +253,39 @@ def test_deposited_examples_are_rescored_and_rendered(script, tmp_path, monkeypa
     settings = payload["metrics"]["annotation_settings"]
     assert tolerances == [(settings["tolerance"], settings["tolerance_unit"])]
     assert report[folder]["psms"] == 5
+
+
+def test_every_example_payload_is_written_under_its_repository_name(script, tmp_path, monkeypatch):
+    """scripts/regenerate_examples.py: all five payloads of a folder, also those not in the deposit, with the views."""
+    folder = "23_sbrodae_casanovo_top5"
+    published = tmp_path / "supplement" / script.EXAMPLES / folder
+    published.mkdir(parents=True)
+    source = ROOT / "examples" / folder
+    (published / "top5_summary.csv").write_bytes((source / "top5_summary.csv").read_bytes())
+    payloads = {path.name.split("_")[1]: json.loads(path.read_text()) for path in source.glob("rank_*_payload.json")}
+
+    monkeypatch.setattr(script, "EXAMPLE_SETS", {folder: {"adapter": "casanovo", "table": "unused.csv", "by": "candidate_id"}})
+    monkeypatch.setattr(script, "resolve_candidate", lambda supplement, spec, cache: {"candidate_id": spec["candidate_id"], "peptidoform": "PEPTIDE"})
+    monkeypatch.setattr(script, "score_psm", lambda candidate, observed, settings: next(p for p in payloads.values() if p["observed"] == observed))
+
+    report = script.regenerate_examples(tmp_path / "supplement", tmp_path / "deposit", {}, target_root=tmp_path / "examples", every_payload=True)
+
+    written = sorted(path.name for path in (tmp_path / "examples" / folder).iterdir())
+    expected = sorted(path.name for path in source.iterdir() if path.name.startswith("rank_")) + ["top5_summary.csv"]
+    assert written == expected and len(report[folder]["payload_files"]) == 20
+    assert not (tmp_path / "deposit").exists()
+
+
+def test_examples_observed_spectra_must_equal_the_deposited_ones(script, tmp_path, monkeypatch):
+    folder = "22_hela_instanovo_top5"
+    published = tmp_path / "supplement" / script.EXAMPLES / folder
+    published.mkdir(parents=True)
+    source = ROOT / "examples" / folder
+    (published / "top5_summary.csv").write_bytes((source / "top5_summary.csv").read_bytes())
+    deposited = next(source.glob("rank_1_scan_*_payload.json"))
+    payload = json.loads(deposited.read_text())
+    payload["observed"]["intensity"][0] += 1.0
+    (published / deposited.name).write_text(json.dumps(payload))
+    monkeypatch.setattr(script, "EXAMPLE_SETS", {folder: {"adapter": "instanovo", "table": "unused.csv"}})
+    with pytest.raises(SystemExit, match="observed spectrum in examples/ differs"):
+        script.regenerate_examples(tmp_path / "supplement", tmp_path / "deposit", {})
