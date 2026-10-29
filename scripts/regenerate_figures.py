@@ -934,8 +934,8 @@ def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[s
                 stem = deposited[0].name.removesuffix("_payload.json")
                 (target / f"{stem}_payload.json").write_text(json.dumps(new, default=str))
                 render_spectrum_comparison_html(new, target / f"{stem}_mirror.html")
-                render_annotated_observed_spectrum_html(new, target / f"{stem}_annotated.html", tolerance=s["tolerance"],
-                                                        tolerance_unit=s["tolerance_unit"], **EXAMPLE_HTML["annotated"])
+                render_annotated_observed_spectrum_html(new, target / f"{stem}_annotated.html", tolerance=published_settings(payload)["tolerance"],
+                                                        tolerance_unit=published_settings(payload)["tolerance_unit"], **EXAMPLE_HTML["annotated"])
                 render_observed_spectrum_html(new, target / f"{stem}_plain.html")
                 written += [f"{stem}_{kind}" for kind in ("payload.json", "mirror.html", "annotated.html", "plain.html")]
         table, columns = deposited_column_order(pd.DataFrame(rows), published / "top5_summary.csv")

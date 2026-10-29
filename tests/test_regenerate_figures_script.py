@@ -192,3 +192,35 @@ def test_a_scan_number_in_two_runs_is_refused(script):
     with pytest.raises(SystemExit, match="runs"):
         script.resolve_candidate(Path("supplement"), {"adapter": "generic", "table": table, "scan": 7}, cache)
     assert script.resolve_candidate(Path("supplement"), {"adapter": "generic", "table": table, "scan": 7}, {str(Path("supplement") / table): rows[:1]})["experiment_name"] == "run_a"
+
+
+def test_deposited_examples_are_rescored_and_rendered(script, tmp_path, monkeypatch):
+    """The deposit's own payloads get new payload, mirror, annotated and plain files, the annotated view with the payload's
+    published tolerance (a NameError here once stopped the run after verification)."""
+    folder = "22_hela_instanovo_top5"
+    published = tmp_path / "supplement" / script.EXAMPLES / folder
+    published.mkdir(parents=True)
+    source = ROOT / "examples" / folder
+    (published / "top5_summary.csv").write_bytes((source / "top5_summary.csv").read_bytes())
+    deposited = next(source.glob("rank_2_scan_11648_*_payload.json"))
+    (published / deposited.name).write_bytes(deposited.read_bytes())
+    payload = json.loads(deposited.read_text())
+
+    monkeypatch.setattr(script, "EXAMPLE_SETS", {folder: {"adapter": "instanovo", "table": "unused.csv"}})
+    monkeypatch.setattr(script, "resolve_candidate", lambda supplement, spec, cache: dict(payload["metrics"]["candidate"]))
+    monkeypatch.setattr(script, "score_psm", lambda candidate, observed, settings: {**payload, "settings_used": settings})
+    tolerances = []
+    import proteomics_mcp.core.visualization as visualization
+
+    render = visualization.render_annotated_observed_spectrum_html
+    monkeypatch.setattr(visualization, "render_annotated_observed_spectrum_html",
+                        lambda *args, **kwargs: tolerances.append((kwargs["tolerance"], kwargs["tolerance_unit"])) or render(*args, **kwargs))
+
+    report = script.regenerate_examples(tmp_path / "supplement", tmp_path / "deposit", {})
+
+    stem = deposited.name.removesuffix("_payload.json")
+    assert report[folder]["payload_files"] == [f"{stem}_{kind}" for kind in ("payload.json", "mirror.html", "annotated.html", "plain.html")]
+    assert all((tmp_path / "deposit" / script.EXAMPLES / folder / name).is_file() for name in report[folder]["payload_files"])
+    settings = payload["metrics"]["annotation_settings"]
+    assert tolerances == [(settings["tolerance"], settings["tolerance_unit"])]
+    assert report[folder]["psms"] == 5
