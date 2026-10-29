@@ -99,6 +99,45 @@ Add `==X.Y.Z` after `--from proteomics-mcp` to test a specific version.
 - **After *publish to PyPI*:** the version is on PyPI and cannot be re-uploaded. If only *GitHub release* failed, re-run that job from the workflow run page.
 - **A dry run followed by a tag** leaves the dry-run files on TestPyPI, because the tag run skips existing files there. PyPI gets the tag-built files; their SHA-256 values are in the tag run's summary.
 
+## Manuscript figures
+
+When a release changes scientific output, regenerate the manuscript figures from a checkout of the release (first from `main` as a release candidate, then from the tag), with one command:
+
+```bash
+git switch --detach vX.Y.Z
+uv run python scripts/regenerate_figures.py --out path/to/figures --cache-dir path/to/cache
+```
+
+- **How the figures are made:** every number, score, annotation and plot comes from the package, through the functions behind its MCP tools (`load_candidates`, `score_spectrum`, `predict_fragments`, the prediction batch and its scoring, `build_id_dashboard`, `render_static_spectrum`, `render_spectrum_comparison`, the observed-spectrum views, `render_psm_table`, `render_peptide_table`, `inspect_peptide_table`). The script computes no score and draws no data. It only assembles the figures, in place of the manual Illustrator step:
+  - it places the package's panels on the published page widths and adds the panel letters;
+  - it zooms and crops the package's interactive plots (Supplementary Figure 2B/2C) and captures them, and the Figure 4 dashboard plots, as screenshots. These must reach at least 300 dpi in the figure; the actual values are in `manifest.json` (`raster_panels_dpi`);
+  - it writes the PRIDE spectra of Figure 4 to an MGF at full precision.
+- **Environment:** the figures use MS2PIP 4.1.2, the release behind the published ones (#23). The package does not pin MS2PIP. The script runs itself again in a uv environment (Python 3.12, `--python`) with this checkout, every other dependency at its `uv.lock` version, MS2PIP 4.1.2 and the assembly tools (Playwright, pypdf, pypdfium2), all listed in `FIGURE_ENVIRONMENT`. The environment's requirements file is in `work/requirements_figures.txt`, and its checksum is in `manifest.json`.
+
+- **Inputs:** the Zenodo supplement (record 23295902, md5-checked, downloaded into `--cache-dir` or given with `--zenodo-zip`) and, for Figure 4, PRIDE spectra by USI (cached per scan). The PSMs are resolved with the release's adapters; the observed spectra are those of the published reference payloads.
+- **Figure 4:** the first 100 PSMs in the deposited FragPipe PSM table, retained in source-file order (#42, #47), with the PRIDE spectra and their retention times written to one MGF (`deposit/processed/arabidopsis/figure4_usi_spectra.mgf`, sha256 pinned in `FIGURE4_MGF_SHA256`). `--figure4-mgf` rebuilds Figure 4 from that file instead of PRIDE, so it can be reproduced from the Zenodo deposit alone. The figure is `REGENERATED` only if every check passes: all 100 PSMs scored and joined to their spectra, retention times equal to FragPipe's, batch scores equal to `score_spectrum`. Otherwise it is `PROVISIONAL`, with the reasons in `CHANGES.md`.
+- **Scoring and rendering:** the package defaults (metric profile `v2`), 0.05 Da, MS2PIP `HCD`, and the published render settings. HTML panels are captured with Playwright in the local Google Chrome (`--browser-channel chromium` for Playwright's own browser).
+- **Checks:** the run stops with exit code 3, before assembling anything, if a value differs from what the release must give (`EXPECTED` in the script).
+- **Outputs** (in a new or empty `--out` outside the repository; never committed): `Figure2/3/4.pdf`, `Suppl_figure2/5.pdf` and PNGs with the Zenodo file names, `panels/` (each panel as PDF and PNG, for layout touch-ups), `comparison/` (published left, new right), `CHANGES.md` (every changed value with its issue, and the manuscript text to update), and `manifest.json` (package version and git SHA, MS2PIP and Python versions, input checksums, command line, output checksums).
+- **MS2PIP comparison:** Figure 2 is also scored with each release in `--compare-ms2pip` (default `4.2.0`, the locked release), in a uv environment with the locked dependencies and only MS2PIP replaced.
+- **Deposit:** the run also writes `deposit/`, laid out like the Zenodo supplement. It holds the regenerated figure PDFs, the reference examples (the 7 deposited payloads with their views, and every `top5_summary.csv`), and the Figure 4 tables, interactive files and spectra MGF.
+
+### Zenodo supplement
+
+After the figures are regenerated from the tag, assemble the next version of the supplement:
+
+```bash
+uv run python scripts/build_zenodo_package.py --figures path/to/figures --cache-dir path/to/cache --out path/to/zenodo
+```
+
+`<out>/supplement/` has the structure of the current deposit:
+- every deposited file unchanged, except those the run regenerated;
+- the new files (the Figure 4 MGF, `regeneration/manifest.json`, `regeneration/FIGURE_CHANGES.md`);
+- `CHANGES.md`: each file regenerated, added, unchanged or not regenerated, with the reason and issue links;
+- `MANIFEST.sha256` for every file.
+
+The script refuses a run whose checks or Figure 4 did not pass. It uploads nothing: the maintainer uploads the folder as a new version of the Zenodo record.
+
 ## Yanking a release
 
 PyPI never accepts a re-upload of a version, even after deletion. To withdraw a broken release:
