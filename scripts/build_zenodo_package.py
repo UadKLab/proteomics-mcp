@@ -9,7 +9,11 @@ directory written as ~), the engine-score validation (validation/: validation/en
 committed Comet and X! Tandem output, #154), CHANGES.md (what changed against the previous version and why),
 PROVENANCE.md (versions, commands, the RAW -> mzML conversion) and MANIFEST.sha256 (every file). Nothing is uploaded, and
 nothing is written inside the repository. Exit codes: 0 done, 2 the regeneration run did not pass its checks, 4 the
-deposited supplement's checksum differs, 5 the engine-score validation failed.
+deposited supplement's checksum differs, 5 the engine-score validation failed, 6 the --supplementary-tables run does not
+fit (its checks, its package source or its tables differ from the figures run's).
+
+`--supplementary-tables <folder>` takes Supplementary Figures 3 and 4 from a `regenerate_figures.py --supplementary-tables`
+run (screenshots of the package's interactive tables), in place of the deposited pictures.
 """
 
 from __future__ import annotations
@@ -40,6 +44,13 @@ REASONS = [
      "scores as above"),
     ("figure_assets/pdfs/Suppl_figure2.pdf", "panel B: peaks of predicted ions below the 0.1% cut-off are no longer matched (#83)"),
     ("figure_assets/pdfs/Suppl_figure5.pdf", "panels B and C: fewer matched ions under metric profile v2 (#74, #83)"),
+    ("figure_assets/pdfs/Suppl_figure3.pdf", "screenshot of the 0.2.0 interactive PSM table (`figure_assets/interactive/Supplementary_Figure_3_"
+     "fragpipe_scored_psm_table.html`, byte for byte), rendered by the package at the packaging commit with its source identical to "
+     "0.2.0 (`regeneration/supplementary_tables_manifest.json`); the deposited picture was of an earlier rendering of the table"),
+    ("figure_assets/pdfs/Suppl_figure4.pdf", "screenshot of the 0.2.0 interactive peptide table (`figure_assets/interactive/Supplementary_Figure_4_"
+     "fragpipe_scored_peptide_table.html`, byte for byte), rendered by the package at the packaging commit with its source identical "
+     "to 0.2.0 (`regeneration/supplementary_tables_manifest.json`); the deposited picture showed the 0.1.x table, 62 columns, before "
+     "the xcorr and hyperscore columns of #51"),
     ("figure_assets/interactive/", "rebuilt from the Figure 4 build (#42, #47): scores under metric profile v2 (#72, #74, #83), xcorr and hyperscore "
      "columns (#51), retention times from PRIDE (#135), histograms that count their maximum (#169), precursor errors from the "
      "spectrum with FragPipe's own as engine_precursor_* (#179)"),
@@ -188,7 +199,8 @@ OPENMP_MACOS = ("- **OpenMP (macOS):** MS2PIP's xgboost uses the OpenMP runtime 
                 "installed. Installing a second one (e.g. `brew install libomp`) can abort with OpenMP Error #15 (\"libomp already initialized\").")
 
 
-def provenance_markdown(figures: dict, release: str, build_command: str, packaging: dict | None = None, validation: bool = False) -> str:
+def provenance_markdown(figures: dict, release: str, build_command: str, packaging: dict | None = None, validation: bool = False,
+                        tables: dict | None = None) -> str:
     git, package = figures.get("git", {}), figures["package"]["proteomics-mcp"]
     released = git.get("describe") == f"v{release}" and package == release and not git.get("dirty")
     version_line = (f"proteomics-mcp **{release}**, built from the tag `v{release}` (commit `{git.get('sha')}`)." if released else
@@ -208,6 +220,11 @@ def provenance_markdown(figures: dict, release: str, build_command: str, packagi
            f"{', with uncommitted changes' if packaging.get('dirty') else ''})."] if packaging else []),
         *(["- **Engine-score validation:** `validation/`, from `validation/engine_scores/validate.py` run by the packaging step "
            "against the engines' committed output; `validation/README.md` has the result and the commands to run it again."] if validation else []),
+        *([f"- **Supplementary Figures 3 and 4:** screenshots of the interactive PSM and peptide tables "
+           f"({'; '.join(t['header'] for t in tables['tables'].values())}), rendered by `scripts/regenerate_figures.py --supplementary-tables` "
+           f"at `{tables['git'].get('describe')}` (commit `{tables['git'].get('sha')}`) from the deposited Figure 4 spectra, with MS2PIP "
+           f"{tables.get('ms2pip')} and the package source identical to `{tables['source_of']['tag']}` (sha256 `{tables['source_of']['sha256']}`); "
+           "the tables equal the deposited ones byte for byte. Record: `regeneration/supplementary_tables_manifest.json`."] if tables else []),
         f"- **Figure 4 spectra:** PRIDE PXD014877 by USI, in `processed/arabidopsis/figure4_usi_spectra.mgf` "
         f"(sha256 `{(fig4.get('spectra') or {}).get('mgf_sha256')}`).",
         "- **Previous version:** Zenodo record " + ZENODO_RECORD + " reproduces proteomics-mcp 0.1.8 / 0.1.10; this version goes "
@@ -232,7 +249,7 @@ def changes_markdown(changed: dict[str, list[str]], unchanged: list[str], figure
             lines += [f"| `{path}` | {linked(reason(path))} |" for path in changed[key]]
             lines.append("")
     lines += ["## Not regenerated", "", "| File | Note |", "|---|---|"]
-    lines += [f"| `{path}` | {linked(note)} |" for path, note in NOT_REGENERATED.items()]
+    lines += [f"| `{path}` | {linked(note)} |" for path, note in NOT_REGENERATED.items() if path not in changed["replaced"]]
     lines += ["", "## Unchanged inputs", "", "Copied byte for byte from the previous version:", ""]
     lines += [f"- `{path}`" for path in unchanged if path not in NOT_REGENERATED]
     lines += ["", "## Figure 4", "", f"Status: **{fig4.get('status')}**.", ""]
@@ -260,6 +277,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--zenodo-zip", type=Path, help="the deposited supplement.zip (md5-checked)")
     parser.add_argument("--release", default="0.2.0", help="the release this version of the supplement goes with")
     parser.add_argument("--allow-provisional", action="store_true", help="package a run whose checks or Figure 4 did not pass")
+    parser.add_argument("--supplementary-tables", type=Path, help="a regenerate_figures.py --supplementary-tables run: Supplementary Figures 3 and 4")
     args = parser.parse_args(argv)
 
     figures_dir, out = args.figures.expanduser().resolve(), args.out.expanduser().resolve()
@@ -277,6 +295,24 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
 
+    tables = None
+    if args.supplementary_tables:
+        tables_dir = args.supplementary_tables.expanduser().resolve()
+        tables = json.loads((tables_dir / "manifest.json").read_text())
+        source = figures["package"].get("source_sha256")
+        problems = [problem for problem, failed in (
+            ("not a --supplementary-tables run", tables.get("mode") != "supplementary-tables"),
+            (f"its checks did not pass ({tables.get('verification')})", not (tables.get("verification") or {}).get("passed")),
+            ("no --source-of check", not (tables.get("source_of") or {}).get("equal")),
+            (f"its package source {tables['package'].get('source_sha256')} is not the figures run's {source}", tables["package"].get("source_sha256") != source),
+        ) if failed]
+        # the screenshots must show the tables this package deposits
+        problems += [f"{t['html']} differs from the figures run's" for t in tables.get("tables", {}).values()
+                     if not (figures_dir / "deposit" / t["html"]).is_file() or file_digest(figures_dir / "deposit" / t["html"]) != t["html_sha256"]]
+        if problems:
+            print(f"--supplementary-tables {tables_dir}: " + "; ".join(problems), file=sys.stderr)
+            return 6
+
     supplement = extract_supplement(archive.expanduser(), out)
     deposited = {p.relative_to(supplement).as_posix() for p in supplement.rglob("*") if p.is_file()}
     changed: dict[str, list[str]] = {"replaced": [], "added": [], "same": []}
@@ -288,8 +324,17 @@ def main(argv: list[str] | None = None) -> int:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
         changed[kind].append(rel)
+    if tables:
+        for name in tables["tables"]:
+            rel = f"figure_assets/pdfs/{name}.pdf"
+            kind = "added" if rel not in deposited else "same" if file_digest(supplement / rel) == file_digest(tables_dir / "deposit" / rel) else "replaced"
+            shutil.copyfile(tables_dir / "deposit" / rel, supplement / rel)
+            changed[kind].append(rel)
     records = supplement / "regeneration"
     records.mkdir(exist_ok=True)
+    if tables:
+        shutil.copyfile(tables_dir / "manifest.json", records / "supplementary_tables_manifest.json")
+        changed["added"].append("regeneration/supplementary_tables_manifest.json")
     shutil.copyfile(figures_dir / "manifest.json", records / "manifest.json")
     shutil.copyfile(figures_dir / "CHANGES.md", records / "FIGURE_CHANGES.md")
     changed["added"] += ["regeneration/manifest.json", "regeneration/FIGURE_CHANGES.md"]
@@ -309,7 +354,7 @@ def main(argv: list[str] | None = None) -> int:
     # arguments are paths, flags and versions: paths are written with / on every platform
     build_command = "uv run python scripts/build_zenodo_package.py " + " ".join(
         sanitized(a.replace("\\", "/")) for a in (argv if argv is not None else sys.argv[1:]))
-    (supplement / "PROVENANCE.md").write_text(provenance_markdown(figures, args.release, build_command, packaging, validation=True))
+    (supplement / "PROVENANCE.md").write_text(provenance_markdown(figures, args.release, build_command, packaging, validation=True, tables=tables))
     changed["added"].append("PROVENANCE.md")
     unchanged = sorted(deposited - set(changed["replaced"]) - set(changed["same"]))
     (supplement / "CHANGES.md").write_text(changes_markdown(changed, unchanged, figures))
