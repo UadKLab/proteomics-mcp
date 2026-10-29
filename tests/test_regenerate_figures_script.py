@@ -144,3 +144,51 @@ def test_the_installed_package_is_checked_against_the_checkout(script):
     if installed != ROOT / "src" / "proteomics_mcp" and script.source_digest(installed) != script.source_digest(ROOT / "src" / "proteomics_mcp"):
         pytest.skip("the installed package is not this checkout (e.g. a wheel from another commit)")
     assert script.check_installed_package() == script.source_digest(ROOT / "src" / "proteomics_mcp")
+
+
+def test_a_missing_zenodo_zip_is_reported_not_downloaded(script, tmp_path, monkeypatch):
+    monkeypatch.setattr(script.urllib.request, "urlopen", lambda *a, **k: pytest.fail("downloaded"))
+    with pytest.raises(SystemExit, match="no such file"):
+        script.zenodo_supplement(tmp_path / "supplment.zip", tmp_path / "cache")
+
+
+def test_an_interrupted_extraction_is_redone(script, tmp_path, monkeypatch):
+    import zipfile
+
+    archive = tmp_path / "supplement.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("supplement/raw_file_inventory.tsv", "run\n")
+        bundle.writestr("supplement/figure_assets/examples/payload.json", "{}")
+    monkeypatch.setattr(script, "ZENODO_MD5", hashlib.md5(archive.read_bytes()).hexdigest())
+    cache = tmp_path / "cache"
+    # what an interrupted extractall leaves: the inventory, not the later members, and no marker
+    partial = cache / f"zenodo-{script.ZENODO_RECORD}" / "supplement"
+    partial.mkdir(parents=True)
+    (partial / "raw_file_inventory.tsv").write_text("run\n")
+
+    _, supplement = script.zenodo_supplement(archive, cache)
+
+    assert (supplement / "figure_assets" / "examples" / "payload.json").is_file()
+
+
+def test_out_must_be_new_or_empty(script, tmp_path, monkeypatch):
+    monkeypatch.setattr(script, "rerun_in_figure_environment", lambda *a: pytest.fail("ran"))
+    (tmp_path / "deposit").mkdir()
+    (tmp_path / "deposit" / "Figure4.pdf").write_text("an earlier run")
+    with pytest.raises(SystemExit, match="not empty"):
+        script.main(["--out", str(tmp_path), "--cache-dir", str(tmp_path / "cache")])
+
+
+def test_a_missing_dashboard_plot_is_named(script):
+    assert script.dashboard_plot(["plot_hist_rt_minutes"], "B", "hist_rt") == "plot_hist_rt_minutes"
+    with pytest.raises(SystemExit, match="plot hist_mz not in the dashboard"):
+        script.dashboard_plot(["plot_hist_rt"], "C", "hist_mz")
+
+
+def test_a_scan_number_in_two_runs_is_refused(script):
+    table = "processed/table.tsv"
+    rows = [{"scan_number": 7, "peptidoform": "PEPTIDE", "experiment_name": run} for run in ("run_a", "run_b")]
+    cache = {str(Path("supplement") / table): rows}
+    with pytest.raises(SystemExit, match="runs"):
+        script.resolve_candidate(Path("supplement"), {"adapter": "generic", "table": table, "scan": 7}, cache)
+    assert script.resolve_candidate(Path("supplement"), {"adapter": "generic", "table": table, "scan": 7}, {str(Path("supplement") / table): rows[:1]})["experiment_name"] == "run_a"

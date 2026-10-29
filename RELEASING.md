@@ -105,7 +105,7 @@ When a release changes scientific output, regenerate the manuscript figures from
 
 ```bash
 git switch --detach vX.Y.Z
-uv run python scripts/regenerate_figures.py --out ~/pmcp/figures-vX.Y.Z --cache-dir ~/pmcp/cache
+uv run python scripts/regenerate_figures.py --out path/to/figures --cache-dir path/to/cache
 ```
 
 - **How the figures are made:** every number, score, annotation and plot comes from the package, through the functions behind its MCP tools (`load_candidates`, `score_spectrum`, `predict_fragments`, the prediction batch and its scoring, `build_id_dashboard`, `render_static_spectrum`, `render_spectrum_comparison`, the observed-spectrum views, `render_psm_table`, `render_peptide_table`, `inspect_peptide_table`). The script computes no score and draws no data. It only assembles the figures, in place of the manual Illustrator step:
@@ -118,7 +118,7 @@ uv run python scripts/regenerate_figures.py --out ~/pmcp/figures-vX.Y.Z --cache-
 - **Figure 4:** the first 100 PSMs in the deposited FragPipe PSM table, retained in source-file order (#42, #47), with the PRIDE spectra and their retention times written to one MGF (`deposit/processed/arabidopsis/figure4_usi_spectra.mgf`, sha256 pinned in `FIGURE4_MGF_SHA256`). `--figure4-mgf` rebuilds Figure 4 from that file instead of PRIDE, so it can be reproduced from the Zenodo deposit alone. The figure is `REGENERATED` only if every check passes: all 100 PSMs scored and joined to their spectra, retention times equal to FragPipe's, batch scores equal to `score_spectrum`. Otherwise it is `PROVISIONAL`, with the reasons in `CHANGES.md`.
 - **Scoring and rendering:** the package defaults (metric profile `v2`), 0.05 Da, MS2PIP `HCD`, and the published render settings. HTML panels are captured with Playwright in the local Google Chrome (`--browser-channel chromium` for Playwright's own browser).
 - **Checks:** the run stops with exit code 3, before assembling anything, if a value differs from what the release must give (`EXPECTED` in the script).
-- **Outputs** (outside the repository; never committed): `Figure2/3/4.pdf`, `Suppl_figure2/5.pdf` and PNGs with the Zenodo file names, `panels/` (each panel as PDF and PNG, for layout touch-ups), `comparison/` (published left, new right), `CHANGES.md` (every changed value with its issue, and the manuscript text to update), and `manifest.json` (package version and git SHA, MS2PIP and Python versions, input checksums, command line, output checksums).
+- **Outputs** (in a new or empty `--out` outside the repository; never committed): `Figure2/3/4.pdf`, `Suppl_figure2/5.pdf` and PNGs with the Zenodo file names, `panels/` (each panel as PDF and PNG, for layout touch-ups), `comparison/` (published left, new right), `CHANGES.md` (every changed value with its issue, and the manuscript text to update), and `manifest.json` (package version and git SHA, MS2PIP and Python versions, input checksums, command line, output checksums).
 - **MS2PIP comparison:** Figure 2 is also scored with each release in `--compare-ms2pip` (default `4.2.0`, the locked release), in a uv environment with the locked dependencies and only MS2PIP replaced.
 - **Deposit:** the run also writes `deposit/`, laid out like the Zenodo supplement. It holds the regenerated figure PDFs, the reference examples (the 7 deposited payloads with their views, and every `top5_summary.csv`), and the Figure 4 tables, interactive files and spectra MGF.
 
@@ -127,7 +127,7 @@ uv run python scripts/regenerate_figures.py --out ~/pmcp/figures-vX.Y.Z --cache-
 After the figures are regenerated from the tag, assemble the next version of the supplement:
 
 ```bash
-uv run python scripts/build_zenodo_package.py --figures ~/pmcp/figures-vX.Y.Z --cache-dir ~/pmcp/cache --out ~/pmcp/zenodo-vX.Y.Z
+uv run python scripts/build_zenodo_package.py --figures path/to/figures --cache-dir path/to/cache --out path/to/zenodo
 ```
 
 `<out>/supplement/` has the structure of the current deposit:

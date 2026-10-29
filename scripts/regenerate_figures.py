@@ -8,11 +8,11 @@ panels use the published render settings. Nothing is written inside the reposito
 
 Run from a checkout (the release candidate or the tag):
 
-    uv run python scripts/regenerate_figures.py --out ~/pmcp/figures-v0.2.0 --cache-dir ~/pmcp/cache
+    uv run python scripts/regenerate_figures.py --out path/to/figures --cache-dir path/to/cache
 
 The figures use MS2PIP 4.1.2, as the published ones did (#23). The package itself does not pin MS2PIP, so the script
 runs itself again in a uv environment with this checkout, every other dependency at its uv.lock version, MS2PIP 4.1.2
-and the figure-assembly tools (FIGURE_ENVIRONMENT), unless it already runs in one.
+and the figure-assembly tools (FIGURE_ENVIRONMENT). --out must be new or empty.
 
 How the figures are made: every number, score, annotation and plot comes from the package, through the functions behind
 its MCP tools (load_candidates, score_spectrum, predict_fragments, the prediction batch and its scoring, build_id_dashboard,
@@ -232,6 +232,8 @@ def git_state() -> dict[str, Any]:
 
 def zenodo_supplement(zip_path: Path | None, cache_dir: Path) -> tuple[Path, Path]:
     """The supplement archive (downloaded once into the cache unless given), md5-checked, and its extracted folder."""
+    if zip_path is not None and not zip_path.is_file():
+        raise SystemExit(f"--zenodo-zip {zip_path}: no such file")
     archive = zip_path or cache_dir / f"zenodo-{ZENODO_RECORD}-supplement.zip"
     if not archive.is_file():
         log(f"downloading the Zenodo supplement (record {ZENODO_RECORD})")
@@ -244,11 +246,21 @@ def zenodo_supplement(zip_path: Path | None, cache_dir: Path) -> tuple[Path, Pat
         log(f"Zenodo supplement md5 {checksum} != {ZENODO_MD5}: not the deposited supplement")
         sys.exit(4)
     target = cache_dir / f"zenodo-{ZENODO_RECORD}"
-    if not (target / "supplement" / "raw_file_inventory.tsv").is_file():
-        with zipfile.ZipFile(archive) as bundle:
-            members = [m for m in bundle.namelist() if not m.startswith("__MACOSX/") and not m.endswith(".DS_Store")]
-            bundle.extractall(target, members=members)
+    # written last, so an interrupted extraction is redone instead of reused
+    marker = target / ".extracted_md5"
+    if not marker.is_file() or marker.read_text() != checksum:
+        shutil.rmtree(target, ignore_errors=True)
+        extract_supplement(archive, target)
+        marker.write_text(checksum)
     return archive, target / "supplement"
+
+
+def extract_supplement(archive: Path, target: Path) -> Path:
+    """Extract the supplement archive into target, without the macOS resource forks; returns target/supplement."""
+    with zipfile.ZipFile(archive) as bundle:
+        members = [m for m in bundle.namelist() if not m.startswith("__MACOSX/") and not m.endswith(".DS_Store")]
+        bundle.extractall(target, members=members)
+    return target / "supplement"
 
 
 def resolve_candidate(supplement: Path, spec: dict[str, Any], cache: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
@@ -266,8 +278,10 @@ def resolve_candidate(supplement: Path, spec: dict[str, Any], cache: dict[str, l
     else:
         matches = [row for row in rows if row.get("scan_number") == spec["scan"]]
     peptidoforms = {row["peptidoform"] for row in matches}
-    if len(matches) != 1 and len(peptidoforms) != 1:
-        raise SystemExit(f"{spec['table']}: expected one PSM for {spec.get('scan') or spec.get('candidate_id')}, found {len(matches)}")
+    runs = {row.get("experiment_name") for row in matches}
+    if not matches or len(peptidoforms) != 1 or len(runs) != 1:
+        raise SystemExit(f"{spec['table']}: expected one PSM for {spec.get('scan') or spec.get('candidate_id')}, found {len(matches)} "
+                         f"({len(peptidoforms)} peptidoforms, runs {sorted(map(str, runs))})")
     return dict(matches[0])
 
 
@@ -379,13 +393,17 @@ def pinned_environment(packages: list[str], python: str, workdir: Path, name: st
     # A wheel built now from this checkout, never a cached build: `--with <checkout> --reinstall-package` reinstalled uv's
     # cached build of an earlier commit, because uv rebuilds a local project only when pyproject.toml changes.
     # check_installed_package() then confirms the installed code is the checkout's before anything is scored.
-    wheel = checkout_wheel(workdir / f"wheel_{name}")
+    wheel = checkout_wheel(workdir / "wheel")
     return ["uv", "run", "--no-project", "--python", python, "--with-requirements", str(requirements), "--with", str(wheel),
             "--refresh-package", "proteomics-mcp", "--reinstall-package", "proteomics-mcp", "python"]
 
 
 def checkout_wheel(folder: Path) -> Path:
-    """Build a wheel of this checkout into an emptied folder and return it."""
+    """Build a wheel of this checkout into an emptied folder and return it. In the figure environment, the wheel it was
+    installed from is reused: check_installed_package() has confirmed that it holds this checkout's code."""
+    built = sorted(folder.glob("proteomics_mcp-*.whl"))
+    if "--in-figure-environment" in sys.argv and len(built) == 1:
+        return built[0]
     shutil.rmtree(folder, ignore_errors=True)
     subprocess.run(["uv", "build", "--wheel", "--out-dir", str(folder), str(REPO_ROOT)], capture_output=True, text=True, check=True)
     wheels = sorted(folder.glob("proteomics_mcp-*.whl"))
@@ -819,18 +837,16 @@ def figure4(supplement: Path, args: argparse.Namespace, work: Path, panels: Path
         targets["plot_data"].write_text(json.dumps(plot_data))
         status["plot_data_ids"] = sorted(plot_data)
         # #169: each histogram panel counts every PSM, including those at its maximum
-        counted = {letter: sum(sum(v for v in (trace.get("y") or []) if isinstance(v, (int, float))) for trace in plot_data[plot_id]["data"])
-                   for letter, plot in FIGURE4_PLOTS.items() if plot.startswith("hist_")
-                   for plot_id in [next(i for i in plot_data if i == plot or i.endswith(plot))]}
+        counted = {letter: sum(sum(v for v in (trace.get("y") or []) if isinstance(v, (int, float)))
+                               for trace in plot_data[dashboard_plot(ids, letter, plot)]["data"])
+                   for letter, plot in FIGURE4_PLOTS.items() if plot.startswith("hist_")}
         status["histogram_counts"] = counted
         checks["every histogram panel counts all 100 PSMs (#169)"] = all(count == FIGURE4_SUBSET_ROWS for count in counted.values())
         if not checks["every histogram panel counts all 100 PSMs (#169)"]:
             status["status"] = "PROVISIONAL"
             status["reasons"].append(f"check failed: every histogram panel counts all 100 PSMs (#169): {counted}")
         for letter, plot in FIGURE4_PLOTS.items():
-            match = next((i for i in ids if i == plot or i.endswith(plot) or plot in i), None)
-            if not match:
-                raise SystemExit(f"Figure 4 panel {letter}: plot {plot} not in the dashboard ({ids})")
+            match = dashboard_plot(ids, letter, plot)
             stem = panels / f"Figure4{letter}"
             page.locator(f"#{match}").screenshot(path=str(stem.with_suffix(".png")))
             png_to_pdf(stem.with_suffix(".png"), stem.with_suffix(".pdf"), dpi=288)
@@ -852,6 +868,29 @@ EXAMPLE_SETS = {
     "23_sbrodae_casanovo_top5": {"adapter": "casanovo", "table": "processed/sbrodae/casanovo_predictions.csv", "by": "candidate_id"},
 }
 EXAMPLE_HTML = {"annotated": {"ion_types": "all", "max_isotope": 2, "neutral_losses": False}}  # as in examples/README.md
+
+
+def dashboard_plot(ids: list[str], letter: str, plot: str) -> str:
+    """The id of the dashboard plot behind a Figure 4 panel."""
+    match = next((i for i in ids if i == plot or i.endswith(plot) or plot in i), None)
+    if not match:
+        raise SystemExit(f"Figure 4 panel {letter}: plot {plot} not in the dashboard ({ids})")
+    return match
+
+
+def published_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    """The tolerance and annotation settings a published payload was scored with."""
+    s = payload["metrics"]["annotation_settings"]
+    return {key: s[key] for key in ("tolerance", "tolerance_unit", "annotation_ion_types", "annotation_max_isotope",
+                                    "annotation_max_ion_charge", "annotation_neutral_losses")}
+
+
+def with_published_scan(candidate: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """Casanovo reports no scan number: take the scan link of the published payload (from the Proteome Discoverer export)."""
+    if candidate.get("scan_number") is None:
+        candidate["scan_number"] = payload["metrics"]["candidate"]["scan_number"]
+        candidate["spectrum_id"] = payload["metrics"]["candidate"]["spectrum_id"]
+    return candidate
 
 
 def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
@@ -881,15 +920,8 @@ def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[s
                 raise SystemExit(f"{folder} rank {row.rank}: no payload with the observed spectrum (deposit or examples/)")
             payload = json.loads(source.read_text())
             lookup = {"candidate_id": str(row.candidate_id)} if spec.get("by") == "candidate_id" else {"scan": int(row.scan_number)}
-            candidate = resolve_candidate(supplement, {**spec, **lookup}, candidate_cache)
-            if candidate.get("scan_number") is None:  # Casanovo: the scan link of the published payload
-                candidate["scan_number"] = payload["metrics"]["candidate"]["scan_number"]
-                candidate["spectrum_id"] = payload["metrics"]["candidate"]["spectrum_id"]
-            s = payload["metrics"]["annotation_settings"]
-            settings = {"tolerance": s["tolerance"], "tolerance_unit": s["tolerance_unit"], "annotation_ion_types": s["annotation_ion_types"],
-                        "annotation_max_isotope": s["annotation_max_isotope"], "annotation_max_ion_charge": s["annotation_max_ion_charge"],
-                        "annotation_neutral_losses": s["annotation_neutral_losses"]}
-            new = score_psm(candidate, payload["observed"], settings)
+            candidate = with_published_scan(resolve_candidate(supplement, {**spec, **lookup}, candidate_cache), payload)
+            new = score_psm(candidate, payload["observed"], published_settings(payload))
             metrics, annotation_summary = new["metrics"], new["metrics"].get("annotation_summary") or {}
             rows.append({"rank": row.rank, "candidate_id": candidate.get("candidate_id"), "scan_number": candidate.get("scan_number"),
                          "spectrum_id": candidate.get("spectrum_id"), "experiment_name": candidate.get("experiment_name"),
@@ -980,7 +1012,7 @@ def changes_markdown(results: dict[str, dict[str, Any]], fig2_by_version: dict[s
         join = fig4["batch"]["metadata_join"] or {}
         lines += ["", f"#146 check: the metadata join matched {join.get('matched_rows')} rows, {join.get('unmatched_rows')} unmatched; "
                   f"dashboard retention times vs FragPipe `Retention`: largest difference "
-                  f"{rt.get('largest_abs_difference_minutes') or float('nan'):.6f} min over {rt.get('compared')} PSMs."]
+                  f"{float('nan') if rt.get('largest_abs_difference_minutes') is None else rt['largest_abs_difference_minutes']:.6f} min over {rt.get('compared')} PSMs."]
         for key in ("scored_psms_columns", "scored_peptides_columns"):
             columns = fig4.get(key) or {}
             lines += ["", f"`{FIGURE4_DEPOSIT[key.removesuffix('_columns')].split('/')[-1]}` columns: removed {columns.get('removed') or 'none'}, "
@@ -1038,6 +1070,9 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     args = parse_args(argv)
     if not args.figure2_metrics_only and not args.in_figure_environment:
+        out = args.out.expanduser().resolve()
+        if out.exists() and any(out.iterdir()):
+            raise SystemExit(f"--out {out} is not empty: files of an earlier run would be packaged as regenerated")
         return rerun_in_figure_environment(args, argv)
     source_sha256 = check_installed_package()  # before anything is scored
     args.cache_dir = args.cache_dir.expanduser().resolve()
@@ -1051,16 +1086,8 @@ def main(argv: list[str] | None = None) -> int:
 
     def new_payload(key: str) -> dict[str, Any]:
         published = published_payload(key)
-        candidate = resolve_candidate(supplement, PSMS[key], candidate_cache)
-        candidate.setdefault("scan_number", None)
-        if candidate["scan_number"] is None:  # Casanovo: the published scan link (from the Proteome Discoverer export)
-            candidate["scan_number"] = published["metrics"]["candidate"]["scan_number"]
-            candidate["spectrum_id"] = published["metrics"]["candidate"]["spectrum_id"]
-        s = published["metrics"]["annotation_settings"]
-        settings = {"tolerance": s["tolerance"], "tolerance_unit": s["tolerance_unit"], "annotation_ion_types": s["annotation_ion_types"],
-                    "annotation_max_isotope": s["annotation_max_isotope"], "annotation_max_ion_charge": s["annotation_max_ion_charge"],
-                    "annotation_neutral_losses": s["annotation_neutral_losses"]}
-        return score_psm(candidate, published["observed"], settings)
+        candidate = with_published_scan(resolve_candidate(supplement, {**PSMS[key]}, candidate_cache), published)
+        return score_psm(candidate, published["observed"], published_settings(published))
 
     if args.figure2_metrics_only:
         payload = new_payload("fig2")
@@ -1208,9 +1235,9 @@ def main(argv: list[str] | None = None) -> int:
 
     installed = sorted({f"{d.metadata['Name']}=={d.version}" for d in distributions()}, key=str.lower)
     (regeneration / "environment.txt").write_text(f"# Python {platform.python_version()}, {platform.platform()}\n" + "\n".join(installed) + "\n")
+    (out / "CHANGES.md").write_text(changes_markdown(results, fig2_by_version, ms2pip_version, fig4, manifest))
     manifest["outputs"] = {p.relative_to(out).as_posix(): file_digest(p) for p in sorted(out.rglob("*")) if p.is_file() and "work" not in p.relative_to(out).parts}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1, default=str))
-    (out / "CHANGES.md").write_text(changes_markdown(results, fig2_by_version, ms2pip_version, fig4, manifest))
     log(f"done: {out}")
     return 0
 

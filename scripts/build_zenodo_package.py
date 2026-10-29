@@ -1,7 +1,6 @@
 """Assemble the new version of the manuscript's Zenodo supplement from a figure-regeneration run.
 
-    uv run python scripts/build_zenodo_package.py --figures ~/pmcp/figures-v0.2.0 --cache-dir ~/pmcp/cache \
-        --out ~/pmcp/zenodo-v0.2.0
+    uv run python scripts/build_zenodo_package.py --figures path/to/figures --cache-dir path/to/cache --out path/to/zenodo
 
 The package has the structure of the current deposit (record 23295902): every deposited file is copied unchanged,
 then the files the regeneration run staged in <figures>/deposit/ replace their deposited versions or are added. It
@@ -15,16 +14,16 @@ differs.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import shutil
 import sys
-import zipfile
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-ZENODO_RECORD = "23295902"
-ZENODO_MD5 = "1445e7af348b12c703f477d50fb01130"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# the record, its checksum and how it is extracted are those the figures were regenerated from
+from regenerate_figures import REPO_ROOT, ZENODO_MD5, ZENODO_RECORD, file_digest  # noqa: E402
+from regenerate_figures import extract_supplement as extract_archive  # noqa: E402
+
 ISSUES = "https://github.com/UadKLab/proteomics-mcp/issues"
 
 # Why each kind of file changed (path prefix -> reason with issues), most specific prefix first.
@@ -70,14 +69,6 @@ NOT_REGENERATED = {
 }
 
 
-def file_digest(path: Path, algorithm: str = "sha256") -> str:
-    digest = hashlib.new(algorithm)
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def linked(text: str) -> str:
     """'#51' -> a link to the issue."""
     import re
@@ -93,10 +84,7 @@ def extract_supplement(archive: Path, target: Path) -> Path:
     if file_digest(archive, "md5") != ZENODO_MD5:
         print(f"{archive}: md5 differs from the deposited supplement ({ZENODO_MD5})", file=sys.stderr)
         sys.exit(4)
-    with zipfile.ZipFile(archive) as bundle:
-        members = [m for m in bundle.namelist() if not m.startswith("__MACOSX/") and not m.endswith(".DS_Store")]
-        bundle.extractall(target, members=members)
-    return target / "supplement"
+    return extract_archive(archive, target)
 
 
 RAW_CONVERSION = """\
