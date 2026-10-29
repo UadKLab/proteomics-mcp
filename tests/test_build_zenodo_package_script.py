@@ -184,3 +184,63 @@ def test_package_stops_when_the_validation_fails(script, tmp_path, monkeypatch):
     out = tmp_path / "package"
     assert script.main(["--figures", str(_figures(tmp_path)), "--zenodo-zip", str(archive), "--out", str(out)]) == 5
     assert not (out / "supplement" / "MANIFEST.sha256").exists()
+
+
+def _tables_run(tmp_path: Path, figures: Path, *, source: str = "s" * 64, passed: bool = True) -> Path:
+    """A regenerate_figures.py --supplementary-tables run whose tables are the figures run's."""
+    run = tmp_path / "tables"
+    (run / "deposit/figure_assets/pdfs").mkdir(parents=True)
+    tables = {}
+    for name, n, html in (("Suppl_figure3", 3, "psm"), ("Suppl_figure4", 4, "peptide")):
+        (run / f"deposit/figure_assets/pdfs/{name}.pdf").write_text(f"new {name}")
+        rel = f"figure_assets/interactive/Supplementary_Figure_{n}_fragpipe_scored_{html}_table.html"
+        (figures / "deposit" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (figures / "deposit" / rel).write_text(f"table {n}")
+        tables[name] = {"html": rel, "html_sha256": hashlib.sha256(f"table {n}".encode()).hexdigest(), "header": f"{n} rows, {n} columns"}
+    manifest = {"mode": "supplementary-tables", "package": {"source_sha256": source}, "git": {"describe": "v0.2.0-9-gfff", "sha": "fff"},
+                "ms2pip": "4.1.2", "source_of": {"tag": "v0.2.0", "sha256": source, "equal": True}, "tables": tables,
+                "verification": {"problems": [], "passed": passed}}
+    (run / "manifest.json").write_text(json.dumps(manifest))
+    return run
+
+
+def test_package_takes_supplementary_figures_3_and_4_from_a_tables_run(script, tmp_path, monkeypatch):
+    archive = _deposit(tmp_path)
+    with zipfile.ZipFile(archive, "a") as bundle:
+        bundle.writestr("supplement/figure_assets/pdfs/Suppl_figure3.pdf", "old picture 3")
+        bundle.writestr("supplement/figure_assets/pdfs/Suppl_figure4.pdf", "old picture 4")
+    monkeypatch.setattr(script, "ZENODO_MD5", hashlib.md5(archive.read_bytes()).hexdigest())
+    figures = _figures(tmp_path)
+    manifest = json.loads((figures / "manifest.json").read_text())
+    manifest["package"]["source_sha256"] = "s" * 64
+    (figures / "manifest.json").write_text(json.dumps(manifest))
+    out = tmp_path / "package"
+    assert script.main(["--figures", str(figures), "--zenodo-zip", str(archive), "--out", str(out),
+                        "--supplementary-tables", str(_tables_run(tmp_path, figures))]) == 0
+
+    supplement = out / "supplement"
+    assert (supplement / "figure_assets/pdfs/Suppl_figure4.pdf").read_text() == "new Suppl_figure4"
+    changes = (supplement / "CHANGES.md").read_text()
+    regenerated = changes.split("## Regenerated (content changed)")[1].split("\n## ")[0]
+    assert "`figure_assets/pdfs/Suppl_figure3.pdf` | screenshot of the 0.2.0 interactive PSM table" in regenerated
+    assert "`figure_assets/pdfs/Suppl_figure4.pdf`" in regenerated and "62 columns" in regenerated
+    assert "Suppl_figure4.pdf" not in changes.split("## Not regenerated")[1].split("\n## ")[0]
+    assert (supplement / "regeneration/supplementary_tables_manifest.json").is_file()
+    provenance = (supplement / "PROVENANCE.md").read_text()
+    assert "**Supplementary Figures 3 and 4:**" in provenance and "(3 rows, 3 columns; 4 rows, 4 columns)" in provenance
+    assert "at `v0.2.0-9-gfff` (commit `fff`)" in provenance and f"identical to `v0.2.0` (sha256 `{'s' * 64}`)" in provenance
+
+
+@pytest.mark.parametrize("problem", ["source", "failed", "table"])
+def test_package_refuses_a_tables_run_that_does_not_fit(script, tmp_path, monkeypatch, problem):
+    archive = _deposit(tmp_path)
+    monkeypatch.setattr(script, "ZENODO_MD5", hashlib.md5(archive.read_bytes()).hexdigest())
+    figures = _figures(tmp_path)
+    manifest = json.loads((figures / "manifest.json").read_text())
+    manifest["package"]["source_sha256"] = "s" * 64
+    (figures / "manifest.json").write_text(json.dumps(manifest))
+    run = _tables_run(tmp_path, figures, source="t" * 64 if problem == "source" else "s" * 64, passed=problem != "failed")
+    if problem == "table":
+        (figures / "deposit/figure_assets/interactive/Supplementary_Figure_4_fragpipe_scored_peptide_table.html").write_text("other table")
+    assert script.main(["--figures", str(figures), "--zenodo-zip", str(archive), "--out", str(tmp_path / "package"),
+                        "--supplementary-tables", str(run)]) == 6

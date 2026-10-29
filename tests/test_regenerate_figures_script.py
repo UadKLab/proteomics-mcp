@@ -101,7 +101,36 @@ def test_example_sets_cover_the_figure_payloads(script):
 def test_raster_panels_are_the_screenshots(script):
     """Only the screenshots of interactive plots are raster panels, and they must reach 300 dpi in the figure."""
     assert script.MIN_RASTER_DPI == 300
-    assert script.RASTER_PANELS == {"Suppl_figure2B", "Suppl_figure2C", "Figure4A", "Figure4B", "Figure4C", "Figure4D", "Figure4E"}
+    assert script.RASTER_PANELS == {"Suppl_figure2B", "Suppl_figure2C", "Figure4A", "Figure4B", "Figure4C", "Figure4D", "Figure4E",
+                                    "Suppl_figure3", "Suppl_figure4"}
+
+
+def test_supplementary_tables_fill_the_published_page_above_300_dpi(script):
+    """Supplementary Figures 3 and 4: the viewport has the published page's aspect, and at device scale 3 it is far above 300 dpi."""
+    width, height = script.TABLE_VIEWPORT
+    for name in script.SUPPLEMENTARY_TABLES:
+        page_width = script.PAGE_WIDTH[name]
+        assert abs(width / height - page_width / 361.41) < 0.01
+        assert width * 3 / (page_width / 72) >= script.MIN_RASTER_DPI
+    assert {key for key, _ in script.SUPPLEMENTARY_TABLES.values()} <= set(script.FIGURE4_DEPOSIT)
+
+
+def test_table_header_reads_the_row_and_column_counts(script, tmp_path):
+    html = tmp_path / "table.html"
+    html.write_text("<h1>Peptide table</h1><p class='meta'>68 rows, 61 columns</p>")
+    assert script.table_header(html) == "68 rows, 61 columns"
+    html.write_text("<h1>empty</h1>")
+    with pytest.raises(SystemExit):
+        script.table_header(html)
+
+
+def test_source_of_a_tag_must_equal_the_installed_source(script, monkeypatch, capsys):
+    monkeypatch.setattr(script, "tag_source_digest", lambda tag: "a" * 64)
+    assert script.check_source_of("v0.2.0", "a" * 64) == {"tag": "v0.2.0", "sha256": "a" * 64, "equal": True}
+    with pytest.raises(SystemExit) as stopped:
+        script.check_source_of("v0.2.0", "b" * 64)
+    assert stopped.value.code == 5
+    assert "not that of v0.2.0" in capsys.readouterr().err
 
 
 def test_manifest_records_the_command_as_typed(script, monkeypatch):

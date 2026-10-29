@@ -122,6 +122,7 @@ uv run python scripts/regenerate_figures.py --out path/to/figures --cache-dir pa
 - **Scoring and rendering:** the package defaults (metric profile `v2`), 0.05 Da, MS2PIP `HCD`, and the published render settings. HTML panels are captured with Playwright in the local Google Chrome (`--browser-channel chromium` for Playwright's own browser).
 - **Checks:** the run stops with exit code 3, before assembling anything, if a value differs from what the release must give (`EXPECTED` in the script).
 - **Outputs** (in a new or empty `--out` outside the repository; never committed): `Figure2/3/4.pdf`, `Suppl_figure2/5.pdf` and PNGs with the Zenodo file names, `panels/` (each panel as PDF and PNG, for layout touch-ups), `comparison/` (published left, new right), `CHANGES.md` (every changed value with its issue, and the manuscript text to update), and `manifest.json` (package version and git SHA, MS2PIP and Python versions, input checksums, command line, output checksums).
+- **Supplementary Figures 3 and 4** (screenshots of the interactive PSM and peptide tables of the Figure 4 subset): `--supplementary-tables` builds only these two, from the Figure 4 build at the current checkout, best with `--figure4-mgf` (the deposit's spectra). Each table is scrolled so that the published screenshot's first column (`run_key`, `stripped_sequence`) is leftmost and captured at the published page's aspect (about 820 dpi). With `--source-of vX.Y.Z` the run stops (exit code 5) unless the package source equals the tag's, so a later checkout renders them as the release does. Only the two PDFs go to `deposit/`; `manifest.json` records the tables' sha256 and their "rows, columns" lines.
 - **MS2PIP comparison:** Figure 2 is also scored with each release in `--compare-ms2pip` (default `4.2.0`, the locked release), in a uv environment with the locked dependencies and only MS2PIP replaced.
 - **Deposit:** the run also writes `deposit/`, laid out like the Zenodo supplement. It holds the regenerated figure PDFs, the reference examples (the 7 deposited payloads with their views, and every `top5_summary.csv`), and the Figure 4 tables, interactive files and spectra MGF.
 
@@ -139,6 +140,13 @@ uv run python scripts/build_zenodo_package.py --figures path/to/figures --cache-
 - `validation/`: the engine-score validation (#154), from `validation/engine_scores/validate.py` run against the engines' committed output (no Docker): `comparison.tsv`, `summary.json`, the agreement plots, `versions.json` (images by digest, sha256 of every input and parameter file) and a `README.md` with the result and the commands to run it again;
 - `CHANGES.md`: each file regenerated, added, unchanged or not regenerated, with the reason and issue links;
 - `MANIFEST.sha256` for every file.
+
+`--supplementary-tables <folder>` replaces the deposited Supplementary Figures 3 and 4 with those of a `--supplementary-tables` run, recorded in `regeneration/supplementary_tables_manifest.json` and in `PROVENANCE.md`. The run must have passed its checks, have the same package source as the figures run, and show the tables the package deposits (same sha256); otherwise the script stops (exit code 6):
+
+```bash
+uv run python scripts/regenerate_figures.py --supplementary-tables --source-of vX.Y.Z --figure4-mgf path/to/zenodo/supplement/processed/arabidopsis/figure4_usi_spectra.mgf --cache-dir path/to/cache --out path/to/tables
+uv run python scripts/build_zenodo_package.py --figures path/to/figures --cache-dir path/to/cache --supplementary-tables path/to/tables --out path/to/zenodo
+```
 
 The script refuses a run whose checks or Figure 4 did not pass (exit code 2), and stops if the validation fails (exit code 5). It uploads nothing: the maintainer uploads the folder as a new version of the Zenodo record.
 

@@ -25,7 +25,13 @@ screenshots of at least MIN_RASTER_DPI in the figure, and writes the PRIDE spect
 HTML panels (Figure 2B, Supplementary Figure 2, Figure 4) are captured with Playwright in the local Google Chrome
 (`--browser-channel chrome`) or Playwright's own Chromium (`--browser-channel chromium`). Exit codes: 0 done,
 3 a verification against the expected 0.2.0 values failed (nothing is assembled), 4 an input checksum differs, 5 the
-installed package is not this checkout's code (a stale build; nothing is scored).
+installed package is not this checkout's code (a stale build; nothing is scored), or with --source-of its source differs
+from that tag's.
+
+`--supplementary-tables` builds only Supplementary Figures 3 and 4: the interactive PSM and peptide tables of the Figure 4
+subset, rendered by the package (best with `--figure4-mgf`, from the deposit's spectra) and captured as screenshots of at
+least MIN_RASTER_DPI. `--source-of v0.2.0` stops the run unless the package source equals the tag's, so a later checkout can
+render them as the release does.
 """
 
 from __future__ import annotations
@@ -86,14 +92,21 @@ FIG3A_ION_TYPES = "a,b,c,x,y,z,z-dot,immonium,precursor"  # the ion families in 
 FIG3B_ION_TYPES = "all"
 METRIC_STRIP_VIEWPORT = 1400  # five metric tiles per row, as in Figure 2B
 # Panels that are screenshots of the package's interactive plots; the rest are vector PDFs from the package's renderers.
-RASTER_PANELS = {"Suppl_figure2B", "Suppl_figure2C", *(f"Figure4{letter}" for letter in "ABCDE")}
+RASTER_PANELS = {"Suppl_figure2B", "Suppl_figure2C", *(f"Figure4{letter}" for letter in "ABCDE"), "Suppl_figure3", "Suppl_figure4"}
 MIN_RASTER_DPI = 300
 METADATA_VIEWPORT = 960  # four metadata columns, as in Supplementary Figure 2A
 S2B_MZ_RANGE = (195.0, 1085.0)
 S2C_MZ_RANGE = (413.6, 420.4)
 S2C_HOVER_MZ = 418.228  # y4+ | PSSK
 # Page widths of the published PDFs (points); heights follow from the panels.
-PAGE_WIDTH = {"Figure2": 527.33, "Figure3": 527.33, "Figure4": 543.81, "Suppl_figure2": 611.47, "Suppl_figure5": 1085.82}
+PAGE_WIDTH = {"Figure2": 527.33, "Figure3": 527.33, "Figure4": 543.81, "Suppl_figure2": 611.47, "Suppl_figure5": 1085.82,
+              "Suppl_figure3": 513.88, "Suppl_figure4": 513.88}
+# Supplementary Figures 3 and 4: the top of each interactive table (title, row and column counts, controls), scrolled so that
+# the first column the published screenshot shows is leftmost: run_key for the PSM table (its caption lists run_key ...
+# precursor_mz), stripped_sequence for the peptide table. The viewport has the published page's aspect; at device scale 3
+# it is 5850 px wide, about 820 dpi on the page.
+SUPPLEMENTARY_TABLES = {"Suppl_figure3": ("psm_table_html", "run_key"), "Suppl_figure4": ("peptide_table_html", "stripped_sequence")}
+TABLE_VIEWPORT = (1950, 1371)
 FIGURE4_PLOTS = {"A": "scatter_spectral_angle_vs_fragment_mass_error", "B": "hist_rt", "C": "hist_spectral_angle",
                  "D": "hist_matched_fraction", "E": "hist_explained_fraction"}
 FIGURE4_SUBSET_ROWS = 100  # the Figure 4 subset (#42, #47): the first 100 PSMs in the deposited FragPipe PSM table, retained in source-file order
@@ -429,6 +442,25 @@ def check_installed_package(installed: Path | None = None, checkout: Path = REPO
               f"{found[:16]}, those in {checkout} to {expected[:16]}. Nothing was scored.", file=sys.stderr)
         raise SystemExit(5)
     return expected
+
+
+def tag_source_digest(tag: str) -> str:
+    """source_digest() of the package source at a git tag of this repository."""
+    import tarfile
+
+    archive = subprocess.run(["git", "archive", "--format=tar", tag, "src/proteomics_mcp"], cwd=REPO_ROOT, capture_output=True, check=True).stdout
+    with tempfile.TemporaryDirectory() as tmp:
+        tarfile.open(fileobj=io.BytesIO(archive)).extractall(tmp, filter="data")
+        return source_digest(Path(tmp) / "src" / "proteomics_mcp")
+
+
+def check_source_of(tag: str, source_sha256: str) -> dict[str, Any]:
+    """The installed (and checked-out) source must be the tag's; exits with code 5 otherwise."""
+    expected = tag_source_digest(tag)
+    if expected != source_sha256:
+        print(f"The package source ({source_sha256[:16]}) is not that of {tag} ({expected[:16]}). Nothing was scored.", file=sys.stderr)
+        raise SystemExit(5)
+    return {"tag": tag, "sha256": expected, "equal": True}
 
 
 def rerun_in_figure_environment(args: argparse.Namespace, argv: list[str]) -> int:
@@ -945,6 +977,96 @@ def regenerate_examples(supplement: Path, deposit: Path, candidate_cache: dict[s
     return report
 
 
+# --- Supplementary Figures 3 and 4 --------------------------------------------------------------------------------------
+
+
+def table_header(html: Path) -> str:
+    """The "N rows, M columns" line under the title of a rendered table."""
+    import re
+
+    match = re.search(r"(\d[\d,]*) rows?, (\d[\d,]*) columns?", html.read_text(encoding="utf-8"))
+    if not match:
+        raise SystemExit(f"{html}: no 'rows, columns' line")
+    return match.group(0)
+
+
+def scroll_table_to(page, column: str) -> None:
+    """Scroll the table's own container horizontally so that `column` is its leftmost column."""
+    found = page.evaluate(f"""() => {{
+        const th = [...document.querySelectorAll('th')].find(t => t.textContent.trim() === {json.dumps(column)});
+        if (!th) return false;
+        let box = th.parentElement;
+        while (box && box.scrollWidth <= box.clientWidth) box = box.parentElement;
+        if (box) box.scrollLeft += th.getBoundingClientRect().left - box.getBoundingClientRect().left;
+        return true;
+    }}""")
+    if not found:
+        raise SystemExit(f"no table column {column!r} to scroll to")
+    page.wait_for_timeout(300)
+
+
+def supplementary_tables(args: argparse.Namespace, archive: Path, supplement: Path, out: Path, source_sha256: str,
+                         source_of: dict[str, Any] | None) -> int:
+    """Supplementary Figures 3 and 4 only: the Figure 4 build's PSM and peptide tables, rendered by the package and
+    captured from the top of each page; the PDFs go to deposit/ only if the build and the resolution checks pass."""
+    panels, comparison, work, deposit = out / "panels", out / "comparison", out / "work", out / "deposit"
+    for folder in (out, panels, comparison, work, deposit):
+        folder.mkdir(parents=True, exist_ok=True)
+    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    git = git_state()
+    log(f"Supplementary Figures 3 and 4: proteomics-mcp {version('proteomics-mcp')} ({git['describe']}), MS2PIP {version('ms2pip')}, "
+        f"source {source_sha256[:16]}" + (f" = {source_of['tag']}" if source_of else ""))
+    tables = work / "tables"  # the Figure 4 build's deposit files stay in work/: only the two PDFs are deposited
+    fig4 = figure4(supplement, args, work, work / "figure4_panels", None, tables)
+    problems = [f"Figure 4 build: {reason}" for reason in fig4.get("reasons", [])] if fig4.get("status") != "REGENERATED" else []
+    rendered: dict[str, dict[str, Any]] = {}
+    widths: dict[str, float] = {}
+    if fig4.get("status") != "SKIPPED":
+        browser = Browser(args.browser_channel)
+        try:
+            for name, (key, first_column) in SUPPLEMENTARY_TABLES.items():
+                html = tables / FIGURE4_DEPOSIT[key]
+                rendered[name] = {"html": FIGURE4_DEPOSIT[key], "html_sha256": file_digest(html), "header": table_header(html),
+                                  "first_column": first_column}
+                page = browser.page(html, *TABLE_VIEWPORT)
+                scroll_table_to(page, first_column)
+                page.screenshot(path=str(panels / f"{name}.png"))
+                page.close()
+                png_to_pdf(panels / f"{name}.png", panels / f"{name}.pdf", dpi=288)
+                widths |= compose([[("", panels / f"{name}.pdf", 1.0)]], PAGE_WIDTH[name], out / f"{name}.pdf", gutter=0.0)
+        finally:
+            browser.close()
+    dpi = raster_dpi(panels, widths)
+    if low := {stem: value for stem, value in dpi.items() if value < MIN_RASTER_DPI}:
+        problems.append(f"screenshot panels below {MIN_RASTER_DPI} dpi: {low}")
+    for problem in problems:
+        log(f"MISMATCH {problem}")
+    passed = not problems and len(rendered) == len(SUPPLEMENTARY_TABLES)
+    if passed or args.no_verify:
+        (deposit / PUBLISHED_PDFS).mkdir(parents=True, exist_ok=True)
+        for name in rendered:
+            shutil.copyfile(out / f"{name}.pdf", deposit / PUBLISHED_PDFS / f"{name}.pdf")
+            side_by_side(supplement / PUBLISHED_PDFS / f"{name}.pdf", out / f"{name}.png", comparison / f"{name}_published_vs_new.png",
+                         f"Regenerated ({git['describe']}, {rendered[name]['header']})")
+    manifest = {
+        "mode": "supplementary-tables", "started": started, "finished": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "command": user_command(), "interpreter": Path(sys.executable).as_posix(), "cwd": Path.cwd().as_posix(),
+        "package": {"proteomics-mcp": version("proteomics-mcp"), "source": Path(__import__("proteomics_mcp").__file__).parent.as_posix(),
+                    "source_sha256": source_sha256, "git_sha": git["sha"]},
+        "source_of": source_of, "git": git, "ms2pip": version("ms2pip"), "python": platform.python_version(), "platform": platform.platform(),
+        "versions": package_versions(),
+        "figure_environment": {"pinned": FIGURE_ENVIRONMENT, "requirements_sha256": file_digest(work / "requirements_figures.txt")
+                               if (work / "requirements_figures.txt").is_file() else None},
+        "inputs": {"zenodo_supplement": {"path": archive.as_posix(), "md5": file_digest(archive, "md5"), "record": ZENODO_RECORD}},
+        "figure4": fig4, "tables": rendered, "viewport": {"css_px": list(TABLE_VIEWPORT), "device_scale_factor": 3},
+        "raster_panels_dpi": dpi, "verification": {"problems": problems, "passed": passed},
+    }
+    manifest["outputs"] = {p.relative_to(out).as_posix(): file_digest(p) for p in sorted(out.rglob("*")) if p.is_file() and "work" not in p.relative_to(out).parts}
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=1, default=str))
+    log(f"done: {out}" if passed else f"checks failed ({len(problems)}): nothing deposited; see {out / 'manifest.json'}")
+    return 0 if passed else 3
+
+
 # --- CHANGES.md ----------------------------------------------------------------------------------------------------------
 
 
@@ -1058,6 +1180,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--usi-timeout", type=float, default=120.0, help="seconds per PRIDE USI request")
     parser.add_argument("--usi-retries", type=int, default=4)
     parser.add_argument("--no-verify", action="store_true", help="assemble even if the expected 0.2.0 values differ")
+    parser.add_argument("--supplementary-tables", action="store_true",
+                        help="build only Supplementary Figures 3 and 4 (the PSM and peptide tables of the Figure 4 subset)")
+    parser.add_argument("--source-of", metavar="TAG", help="stop unless the package source equals this tag's (e.g. v0.2.0)")
     parser.add_argument("--figure2-metrics-only", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--in-figure-environment", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
@@ -1075,6 +1200,7 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(f"--out {out} is not empty: files of an earlier run would be packaged as regenerated")
         return rerun_in_figure_environment(args, argv)
     source_sha256 = check_installed_package()  # before anything is scored
+    source_of = check_source_of(args.source_of, source_sha256) if args.source_of else None
     args.cache_dir = args.cache_dir.expanduser().resolve()
     args.cache_dir.mkdir(parents=True, exist_ok=True)
     archive, supplement = zenodo_supplement(args.zenodo_zip and args.zenodo_zip.expanduser().resolve(), args.cache_dir)
@@ -1098,6 +1224,8 @@ def main(argv: list[str] | None = None) -> int:
     out = args.out.expanduser().resolve()
     if REPO_ROOT in out.parents or out == REPO_ROOT:
         raise SystemExit("--out must be outside the repository")
+    if args.supplementary_tables:
+        return supplementary_tables(args, archive, supplement, out, source_sha256, source_of)
     panels, comparison, work, deposit = out / "panels", out / "comparison", out / "work", out / "deposit"
     for folder in (out, panels, comparison, work, deposit):
         folder.mkdir(parents=True, exist_ok=True)
