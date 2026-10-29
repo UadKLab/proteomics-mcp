@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # the record, its checksum and how it is extracted are those the figures were regenerated from
-from regenerate_figures import REPO_ROOT, ZENODO_MD5, ZENODO_RECORD, file_digest  # noqa: E402
+from regenerate_figures import REPO_ROOT, ZENODO_MD5, ZENODO_RECORD, file_digest, git_state  # noqa: E402
 from regenerate_figures import extract_supplement as extract_archive  # noqa: E402
 
 ISSUES = "https://github.com/UadKLab/proteomics-mcp/issues"
@@ -110,7 +110,12 @@ def sanitized(text: str) -> str:
     return text
 
 
-def provenance_markdown(figures: dict, release: str, build_command: str) -> str:
+# MS2PIP's xgboost links @rpath/libomp.dylib; on macOS it resolves to the copy pyOpenMS ships, which the package loads first
+OPENMP_MACOS = ("- **OpenMP (macOS):** MS2PIP's xgboost uses the OpenMP runtime bundled with pyOpenMS, so no separate libomp is "
+                "installed. Installing a second one (e.g. `brew install libomp`) can abort with OpenMP Error #15 (\"libomp already initialized\").")
+
+
+def provenance_markdown(figures: dict, release: str, build_command: str, packaging: dict | None = None) -> str:
     git, package = figures.get("git", {}), figures["package"]["proteomics-mcp"]
     released = git.get("describe") == f"v{release}" and package == release and not git.get("dirty")
     version_line = (f"proteomics-mcp **{release}**, built from the tag `v{release}` (commit `{git.get('sha')}`)." if released else
@@ -125,6 +130,9 @@ def provenance_markdown(figures: dict, release: str, build_command: str) -> str:
         f"- **Python:** {figures.get('python')} ({sanitized(figures.get('platform', ''))}).",
         "- **Environment:** `regeneration/uv.lock` (the checkout's lock file), `regeneration/requirements_figures.txt` (the lock with "
         "MS2PIP and the figure tools pinned) and `regeneration/environment.txt` (every installed package).",
+        *([OPENMP_MACOS] if str(figures.get("platform", "")).lower().startswith(("macos", "darwin")) else []),
+        *([f"- **Packaging:** `scripts/build_zenodo_package.py` at `{packaging.get('describe')}` (commit `{packaging.get('sha')}`"
+           f"{', with uncommitted changes' if packaging.get('dirty') else ''})."] if packaging else []),
         f"- **Figure 4 spectra:** PRIDE PXD014877 by USI, in `processed/arabidopsis/figure4_usi_spectra.mgf` "
         f"(sha256 `{(fig4.get('spectra') or {}).get('mgf_sha256')}`).",
         "- **Previous version:** Zenodo record " + ZENODO_RECORD + " reproduces proteomics-mcp 0.1.8 / 0.1.10; this version goes "
@@ -220,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
     # arguments are paths, flags and versions: paths are written with / on every platform
     build_command = "uv run python scripts/build_zenodo_package.py " + " ".join(
         sanitized(a.replace("\\", "/")) for a in (argv if argv is not None else sys.argv[1:]))
-    (supplement / "PROVENANCE.md").write_text(provenance_markdown(figures, args.release, build_command))
+    (supplement / "PROVENANCE.md").write_text(provenance_markdown(figures, args.release, build_command, git_state()))
     changed["added"].append("PROVENANCE.md")
     unchanged = sorted(deposited - set(changed["replaced"]) - set(changed["same"]))
     (supplement / "CHANGES.md").write_text(changes_markdown(changed, unchanged, figures))

@@ -114,3 +114,14 @@ def test_home_directory_is_hidden_as_written_on_windows(script, monkeypatch):
     monkeypatch.setattr(script.Path, "home", lambda: PureWindowsPath(r"C:\Users\me"))
     text = json.dumps({"cwd": r"C:\Users\me\pmcp", "posix": "C:/Users/me/pmcp"}) + "\n" + r"C:\Users\me\pmcp"
     assert "Users" not in script.sanitized(text)
+
+
+@pytest.mark.parametrize(("platform", "noted"), [("macOS-15.6-arm64-arm-64bit", True), ("Linux-6.8.0-x86_64-with-glibc2.39", False)])
+def test_provenance_notes_the_macos_openmp_runtime_and_the_packaging_commit(script, platform, noted):
+    figures = {"package": {"proteomics-mcp": "0.2.0"}, "git": {"describe": "v0.2.0", "sha": "abc", "dirty": False}, "ms2pip": "4.1.2",
+               "python": "3.12.13", "platform": platform, "command": "uv run python scripts/regenerate_figures.py"}
+    provenance = script.provenance_markdown(figures, "0.2.0", "uv run python scripts/build_zenodo_package.py",
+                                            {"describe": "v0.2.0-3-gdef", "sha": "def", "dirty": False})
+    assert ("bundled with pyOpenMS" in provenance and "OpenMP Error #15" in provenance) is noted
+    assert "**Packaging:** `scripts/build_zenodo_package.py` at `v0.2.0-3-gdef` (commit `def`)." in provenance
+    assert "proteomics-mcp **0.2.0**, built from the tag `v0.2.0`" in provenance
