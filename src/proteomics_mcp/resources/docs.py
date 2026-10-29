@@ -41,11 +41,16 @@ Spectrum-level metrics:
 - precursor_isotope_error
 - precursor_mass_error_corrected_ppm
 - precursor_mass_error_corrected_da
+- engine_precursor_isotope_error
+- engine_precursor_mass_error_ppm
 
 precursor_mass_error_* is the observed minus the theoretical monoisotopic precursor m/z. The theoretical mass includes
 every residue and terminal modification; it is null when a modification cannot be resolved. precursor_isotope_error
-(0, 1 or 2) is the 13C isotope peak closest to the observed m/z, and precursor_mass_error_corrected_* is the error
-relative to that peak.
+(0 to 3) is the 13C isotope peak closest to the observed m/z, and precursor_mass_error_corrected_* is the error
+relative to that peak. The observed m/z is the spectrum's precursor m/z, for every engine; the
+candidate's is used only when the spectrum has none. engine_precursor_isotope_error and engine_precursor_mass_error_ppm
+are the same from the candidate's precursor m/z as the identification table reports it, recalibrated by MaxQuant,
+FragPipe and Proteome Discoverer: the engine's own error.
 
 The profile preserves the sidecar-style formulas where practical while normalizing all outputs into SpectrumMetricResult.
 
